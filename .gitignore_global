@@ -1,0 +1,9 @@
+ # ignore all by default
+/*
+
+# do not ignore:
+!bin/
+!.vimrc
+!.zshrc
+!.tmux.conf
+!.gitignore_global
