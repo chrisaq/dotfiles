@@ -15,7 +15,7 @@ alias dotfiles="git --work-tree=$HOME/ --git-dir=$HOME/dotfiles.git"
 ```
 cat <<EOF
 # ignore all by default
-/*
+*
 # specific ignores
 *.pyc
 node_modules
@@ -23,10 +23,7 @@ node_modules
 !bin/
 !.vimrc
 !.tmux.conf
-EOF > $HOME/.gitignore_global
-```
-```
-git config --global core.excludesfile $HOME/.gitignore_global
+EOF > $HOME/.gitignore
 ```
 
 ###init repo:
