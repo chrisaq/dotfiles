@@ -115,7 +115,6 @@ fi
 
 # if $VIRTUAL_ENV is defined, cd with no paramters goes to $VIRTUAL_ENV, not $HOME
 if [ -n $VIRTUAL_ENV]; then
-    echo $VIRTUAL_ENV is set
     cd () {
         if (( $# == 0 ))
         then
@@ -131,5 +130,5 @@ alias vis="vim -S .vim.session"
 export EDITOR=vim
 
 # Dotfiles in git
-alias dotfiles='git --git-dir=$HOME/dotfiles.git/ --work-tree=$HOME'
+alias dotfiles='git --git-dir=$HOME/.dotfiles.git/ --work-tree=$HOME'
 unset GREP_OPTIONS
