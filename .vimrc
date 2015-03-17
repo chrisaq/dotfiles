@@ -2,11 +2,10 @@ set nocompatible               " be iMproved
 filetype off                   " required!
 
 """  vundle plugin manager
-set rtp+=~/.vim/bundle/vundle/
-call vundle#rc()
-" let Vundle manage Vundle
-" required!
-Plugin 'gmarik/vundle'
+set rtp+=~/.vim/bundle/Vundle.vim
+call vundle#begin()
+" let Vundle manage Vundle, required
+Plugin 'gmarik/Vundle.vim'
 
 " My Bundles here:
 "
@@ -60,6 +59,7 @@ Plugin 'https://github.com/ambidexterich/mustang.git'
 Plugin 'https://github.com/akmassey/vim-codeschool.git'
 Plugin 'https://github.com/tpope/vim-vividchalk.git'
 Plugin 'https://github.com/jonathanfilip/vim-lucius.git'
+call vundle#end()
 
 
 """"""""""" REST OF CONFIG
@@ -247,6 +247,7 @@ else
 endif
 
 " vim powerline, fancy prompt
+let g:powerline_pycmd = "py3"
 let g:Powerline_symbols = 'fancy'
 set encoding=utf-8
 
