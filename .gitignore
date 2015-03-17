@@ -1,7 +1,8 @@
- # ignore all by default
-/*
+# ignore all by default
+*
 
 # do not ignore:
+!Code/*
 !bin/
 !.vimrc
 !.zshrc
