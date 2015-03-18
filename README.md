@@ -5,7 +5,7 @@
 ###create git-dotfiles-dir and add alias
 
 ```
-mkdir $HOME/dotfiles.git
+mkdir $HOME/.dotfiles.git
 # add the below to your .zshrc or .bashrc
 alias dotfiles="git --work-tree=$HOME/ --git-dir=$HOME/.dotfiles.git"
 ```
