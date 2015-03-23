@@ -20,6 +20,7 @@ Plugin 'gregsexton/gitv'
 Plugin 'https://github.com/scrooloose/syntastic.git'
 Plugin 'sontek/rope-vim.git'
 Plugin 'fs111/pydoc.vim.git'
+Plugin 'michaeljsmith/vim-indent-object'
 " Getting pep8 through syntastic
 "Bundle 'vim-scripts/pep8.git'
 Plugin 'alfredodeza/pytest.vim.git'
