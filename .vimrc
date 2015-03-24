@@ -40,6 +40,7 @@ Plugin 'sjl/gundo.vim.git'
 Plugin 'chrisbra/changesPlugin'
 Plugin 'https://github.com/Lokaltog/vim-easymotion.git'
 Plugin 'Raimondi/delimitMate'
+Plugin 'tmux-plugins/vim-tmux-focus-events'
 " replacing ultisnips with neosnips for now
 Plugin 'SirVer/ultisnips'
 Plugin 'honza/vim-snippets'
