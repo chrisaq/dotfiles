@@ -39,11 +39,14 @@ COMPLETION_WAITING_DOTS="true"
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 #plugins=(git vi-mode)
-plugins=(git github ssh-agent gpg-agent brew history-substring-search zsh-syntax-highlighting)
+plugins=(git github ssh-agent gpg-agent docker knife history-substring-search zsh-syntax-highlighting)
 
 source $ZSH/oh-my-zsh.sh
 
 # powerline
+if command -v powerline-daemon >/dev/null 2>&1; then
+    powerline-daemon -q
+fi
 PLDIR=/usr/lib/python3.4/site-packages/
 if [ -f "${PLDIR}/powerline/bindings/zsh/powerline.zsh" ]; then
     . ${PLDIR}/powerline/bindings/zsh/powerline.zsh
