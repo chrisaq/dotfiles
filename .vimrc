@@ -2,6 +2,8 @@ set nocompatible               " be iMproved
 filetype off                   " required!
 
 """  vundle plugin manager
+" git clone https://github.com/gmarik/Vundle.vim.git ~/.vim/bundle/Vundle.vim
+" vim +PluginInstall +qall
 set rtp+=~/.vim/bundle/Vundle.vim
 call vundle#begin()
 " let Vundle manage Vundle, required
@@ -247,9 +249,10 @@ else
     "colorscheme zenburn
 endif
 
+
 " vim powerline, fancy prompt
-let g:powerline_pycmd = "py3"
-let g:Powerline_symbols = 'fancy'
+"let g:powerline_pycmd = "py3"
+"let g:Powerline_symbols = 'fancy'
 set encoding=utf-8
 
 "if &t_Co == 256
@@ -358,4 +361,16 @@ nnoremap <leader>g :YcmCompleter GoToDefinitionElseDeclaration<CR>
 " disable tab in ycm as to not interefer with ultisnips, use c-n/c-p
 let g:ycm_key_list_select_completion=[]
 let g:ycm_key_list_previous_completion=[]
+
+" Multiline comment:
+if 0
+i
+
+this is a multiline comment hack
+vim, since it only supports single line
+comments
+
+.
+endif
+" Multiline comment ends
 
