@@ -1,0 +1,10 @@
+[Unit]
+Description=jupyter notebook
+
+[Service]
+ExecStart=/usr/bin/jupyter notebook
+WorkingDirectory=%h/Dropbox/Code/Notebooks
+
+[Install]
+WantedBy=default.target
+
