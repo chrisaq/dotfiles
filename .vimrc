@@ -221,8 +221,25 @@ set laststatus=2            " Always show statusline, even if only 1 window.
 set statusline=[%l,%v\ %P%M]\ %f\ %r%h%w\ (%{&ff})\ %{fugitive#statusline()}
 
 " displays tabs with :set list & displays when a line runs off-screen
-set listchars=tab:>-,eol:$,trail:-,precedes:<,extends:>
+" set listchars=tab:>-,eol:$,trail:-,precedes:<,extends:>
 set list
+set listchars=tab:▸\ ,trail:·,precedes:<,extends:>
+
+" Highlight whitespace at end of line
+"highlight ExtraWhitespace ctermbg=red guibg=red
+"match ExtraWhitespace /\s\+$/
+"autocmd BufWinEnter * match ExtraWhitespace /\s\+$/
+"autocmd InsertEnter * match ExtraWhitespace /\s\+\%#\@<!$/
+"autocmd InsertLeave * match ExtraWhitespace /\s\+$/
+"autocmd BufWinLeave * call clearmatches()
+
+autocmd InsertEnter * syn clear EOLWS | syn match EOLWS excludenl /\s\+\%#\@!$/
+autocmd InsertLeave * syn clear EOLWS | syn match EOLWS excludenl /\s\+$/
+highlight EOLWS ctermbg=red guibg=red
+
+" Highlight non-ascii characters
+au BufReadPost * syntax match nonascii "[^\u0000-\u007F]"
+highlight nonascii guibg=Red ctermbg=1 term=standout
 
 """ Searching and Patterns
 set ignorecase              " Default to using case insensitive searches,
@@ -236,8 +253,6 @@ nmap <silent> ,/ :nohlsearch<CR> " Clear searches by typing ,/"
 nnoremap / /\v
 vnoremap / /\v
 
-highlight nonascii guibg=Red ctermbg=1 term=standout
-au BufReadPost * syntax match nonascii "[^\u0000-\u007F]"
 
 """" Display
 "set t_Co=256
@@ -292,6 +307,7 @@ autocmd FileType html,xhtml,xml,css setlocal expandtab shiftwidth=2 tabstop=2 so
 au FileType python set omnifunc=pythoncomplete#Complete
 au FileType python setlocal expandtab shiftwidth=4 tabstop=8 softtabstop=4 smartindent cinwords=if,elif,else,for,while,try,except,finally,def,class,with
 au BufRead *.py set efm=%C\ %.%#,%A\ \ File\ \"%f\"\\,\ line\ %l%.%#,%Z%[%^\ ]%\\@=%m
+au! FileType python setl nosmartindent
 
 " jedi-vim {
 let g:jedi#auto_vim_configuration = 0
