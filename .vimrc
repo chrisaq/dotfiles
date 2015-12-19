@@ -236,6 +236,9 @@ nmap <silent> ,/ :nohlsearch<CR> " Clear searches by typing ,/"
 nnoremap / /\v
 vnoremap / /\v
 
+highlight nonascii guibg=Red ctermbg=1 term=standout
+au BufReadPost * syntax match nonascii "[^\u0000-\u007F]"
+
 """" Display
 "set t_Co=256
 if has("gui_running") || &t_Co == 256
