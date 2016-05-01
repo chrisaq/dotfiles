@@ -42,7 +42,8 @@ Plugin 'vim-scripts/The-NERD-tree.git'
 Plugin 'sjl/gundo.vim.git'
 Plugin 'chrisbra/changesPlugin'
 Plugin 'https://github.com/Lokaltog/vim-easymotion.git'
-Plugin 'Raimondi/delimitMate'
+" Plugin 'Raimondi/delimitMate'
+Plugin 'jiangmiao/auto-pairs'
 Plugin 'tmux-plugins/vim-tmux-focus-events'
 " replacing ultisnips with neosnips for now
 Plugin 'SirVer/ultisnips'
@@ -382,6 +383,8 @@ nnoremap <leader>g :YcmCompleter GoToDefinitionElseDeclaration<CR>
 let g:ycm_key_list_select_completion=[]
 let g:ycm_key_list_previous_completion=[]
 
+let g:AutoPairsFlyMode = 1
+
 " Multiline comment:
 if 0
 i
@@ -392,5 +395,5 @@ comments
 
 .
 endif
-" Multiline comment ends
+pairs" Multiline comment ends
 
