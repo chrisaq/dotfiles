@@ -395,5 +395,5 @@ comments
 
 .
 endif
-pairs" Multiline comment ends
+" Multiline comment ends
 
