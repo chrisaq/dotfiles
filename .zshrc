@@ -40,6 +40,8 @@ COMPLETION_WAITING_DOTS="true"
 # Example format: plugins=(rails git textmate ruby lighthouse)
 #plugins=(git vi-mode)
 plugins=(git github ssh-agent gpg-agent docker knife history-substring-search zsh-syntax-highlighting)
+# Install syntax highlighting:
+# git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
 
 source $ZSH/oh-my-zsh.sh
 
@@ -136,3 +138,8 @@ export EDITOR=vim
 # Dotfiles in git
 alias dotfiles='git --git-dir=$HOME/.dotfiles.git/ --work-tree=$HOME'
 unset GREP_OPTIONS
+
+# fasd
+if command -v fasd >/dev/null 2>&1; then
+    eval "$(fasd --init auto)"
+fi
