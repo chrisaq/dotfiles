@@ -49,7 +49,7 @@ source $ZSH/oh-my-zsh.sh
 if command -v powerline-daemon >/dev/null 2>&1; then
     powerline-daemon -q
 fi
-PLDIR=/usr/lib/python3.4/site-packages/
+PLDIR=/usr/lib/python3.5/site-packages/
 if [ -f "${PLDIR}/powerline/bindings/zsh/powerline.zsh" ]; then
     . ${PLDIR}/powerline/bindings/zsh/powerline.zsh
 fi
