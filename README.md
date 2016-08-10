@@ -44,6 +44,7 @@ git clone --bare https://github.com/chrisaq/dotfiles.git ~/.dotfiles.git
 dotfiles status -s -uno
 dotfiles reset HEAD
 dotfiles checkout ~
+dotfiles push --set-upstream origin master
 # TODO: Figure out a better way to gitignore
 #git config --global core.excludesfile $HOME/.gitignore_global # this file was created on the initial setup
 ```
