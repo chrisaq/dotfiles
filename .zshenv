@@ -15,9 +15,11 @@
 
 # $ZDOTDIR/.zlogin
 ### is sourced in login shells. It should contain commands that should be executed only in login shells
+### used to set the terminal type and run a series of external commands (fortune, msgs, etc).
 
 # $ZDOTDIR/.zlogout
 ### sourced when login shells exit
 
+# setting ZDOTDIR to .config/zsh stops ~/.zshrc from being sourced
 ZDOTDIR=$HOME/.config/zsh
 . $ZDOTDIR/.zshenv

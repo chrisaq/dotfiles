@@ -1,3 +1,6 @@
+# $ZDOTDIR/.zshrc
+### sourced in interactive shells. It should contain commands to set up aliases, functions, options, key bindings, etc.
+#
 # cq: sourced by logins shell and xterms
 #echo ".zshrc"
 
@@ -86,7 +89,7 @@ bindkey '\e[B' history-beginning-search-forward
 if [ "$TERM" = "xterm" ] ; then
     if [ -z "$COLORTERM" ] ; then
         if [ -z "$XTERM_VERSION" ] ; then
-            echo "Warning: Terminal wrongly calling itself 'xterm', assuming color term"
+            # echo "Warning: Terminal misidentifying itself 'xterm', assuming color term"
             TERM="xterm-256color"
         else
             case "$XTERM_VERSION" in
