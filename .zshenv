@@ -1,4 +1,4 @@
-echo sourcing $HOME/.zshenv
+# echo sourcing $HOME/.zshenv
 
 # zsh config files in the order they are sourced
 
