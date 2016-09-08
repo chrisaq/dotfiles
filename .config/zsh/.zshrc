@@ -112,5 +112,5 @@ unset GREP_OPTIONS
 # fasd
 if command -v fasd >/dev/null 2>&1; then
     eval "$(fasd --init auto)"
+    alias v='f -t -e vim'
 fi
-

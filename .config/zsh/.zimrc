@@ -11,7 +11,10 @@
 # Select what modules you would like enabled.
 # The second line of modules may depend on options set by modules in the first line.
 # These dependencies are noted on the respective module's README.md.
-zmodules=(directory environment git history input utility custom ssh pacman fasd \
+### fasd here seems to break its tab completion
+#zmodules=(directory environment git history input utility custom ssh pacman fasd \
+#          syntax-highlighting history-substring-search prompt completion)
+zmodules=(directory environment git history input utility custom ssh pacman \
           syntax-highlighting history-substring-search prompt completion)
 
 
