@@ -1,49 +1,12 @@
 # $ZDOTDIR/.zshrc
 ### sourced in interactive shells. It should contain commands to set up aliases, functions, options, key bindings, etc.
 #
-echo sourcing $HOME/.config/zsh/.zshrc
+#echo sourcing $HOME/.config/zsh/.zshrc
 
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
 
-# TODO Is this required anymore?
-# Setting the TERM
-if [ "$TERM" = "xterm" ] ; then
-    if [ -z "$COLORTERM" ] ; then
-        if [ -z "$XTERM_VERSION" ] ; then
-            # echo "Warning: Terminal misidentifying itself 'xterm', assuming color term"
-            TERM="xterm-256color"
-        else
-            case "$XTERM_VERSION" in
-            "XTerm(256)") TERM="xterm-256color" ;;
-            "XTerm(88)") TERM="xterm-88color" ;;
-            "XTerm") ;;
-            *)
-                echo "Warning: Unrecognized XTERM_VERSION: $XTERM_VERSION"
-                ;;
-            esac
-        fi
-    else
-        case "$COLORTERM" in
-            gnome-terminal)
-                # Those crafty Gnome folks require you to check COLORTERM,
-                # but don't allow you to just *favor* the setting over TERM.
-                # Instead you need to compare it and perform some guesses
-                # based upon the value. This is, perhaps, too simplistic.
-                TERM="gnome-256color"
-                ;;
-            *)
-                echo "Warning: Unrecognized COLORTERM: $COLORTERM"
-                ;;
-        esac
-    fi
-fi
-
-
-# Source zim
-if [[ -s ${ZDOTDIR:-${HOME}}/.zim/init.zsh ]]; then
-  source ${ZDOTDIR:-${HOME}}/.zim/init.zsh
-fi
+export TERM="xterm-256color"
 
 # Fonts:
 # https://github.com/gabrielelana/awesome-terminal-fonts
@@ -61,7 +24,11 @@ POWERLEVEL9K_DIR_HOME_SUBFOLDER_FOREGROUND="white"
 POWERLEVEL9K_DIR_DEFAULT_FOREGROUND="white"
 #POWERLEVEL9K_VI_INSERT_MODE_STRING="INS"
 #POWERLEVEL9K_VI_COMMAND_MODE_STRING="CMD"
-#
+
+# Source zim after theme
+if [[ -s ${ZDOTDIR:-${HOME}}/.zim/init.zsh ]]; then
+  source ${ZDOTDIR:-${HOME}}/.zim/init.zsh
+fi
 
 # powerline
 #if command -v powerline-daemon >/dev/null 2>&1; then
@@ -73,9 +40,6 @@ POWERLEVEL9K_DIR_DEFAULT_FOREGROUND="white"
 #fi
 
 # Customize to your needs...
-export PATH=$HOME/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:/srv/chains/bin:$HOME/.gem/ruby/2.2.0/bin:/opt/dropbox
-export XDG_CONFIG_HOME=$HOME/.config
-export XDG_DATA_HOME=$HOME/.local/share
 # Lines configured by zsh-newuser-install
 HISTFILE=~/.histfile
 HISTSIZE=3000
@@ -85,12 +49,6 @@ unsetopt beep
 
 # history search
 bindkey "^R" history-incremental-search-backward
-#autoload -U up-line-or-beginning-search
-#autoload -U down-line-or-beginning-search
-#zle -N up-line-or-beginning-search
-#zle -N down-line-or-beginning-search
-#bindkey "^[[A" up-line-or-beginning-search # Up
-#bindkey "^[[B" down-line-or-beginning-search # Down
 [[ -n "${key[Up]}" ]] && bindkey "${key[Up]}" history-beginning-search-backward
 [[ -n "${key[Down]}" ]] && bindkey "${key[Down]}" history-beginning-search-forward
 
@@ -109,8 +67,33 @@ export EDITOR=vim
 alias dotfiles='git --git-dir=$HOME/.dotfiles.git/ --work-tree=$HOME'
 unset GREP_OPTIONS
 
+# fzf
+HAS_FZF=0 && command -v fzf >/dev/null 2>&1 && HAS_FZF=1
+if [[ $HAS_FZF -eq 1  ]]; then
+    fkill() {
+        pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
+
+        if [ "x$pid" != "x" ]; then
+            kill -${1:-9} $pid
+        fi
+    }
+fi
 # fasd
 if command -v fasd >/dev/null 2>&1; then
     eval "$(fasd --init auto)"
-    alias v='f -t -e vim'
+    if [[ $HAS_FZF -eq 1  ]]; then
+        unalias z
+        z() {
+            local dir
+            dir="$(fasd -Rdl "$1" | fzf -1 -0 --no-sort +m)" && cd "${dir}" || return 1
+        }
+        v() {
+            local file
+            file="$(fasd -Rfl "$1" | fzf -1 -0 --no-sort +m)" && vim "${file}" || return 1
+        }
+    else
+        alias v='f -t -e vim'
+    fi
 fi
+
+
