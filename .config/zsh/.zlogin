@@ -1,11 +1,11 @@
-
-
 #
 # startup file read in interactive login shells
 #
 # The following code helps us by optimizing the existing framework.
 # This includes zcompile, zcompdump, etc.
 #
+
+echo logging into `hostname`
 
 (
   # Function to determine the need of a zcompile. If the .zwc file
@@ -54,6 +54,5 @@
 
   # zsh-histery-substring-search
   zcompare ${zim_mods}/history-substring-search/external/zsh-history-substring-search.zsh
-  
 
 ) &!
