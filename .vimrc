@@ -20,7 +20,7 @@ Plugin 'gregsexton/gitv'
 "python-mode is all in one, but hard to make working, try again later
 "Bundle 'https://github.com/klen/python-mode.git'
 Plugin 'https://github.com/scrooloose/syntastic.git'
-Plugin 'sontek/rope-vim.git'
+Plugin 'https://github.com/python-rope/ropevim.git'
 Plugin 'fs111/pydoc.vim.git'
 Plugin 'michaeljsmith/vim-indent-object'
 " Getting pep8 through syntastic
@@ -54,7 +54,7 @@ Plugin 'https://github.com/Valloric/YouCompleteMe.git'
 "Bundle 'Shougo/neocomplcache'
 "" color schemes and appearance
 "Plugin 'Lokaltog/vim-powerline'
-Plugin 'altercation/vim-colors-solarized'
+Plugin 'Solarized'
 Plugin 'jnurmine/Zenburn'
 Plugin 'https://github.com/nanotech/jellybeans.vim'
 Plugin 'https://github.com/sickill/vim-monokai.git'
