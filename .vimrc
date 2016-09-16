@@ -10,6 +10,7 @@ call vundle#begin()
 Plugin 'gmarik/Vundle.vim'
 
 " My Bundles here:
+" TODO: sort properly
 "
 Plugin 'L9'
 " git
@@ -27,7 +28,8 @@ Plugin 'michaeljsmith/vim-indent-object'
 "Bundle 'vim-scripts/pep8.git'
 Plugin 'alfredodeza/pytest.vim.git'
 Plugin 'jmcantrell/vim-virtualenv'
-Plugin 'vim-flake8'
+" Plugin 'vim-flake8'
+Plugin 'andviro/flake8-vim'
 "" jedi is not compatible with youcompleteme
 Plugin 'https://github.com/davidhalter/jedi-vim.git'
 "" code helpers
@@ -36,9 +38,11 @@ Plugin 'scrooloose/nerdcommenter'
 Plugin 'https://github.com/nathanaelkane/vim-indent-guides.git'
 Plugin 'tpope/vim-surround.git'
 Plugin 'tpope/vim-repeat.git'
+Plugin 'vim-scripts/TaskList.vim'
 "" Misc scripts
-Plugin 'kien/ctrlp.vim'
-Plugin 'vim-scripts/The-NERD-tree.git'
+Plugin 'https://github.com/ctrlpvim/ctrlp.vim.git'
+Bundle 'amiorin/ctrlp-z'
+Plugin 'https://github.com/scrooloose/nerdtree.git'
 Plugin 'sjl/gundo.vim.git'
 Plugin 'chrisbra/changesPlugin'
 Plugin 'https://github.com/Lokaltog/vim-easymotion.git'
@@ -72,7 +76,7 @@ call vundle#end()
 " ==========================================================
 " Shortcuts
 " ==========================================================
-let mapleader=","             " change the leader to be a comma vs slash
+let mapleader=","             " change the leader to be a comma vs backslash
 
 " Seriously, guys. It's not like :W is bound to anything anyway.
 command! W :w
@@ -80,7 +84,49 @@ command! Q :q
 
 " sudo write this
 cmap W! w !sudo tee % >/dev/null
+" for when we forget to use sudo to open/edit a file
+cmap w!! w !sudo tee % >/dev/null
 
+" ctrl-jklm  changes to that split
+map <c-j> <c-w>j
+map <c-k> <c-w>k
+map <c-l> <c-w>l
+map <c-h> <c-w>h
+
+" and lets make these all work in insert mode too ( <C-O> makes next cmd
+"  happen as if in command mode )
+imap <C-W> <C-O><C-W>
+
+" ======= PLUGINS shortcuts
+"
+
+""" easymotion plugin
+" reset from leader leader to single leader
+map <Leader> <Plug>(easymotion-prefix)
+" <Leader>f{char} to move to {char}
+map  <Leader>f <Plug>(easymotion-bd-f)
+nmap <Leader>f <Plug>(easymotion-overwin-f)
+" s{char}{char} to move to {char}{char}
+nmap s <Plug>(easymotion-overwin-f2)
+" Move to line
+map <Leader>L <Plug>(easymotion-bd-jk)
+nmap <Leader>L <Plug>(easymotion-overwin-line)
+" Move to word
+map  <Leader>w <Plug>(easymotion-bd-w)
+nmap <Leader>w <Plug>(easymotion-overwin-w)
+" search overridden by easymotion
+map  / <Plug>(easymotion-sn)
+omap / <Plug>(easymotion-tn)
+map  n <Plug>(easymotion-next)
+map  N <Plug>(easymotion-prev)
+
+" ctrlp
+let g:ctrlp_max_files=0
+
+" ctrlp-z
+let g:ctrlp_z_nerdtree = 1
+nnoremap sz :CtrlPZ<Cr>
+nnoremap sf :CtrlPF<Cr>
 
 " Toggle the tasklist
 map <leader>td <Plug>TaskList
@@ -96,34 +142,16 @@ nmap <silent><Leader>tn <Esc>:Pytest next<CR>
 nmap <silent><Leader>tp <Esc>:Pytest previous<CR>
 nmap <silent><Leader>te <Esc>:Pytest error<CR>
 
-" for when we forget to use sudo to open/edit a file
-cmap w!! w !sudo tee % >/dev/null
-
-" ctrl-jklm  changes to that split
-map <c-j> <c-w>j
-map <c-k> <c-w>k
-map <c-l> <c-w>l
-map <c-h> <c-w>h
-
-" and lets make these all work in insert mode too ( <C-O> makes next cmd
-"  happen as if in command mode )
-imap <C-W> <C-O><C-W>
 
 " Open NerdTree
 map <leader>n :NERDTreeToggle<CR>
 
-" Run command-t file search
-"map <leader>f :CommandT<CR>
-
-" Ack searching
-nmap <leader>a <Esc>:Ack!
-
 " Load the Gundo window
 map <leader>u :GundoToggle<CR>
 
+""" rope-vim
 " Jump to the definition of whatever the cursor is on
 map <leader>j :RopeGotoDefinition<CR>
-
 " Rename whatever the cursor is on (including references to it)
 map <leader>r :RopeRename<CR>
 
@@ -133,7 +161,6 @@ map <leader>t :TagbarToggle<CR>
 " changesPlugin:
 let g:changes_vcs_check=1 " automatically detect VCS-system
 " let g:changes_vcs_system='git'
-
 
 " ==========================================================
 " Basic Settings
@@ -164,11 +191,6 @@ nnoremap <leader>. :lcd %:p:h<CR>
 " first autocmd for the filetype here
 autocmd FileType * setlocal colorcolumn=0
 
-""" Insert completion
-" don't select first item, follow typing in autocomplete
-"set completeopt=menuone,longest,preview
-"set pumheight=6             " Keep a small completion window
-
 " show a line at column 79
 if exists("&colorcolumn")
     set colorcolumn=79
@@ -180,7 +202,7 @@ set ruler                   " show the cursor position all the time
 set nostartofline           " Avoid moving cursor to BOL when jumping around
 set virtualedit=block       " Let cursor move past the last char in <C-v> mode
 set scrolloff=3             " Keep 3 context lines above and below the cursor
-set backspace=2             " Allow backspacing over autoindent, EOL, and BOL
+set backspace=indent,eol,start  " Allow backspacing over autoindent, EOL, and BOL
 set showmatch               " Briefly jump to a paren once it's balanced
 set nowrap                  " don't wrap text
 set linebreak               " don't wrap textin the middle of a word
@@ -276,10 +298,6 @@ endif
 "let g:Powerline_symbols = 'fancy'
 set encoding=utf-8
 
-"if &t_Co == 256
-"         colorscheme desert256
-"endif
-
 " Paste from clipboard
 map <leader>p "+gP
 
@@ -342,39 +360,6 @@ let g:syntastic_mode_map = { 'mode': 'active',
     \ 'active_filetypes': ['python', 'php'],
     \ 'passive_filetypes': ['puppet'] }
 let g:syntastic_python_flake8_args='--ignore=E501'
-
-" Add the virtualenv's site-packages to vim path
-"py << EOF
-"import os.path
-"import sys
-"import vim
-"if 'VIRTUALENV' in os.environ:
-"    project_base_dir = os.environ['VIRTUAL_ENV']
-"    sys.path.insert(0, project_base_dir)
-"    activate_this = os.path.join(project_base_dir, 'bin/activate_this.py')
-"    execfile(activate_this, dict(__file__=activate_this))
-"EOF
-" Load up virtualenv's vimrc if it exists
-"if filereadable($VIRTUAL_ENV . '/.vimrc')
-"    source $VIRTUAL_ENV/.vimrc
-"endif
-"
-"
-" switch between dark and light backgrounds with F12
-" http://crunchbang.org/forums/viewtopic.php?id=16105
-map <silent> <F12> :if background == "light"<CR>
-            \set background=dark<CR>
-            \else<CR>
-            \set background=light<CR>
-            \endif<CR>
-
-"""" autocompletion:
-"autocmd FileType python set omnifunc=pythoncomplete#Complete
-"autocmd FileType javascript set omnifunc=javascriptcomplete#CompleteJS
-"autocmd FileType html set omnifunc=htmlcomplete#CompleteTags
-"autocmd FileType css set omnifunc=csscomplete#CompleteCSS
-"autocmd FileType xml set omnifunc=xmlcomplete#CompleteTags
-"autocmd FileType php set omnifunc=phpcomplete#CompletePHP
 
 "" YouComleteMe
 let g:ycm_autoclose_preview_window_after_completion=1
