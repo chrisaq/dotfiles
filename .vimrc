@@ -70,6 +70,24 @@ Plugin 'https://github.com/tpope/vim-vividchalk.git'
 Plugin 'https://github.com/jonathanfilip/vim-lucius.git'
 call vundle#end()
 
+" Load vim-plug
+if empty(glob("~/.vim/autoload/plug.vim"))
+    " Ensure all needed directories exist  (Thanks @kapadiamush)
+    execute 'mkdir -p ~/.vim/plugged'
+    execute 'mkdir -p ~/.vim/autoload'
+    " Download the actual plugin manager
+    execute '!curl -fLo ~/.vim/autoload/plug.vim https://raw.github.com/junegunn/vim-plug/master/plug.vim'
+endif
+
+call plug#begin('~/.vim/plugged')
+
+Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': 'yes \| ./install'  }
+Plug 'junegunn/fzf.vim'
+Plug 'vim-airline/vim-airline'
+Plug 'vim-airline/vim-airline-themes'
+
+filetype plugin indent on                   " required!
+call plug#end()
 
 """"""""""" REST OF CONFIG
 
@@ -209,7 +227,7 @@ set linebreak               " don't wrap textin the middle of a word
 set autoindent              " always set autoindenting on
 " smartindent is old and useless according to the internet
 "set smartindent             " use smart indent if there is no indent file
-set tabstop=4               " <tab> inserts 4 spaces 
+set tabstop=4               " <tab> inserts 4 spaces
 set shiftwidth=4            " but an indent level is 2 spaces wide.
 set softtabstop=4           " <BS> over an autoindent deletes both spaces.
 set expandtab               " Use spaces, not tabs, for autoindent/tab key.
@@ -268,7 +286,7 @@ highlight nonascii guibg=Red ctermbg=1 term=standout
 """ Searching and Patterns
 set ignorecase              " Default to using case insensitive searches,
 set smartcase               " unless uppercase letters are used in the regex.
-set smarttab                " Handle tabs more intelligently 
+set smarttab                " Handle tabs more intelligently
 set hlsearch                " Highlight searches by default.
 set incsearch               " Incrementally search while typing a /regex
 set gdefault                " Search and replace globally by default.
@@ -296,6 +314,16 @@ endif
 " vim powerline, fancy prompt
 "let g:powerline_pycmd = "py3"
 "let g:Powerline_symbols = 'fancy'
+
+" Enable vim-airline
+let g:airline#extensions#tabline#enabled = 1
+let g:airline_powerline_fonts = 1
+if !exists('g:airline_symbols')
+    let g:airline_symbols = {}
+endif
+
+
+
 set encoding=utf-8
 
 " Paste from clipboard

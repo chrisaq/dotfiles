@@ -146,3 +146,5 @@ unset GREP_OPTIONS
 if command -v fasd >/dev/null 2>&1; then
     eval "$(fasd --init auto)"
 fi
+
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
