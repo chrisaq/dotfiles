@@ -19,7 +19,7 @@ Name[pt]=Loja
 Name[ru]=Магазин
 Name[zh_CN]=商店
 Name[zh_TW]=商店
-Exec=steam steam://store
+Exec=steam-mesa steam://store
 
 [Desktop Action Community]
 Name=Community
@@ -30,7 +30,7 @@ Name[pt]=Comunidade
 Name[ru]=Сообщество
 Name[zh_CN]=社区
 Name[zh_TW]=社群
-Exec=steam steam://url/SteamIDControlPage
+Exec=steam-mesa steam://url/SteamIDControlPage
 
 [Desktop Action Library]
 Name=Library
@@ -42,7 +42,7 @@ Name[pt]=Biblioteca
 Name[ru]=Библиотека
 Name[zh_CN]=库
 Name[zh_TW]=遊戲庫
-Exec=steam steam://open/games
+Exec=steam-mesa steam://open/games
 
 [Desktop Action Servers]
 Name=Servers
@@ -54,7 +54,7 @@ Name[pt]=Servidores
 Name[ru]=Серверы
 Name[zh_CN]=服务器
 Name[zh_TW]=伺服器
-Exec=steam steam://open/servers
+Exec=steam-mesa steam://open/servers
 
 [Desktop Action Screenshots]
 Name=Screenshots
@@ -64,7 +64,7 @@ Name[it]=Screenshot
 Name[ru]=Скриншоты
 Name[zh_CN]=截图
 Name[zh_TW]=螢幕擷圖
-Exec=steam steam://open/screenshots
+Exec=steam-mesa steam://open/screenshots
 
 [Desktop Action News]
 Name=News
@@ -76,7 +76,7 @@ Name[pt]=Notícias
 Name[ru]=Новости
 Name[zh_CN]=新闻
 Name[zh_TW]=新聞
-Exec=steam steam://open/news
+Exec=steam-mesa steam://open/news
 
 [Desktop Action Settings]
 Name=Settings
@@ -88,11 +88,11 @@ Name[pt]=Configurações
 Name[ru]=Настройки
 Name[zh_CN]=设置
 Name[zh_TW]=設定
-Exec=steam steam://open/settings
+Exec=steam-mesa steam://open/settings
 
 [Desktop Action BigPicture]
 Name=Big Picture
-Exec=steam steam://open/bigpicture
+Exec=steam-mesa steam://open/bigpicture
 
 [Desktop Action Friends]
 Name=Friends
@@ -104,4 +104,4 @@ Name[pt]=Amigos
 Name[ru]=Друзья
 Name[zh_CN]=好友
 Name[zh_TW]=好友
-Exec=steam steam://open/friends
+Exec=steam-mesa steam://open/friends
