@@ -27,7 +27,8 @@ Plug 'tpope/vim-fugitive'
 Plug 'gregsexton/gitv'
 "" python
 Plug 'scrooloose/syntastic'
-Plug 'python-rope/ropevim'
+" rope doesn't workj with py3 yet
+" Plug 'python-rope/ropevim'
 Plug 'fs111/pydoc.vim'
 Plug 'michaeljsmith/vim-indent-object'
 " Getting pep8 through syntastic
@@ -45,6 +46,7 @@ Plug 'nathanaelkane/vim-indent-guides'
 Plug 'tpope/vim-surround'
 Plug 'tpope/vim-repeat'
 Plug 'vim-scripts/TaskList.vim'
+Plug 'ap/vim-css-color'
 "" Misc scripts
 "Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': 'yes \| ./install'  }
 Plug 'junegunn/fzf', { 'dir': $XDG_DATA_HOME . '/fzf', 'do': 'yes n \| ./install' }
@@ -83,7 +85,8 @@ call plug#end()
 " ==========================================================
 " Shortcuts
 " ==========================================================
-let mapleader=","             " change the leader to be a comma vs backslash
+"let mapleader=","             " change the leader to be a comma vs backslash
+let mapleader="\<Space>"             " Testing space...
 
 " Seriously, guys. It's not like :W is bound to anything anyway.
 command! W :w
@@ -138,11 +141,11 @@ nnoremap <leader>S :%s/\s\+$//<cr>:let @/=''<CR>
 "" Move to word
 "map  <Leader>w <Plug>(easymotion-bd-w)
 "nmap <Leader>w <Plug>(easymotion-overwin-w)
-"" search overridden by easymotion
-"map  / <Plug>(easymotion-sn)
-"omap / <Plug>(easymotion-tn)
-"map  n <Plug>(easymotion-next)
-"map  N <Plug>(easymotion-prev)
+" search overridden by easymotion
+map  / <Plug>(easymotion-sn)
+omap / <Plug>(easymotion-tn)
+map  n <Plug>(easymotion-next)
+map  N <Plug>(easymotion-prev)
 
 """ fzf
 "imap <C-f> <plug>(fzf-complete-line)
@@ -218,11 +221,11 @@ let g:NERDTreeMapOpenVSplit='v'
 " Load the Gundo window
 map <leader>u :GundoToggle<CR>
 
-""" rope-vim
+""" rope-vim - disabled until py3 support is in place
 " Jump to the definition of whatever the cursor is on
-map <leader>j :RopeGotoDefinition<CR>
+"map <leader>j :RopeGotoDefinition<CR>
 " Rename whatever the cursor is on (including references to it)
-map <leader>r :RopeRename<CR>
+"map <leader>r :RopeRename<CR>
 
 " Tagbar
 map <leader>t :TagbarToggle<CR>
@@ -234,9 +237,9 @@ map <leader>t :TagbarToggle<CR>
 syntax on                     " syntax highlighing
 filetype on                   " try to detect filetypes
 filetype plugin indent on     " enable loading indent file for filetype
-"set number                    " Display line numbers
+set number                    " Display current line number
 set relativenumber            " Display line numbers relative to current line
-set numberwidth=1             " using only 1 column (and 1 space) while possible
+set numberwidth=1             " using only 1 column (and 1 spa4e) while possible
 set background=dark           " We are using dark background in vim
 set title                     " show title in console title bar
 set wildmenu                  " Menu completion in command mode on <Tab>
@@ -276,8 +279,8 @@ set autoindent              " always set autoindenting on
 " smartindent is old and useless according to the internet
 "set smartindent             " use smart indent if there is no indent file
 set tabstop=4               " <tab> inserts 4 spaces
-set shiftwidth=4            " but an indent level is 2 spaces wide.
-set softtabstop=4           " <BS> over an autoindent deletes both spaces.
+set shiftwidth=4            " but an indent level is 4 spaces wide.
+set softtabstop=4           " <BS> over an autoindent deletes 4 spaces.
 set expandtab               " Use spaces, not tabs, for autoindent/tab key.
 set shiftround              " rounds indent to a multiple of shiftwidth
 set matchpairs+=<:>         " show matching <> (html mainly) as well
@@ -353,15 +356,19 @@ set encoding=utf-8
 
 
 " ===========================================================
-" FileType specific changes
+" FileType specific configuration
 " ============================================================
+
+""" Open new/empty files in insert mode - NOTE: opens gundo in insert mode :(
+" au BufNewFile * startinsert
+""" Open new/empty buffers in insert mode
+" autocmd VimEnter * if empty(expand("%")) | startinsert | endif
 
 """ Mako/HTML
 autocmd BufNewFile,BufRead *.mako,*.mak setlocal ft=html
 autocmd FileType html,xhtml,xml,css setlocal expandtab shiftwidth=2 tabstop=2 softtabstop=2
 
 """ Python
-"au BufRead *.py compiler nose
 au FileType python set omnifunc=pythoncomplete#Complete
 au FileType python setlocal expandtab shiftwidth=4 tabstop=8 softtabstop=4
 au BufRead *.py set efm=%C\ %.%#,%A\ \ File\ \"%f\"\\,\ line\ %l%.%#,%Z%[%^\ ]%\\@=%m
@@ -430,12 +437,17 @@ let g:syntastic_mode_map = { 'mode': 'active',
 let g:syntastic_python_flake8_args='--ignore=E501'
 
 """ YouComleteMe
+let g:ycm_server_python_interpreter = '/usr/bin/python3'
+" let g:ycm_python_binary_path = '/usr/bin/python3'
 let g:ycm_autoclose_preview_window_after_completion=1
 nnoremap <leader>g :YcmCompleter GoToDefinitionElseDeclaration<CR>
 " disable tab in ycm as to not interefer with ultisnips, use c-n/c-p
 let g:ycm_key_list_select_completion=[]
 let g:ycm_key_list_previous_completion=[]
 " let g:ycm_path_to_python_interpreter="/usr/bin/python2"
+" ycm debug
+let g:ycm_server_keep_logfiles = 1
+let g:ycm_server_log_level = 'debug'
 
 
 " =====================
@@ -450,6 +462,8 @@ let g:jedi#popup_select_first = 0
 let g:jedi#completions_enabled = 0
 let g:jedi#completions_command = ""
 let g:jedi#show_call_signatures = "1"
+" according to somewhere the below needed to handle ycm issue
+let g:jedi#show_call_signatures_delay = 0
 
 let g:jedi#goto_assignments_command = "<leader>pa"
 let g:jedi#goto_definitions_command = "<leader>pd"
