@@ -240,7 +240,7 @@ filetype plugin indent on     " enable loading indent file for filetype
 set number                    " Display current line number
 set relativenumber            " Display line numbers relative to current line
 set numberwidth=1             " using only 1 column (and 1 spa4e) while possible
-set background=dark           " We are using dark background in vim
+" set background=dark           " We are using dark background in vim
 set title                     " show title in console title bar
 set wildmenu                  " Menu completion in command mode on <Tab>
 set wildmode=longest,list,full             " <Tab> cycles between all matching choices.
@@ -417,6 +417,10 @@ endfunction
 
 command! -nargs=+ -complete=dir AgIn call SearchWithAgInDirectory(<f-args>)
 
+" indent guides plugin, needed with solarized
+let g:indent_guides_auto_colors = 0
+autocmd VimEnter,Colorscheme * :hi IndentGuidesOdd  ctermbg=black
+autocmd VimEnter,Colorscheme * :hi IndentGuidesEven ctermbg=darkgrey
 
 " ===========================
 " Programming plugin settings
@@ -479,24 +483,6 @@ let g:flake8_ignore="E501"
 "autocmd BufWritePost *.py call Flake8()
 
 
-" =====================
-" Color/theme settings
-" =====================
-
-"""" Colors / themes
-"set t_Co=256
-if has("gui_running") || &t_Co == 256
-    colorscheme solarized
-    "colorscheme xoria256
-    "colorscheme zenburn
-    "colorscheme desert256
-else
-    colorscheme xoria256
-    "colorscheme torte
-    "colorscheme desert256
-    "colorscheme zenburn
-endif
-
 """ vim-airline
 let g:airline#extensions#tabline#enabled = 1
 let g:airline_powerline_fonts = 1
@@ -504,6 +490,23 @@ if !exists('g:airline_symbols')
     let g:airline_symbols = {}
 endif
 let g:airline_theme='solarized'
+
+" =====================
+" Color/theme settings
+" =====================
+
+"""" Colors
+" set t_Co=256
+set t_Co=16 " <- this fixed solarized issue! "
+set background=dark           " We are using dark background in vim
+colorscheme solarized
+"colorscheme xoria256
+"colorscheme zenburn
+"colorscheme desert256
+"colorscheme xoria256
+"colorscheme torte
+"colorscheme desert256
+"colorscheme zenburn
 
 " Multiline comment:
 if 0
@@ -516,4 +519,3 @@ comments
 .
 endif
 " Multiline comment ends
-

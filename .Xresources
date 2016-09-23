@@ -1,4 +1,9 @@
+!! push changes into running xorg
+! xrdb ~/.Xresources
+!! or
 ! xrdb -merge ~/.Xresources
+!! check current values
+! xrdb -query
 !-------------------------------------------------------------------------------
 !! URxvt settings
 !! Colours lifted from Solarized (http://ethanschoonover.com/solarized)
