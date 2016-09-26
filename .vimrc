@@ -15,6 +15,7 @@ endif
 call plug#begin('~/.vim/plugged')
 let g:plug_url_format = 'git@github.com:%s.git'
 let g:plug_timeout = 600
+let g:plug_threads = 5
 
 " My Bundles here:
 " TODO: sort properly
@@ -27,42 +28,43 @@ Plug 'tpope/vim-fugitive'
 Plug 'gregsexton/gitv'
 "" python
 Plug 'scrooloose/syntastic'
-" rope doesn't workj with py3 yet
+" rope doesn't work with py3 yet
 " Plug 'python-rope/ropevim'
 Plug 'fs111/pydoc.vim'
 Plug 'michaeljsmith/vim-indent-object'
 " Getting pep8 through syntastic
-Plug 'alfredodeza/pytest.vim'
-Plug 'jmcantrell/vim-virtualenv'
-" Plugin 'vim-flake8'
-" flake8-vim conflict with youcompleteme:
+Plug 'alfredodeza/pytest.vim', { 'for': 'python'  }
+Plug 'jmcantrell/vim-virtualenv', { 'for': 'python'  }
+"Plug 'andviro/flake8-vim' " conflict with youcompleteme:
 " https://github.com/Valloric/YouCompleteMe/issues/2262
-"Plug 'andviro/flake8-vim'
-Plug 'davidhalter/jedi-vim'
+Plug 'davidhalter/jedi-vim', { 'for': 'python' }
 "" code helpers
-Plug 'majutsushi/tagbar'
-Plug 'scrooloose/nerdcommenter'
+Plug 'majutsushi/tagbar', {'on': 'TagbarOpen' } " load on first TagbarOpen
+Plug 'tomtom/tcomment_vim'
 Plug 'nathanaelkane/vim-indent-guides'
 Plug 'tpope/vim-surround'
 Plug 'tpope/vim-repeat'
 Plug 'vim-scripts/TaskList.vim'
+Plug 'junegunn/vim-easy-align'
+Plug 'AndrewRadev/splitjoin.vim'
 Plug 'ap/vim-css-color'
 "" Misc scripts
-"Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': 'yes \| ./install'  }
 Plug 'junegunn/fzf', { 'dir': $XDG_DATA_HOME . '/fzf', 'do': 'yes n \| ./install' }
 Plug 'junegunn/fzf.vim'
-Plug 'ctrlpvim/ctrlp.vim'
+Plug 'ctrlpvim/ctrlp.vim', {'on': 'CtrlP' } " load on first CtrlP
 Plug 'amiorin/ctrlp-z'
-Plug 'scrooloose/nerdtree'
-Plug 'sjl/gundo.vim'
+Plug 'scrooloose/nerdtree', { 'on':  'NERDTreeToggle'  }
+Plug 'sjl/gundo.vim', {'on': 'GundoToggle' } " load on first GundoToggle
 Plug 'chrisbra/changesPlugin'
 Plug 'Lokaltog/vim-easymotion'
+Plug 'junegunn/goyo.vim', { 'for': ['markdown', 'text'] }
+Plug 'junegunn/limelight.vim'
 " Plug 'Raimondi/delimitMate'
 Plug 'jiangmiao/auto-pairs'
 Plug 'tmux-plugins/vim-tmux-focus-events'
 Plug 'SirVer/ultisnips'
 Plug 'honza/vim-snippets'
-Plug 'Valloric/YouCompleteMe'
+Plug 'Valloric/YouCompleteMe', { 'do': './install.py --clang-completer --gocode-completer  --tern-completer --racer-completer' }
 "" color schemes and appearance
 Plug 'vim-scripts/Solarized'
 Plug 'jnurmine/Zenburn'
@@ -204,6 +206,7 @@ nnoremap <silent> <leader>gQ :Gwq!<CR>
 " Run pep8
 let g:pep8_map='<leader>F6'
 
+""" pytest
 " run py.test's
 nmap <silent><Leader>tf <Esc>:Pytest file<CR>
 nmap <silent><Leader>tc <Esc>:Pytest class<CR>
@@ -213,13 +216,18 @@ nmap <silent><Leader>tp <Esc>:Pytest previous<CR>
 nmap <silent><Leader>te <Esc>:Pytest error<CR>
 
 
+""" NERD Tree
 " Open NerdTree
 map <leader>n :NERDTreeToggle<CR>
 let g:NERDTreeMapOpenSplit='x'
 let g:NERDTreeMapOpenVSplit='v'
 
+""" Gundo
 " Load the Gundo window
 map <leader>u :GundoToggle<CR>
+
+""" tcomment
+let g:tcommentMapLeaderUncommentAnyway = 'gu'
 
 """ rope-vim - disabled until py3 support is in place
 " Jump to the definition of whatever the cursor is on
@@ -230,6 +238,9 @@ map <leader>u :GundoToggle<CR>
 " Tagbar
 map <leader>t :TagbarToggle<CR>
 
+""" vim-easy-align
+nmap ga <Plug>(EasyAlign)
+xmap ga <Plug>(EasyAlign)
 
 " ==========================================================
 " Basic Settings
@@ -256,18 +267,10 @@ set grepprg=ack-grep          " replace the default grep program with ack
 " Set working directory
 nnoremap <leader>. :lcd %:p:h<CR>
 
-" Disable the colorcolumn when switching modes.  Make sure this is the
-" first autocmd for the filetype here
-autocmd FileType * setlocal colorcolumn=0
-
-" show a line at column 79
-if exists("&colorcolumn")
-    set colorcolumn=79
-endif
-
 """ Moving Around/Editing
 set cursorline              " have a line indicate the cursor location
 set ruler                   " show the cursor position all the time
+set colorcolumn=80          " show a line at column 80
 set nostartofline           " Avoid moving cursor to BOL when jumping around
 set virtualedit=block       " Let cursor move past the last char in <C-v> mode
 set scrolloff=3             " Keep 3 context lines above and below the cursor
@@ -364,6 +367,8 @@ set encoding=utf-8
 """ Open new/empty buffers in insert mode
 " autocmd VimEnter * if empty(expand("%")) | startinsert | endif
 
+""" Text
+
 """ Mako/HTML
 autocmd BufNewFile,BufRead *.mako,*.mak setlocal ft=html
 autocmd FileType html,xhtml,xml,css setlocal expandtab shiftwidth=2 tabstop=2 softtabstop=2
@@ -421,6 +426,18 @@ command! -nargs=+ -complete=dir AgIn call SearchWithAgInDirectory(<f-args>)
 let g:indent_guides_auto_colors = 0
 autocmd VimEnter,Colorscheme * :hi IndentGuidesOdd  ctermbg=black
 autocmd VimEnter,Colorscheme * :hi IndentGuidesEven ctermbg=darkgrey
+
+""" Goyo
+" Autoload Goyo on text and markdown files
+autocmd BufNewFile,BufRead *.txt,*.md,*.markdown Goyo
+
+""" Limelight
+let g:limelight_conceal_ctermfg = 241
+let g:limelight_conceal_guifg = 241
+" doesn't seem to make a difference in terminal vim
+let g:limelight_default_coefficient = 0.8
+autocmd! User GoyoEnter Limelight " start limelight on Goyo start
+autocmd! User GoyoLeave Limelight! " quit limelight on Goyo exit
 
 " ===========================
 " Programming plugin settings
@@ -496,9 +513,10 @@ let g:airline_theme='solarized'
 " =====================
 
 """" Colors
-" set t_Co=256
-set t_Co=16 " <- this fixed solarized issue! "
+set t_Co=256
+"set t_Co=16 " <- this fixed solarized issue! "
 set background=dark           " We are using dark background in vim
+let g:solarized_termcolors=16 "<- this also fixed solarized issue, but retains 256 colors
 colorscheme solarized
 "colorscheme xoria256
 "colorscheme zenburn
