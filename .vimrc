@@ -333,7 +333,7 @@ set statusline=[%l,%v\ %P%M]\ %f\ %r%h%w\ (%{&ff})\ %{fugitive#statusline()}
 " displays tabs with :set list & displays when a line runs off-screen
 " set listchars=tab:>-,eol:$,trail:-,precedes:<,extends:>
 set list
-set listchars=tab:▸\ ,trail:·,precedes:<,extends:>
+set listchars=tab:▸\ ,trail:·,precedes:<,extends:>,nbsp:␣
 
 autocmd InsertEnter * syn clear EOLWS | syn match EOLWS excludenl /\s\+\%#\@!$/
 autocmd InsertLeave * syn clear EOLWS | syn match EOLWS excludenl /\s\+$/
@@ -463,13 +463,17 @@ let g:ycm_server_python_interpreter = '/usr/bin/python3'
 let g:ycm_autoclose_preview_window_after_completion=1
 nnoremap <leader>g :YcmCompleter GoToDefinitionElseDeclaration<CR>
 " disable tab in ycm as to not interefer with ultisnips, use c-n/c-p
-let g:ycm_key_list_select_completion=[]
-let g:ycm_key_list_previous_completion=[]
+"let g:ycm_key_list_select_completion=[]
+"let g:ycm_key_list_previous_completion=[]
 " let g:ycm_path_to_python_interpreter="/usr/bin/python2"
 " ycm debug
-let g:ycm_server_keep_logfiles = 1
-let g:ycm_server_log_level = 'debug'
+"let g:ycm_server_keep_logfiles = 1
+"let g:ycm_server_log_level = 'debug'
 
+""" Ultisnips
+let g:UltiSnipsExpandTrigger = '<C-j>'
+let g:UltiSnipsJumpForwardTrigger = '<C-j>'
+let g:UltiSnipsJumpBackwardTrigger = '<C-k>'
 
 " =====================
 " Python settings
