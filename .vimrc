@@ -17,16 +17,18 @@ let g:plug_url_format = 'git@github.com:%s.git'
 let g:plug_timeout = 600
 let g:plug_threads = 5
 
+
 " My Bundles here:
 " TODO: sort properly
 "
-"" libraries
+""" libraries
 Plug 'vim-scripts/L9'
+Plug 'xolox/vim-misc'
 " git
 Plug 'tpope/vim-git'
 Plug 'tpope/vim-fugitive'
 Plug 'gregsexton/gitv'
-"" python
+""" python
 Plug 'scrooloose/syntastic'
 " rope doesn't work with py3 yet
 " Plug 'python-rope/ropevim'
@@ -38,7 +40,7 @@ Plug 'jmcantrell/vim-virtualenv', { 'for': 'python'  }
 "Plug 'andviro/flake8-vim' " conflict with youcompleteme:
 " https://github.com/Valloric/YouCompleteMe/issues/2262
 Plug 'davidhalter/jedi-vim', { 'for': 'python' }
-"" code helpers
+""" code helpers
 Plug 'majutsushi/tagbar', {'on': 'TagbarOpen' } " load on first TagbarOpen
 Plug 'tomtom/tcomment_vim'
 Plug 'nathanaelkane/vim-indent-guides'
@@ -59,6 +61,7 @@ Plug 'chrisbra/changesPlugin'
 Plug 'Lokaltog/vim-easymotion'
 Plug 'junegunn/goyo.vim', { 'for': ['markdown', 'text'] }
 Plug 'junegunn/limelight.vim'
+Plug 'xolox/vim-session'
 " Plug 'Raimondi/delimitMate'
 Plug 'jiangmiao/auto-pairs'
 Plug 'tmux-plugins/vim-tmux-focus-events'
@@ -99,6 +102,16 @@ cmap W! w !sudo tee % >/dev/null
 " for when we forget to use sudo to open/edit a file
 cmap w!! w !sudo tee % >/dev/null
 
+""" buffers
+" new empty buffer
+nmap <leader>bn :enew<cr>
+nmap <leader>bx :new<cr>
+nmap <leader>bd :bdelete<cr>
+" Move to the next buffer
+nmap <leader>l :bnext<CR>
+" Move to the previous buffer
+nmap <leader>h :bprevious<CR>"
+
 " ctrl-jklm  changes to that split
 map <c-j> <c-w>j
 map <c-k> <c-w>k
@@ -114,6 +127,9 @@ map <leader>p "+gP
 
 " Quit window on <leader>q
 nnoremap <leader>q :q<CR>
+"
+" Quit all windows on <leader>Q
+nnoremap <leader>Q :qall<CR>
 "
 " hide matches on <leader>space
 nnoremap <leader><space> :nohlsearch<cr>
@@ -148,6 +164,9 @@ map  / <Plug>(easymotion-sn)
 omap / <Plug>(easymotion-tn)
 map  n <Plug>(easymotion-next)
 map  N <Plug>(easymotion-prev)
+
+""" sessions-vim
+nnoremap <leader>S :SaveSession<CR>
 
 """ fzf
 "imap <C-f> <plug>(fzf-complete-line)
@@ -185,6 +204,8 @@ let g:ctrlp_z_nerdtree = 1
 nnoremap sz :CtrlPZ<Cr>
 nnoremap sf :CtrlPF<Cr>
 
+ nmap <Leader>T <Plug>(ChangesStageHunk)
+
 " Toggle the tasklist
 map <leader>td <Plug>TaskList
 
@@ -218,7 +239,7 @@ nmap <silent><Leader>te <Esc>:Pytest error<CR>
 
 """ NERD Tree
 " Open NerdTree
-map <leader>n :NERDTreeToggle<CR>
+map <leader>N :NERDTreeToggle<CR>
 let g:NERDTreeMapOpenSplit='x'
 let g:NERDTreeMapOpenVSplit='v'
 
@@ -228,6 +249,9 @@ map <leader>u :GundoToggle<CR>
 
 """ tcomment
 let g:tcommentMapLeaderUncommentAnyway = 'gu'
+
+""" Goyo
+nmap <leader>G :Goyo<CR>
 
 """ rope-vim - disabled until py3 support is in place
 " Jump to the definition of whatever the cursor is on
@@ -255,6 +279,7 @@ set numberwidth=1             " using only 1 column (and 1 spa4e) while possible
 set title                     " show title in console title bar
 set wildmenu                  " Menu completion in command mode on <Tab>
 set wildmode=longest,list,full             " <Tab> cycles between all matching choices.
+set wildignorecase
 
 " don't bell or blink
 set noerrorbells
@@ -289,9 +314,14 @@ set shiftround              " rounds indent to a multiple of shiftwidth
 set matchpairs+=<:>         " show matching <> (html mainly) as well
 set foldmethod=indent       " allow us to fold on indents
 set foldlevel=99            " don't fold by default
+set hidden                  " allows buffers to be hidden when modified
+set ssop-=options           " do not store global and local values in a session
+set ssop-=folds             " do not store folds
 
 " don't outdent hashes
 " inoremap # #
+
+
 
 """ Preview window
 " close preview window automatically when we move around
@@ -427,9 +457,19 @@ let g:indent_guides_auto_colors = 0
 autocmd VimEnter,Colorscheme * :hi IndentGuidesOdd  ctermbg=black
 autocmd VimEnter,Colorscheme * :hi IndentGuidesEven ctermbg=darkgrey
 
+""" vim-session
+let g:session_directory = '.'
+let g:session_default_name = '.vim'
+let g:session_extension = '.session'
+let g:session_autosave_periodic = 5
+let g:session_default_overwrite = 1
+let g:session_autoload = 'no'
+let g:session_autosave = 'no'
+
 """ Goyo
 " Autoload Goyo on text and markdown files
-autocmd BufNewFile,BufRead *.txt,*.md,*.markdown Goyo
+"autocmd BufNewFile,BufRead *.txt,*.md,*.markdown Goyo
+" above disabled for being annoying
 
 """ Limelight
 let g:limelight_conceal_ctermfg = 241
@@ -505,7 +545,10 @@ let g:flake8_ignore="E501"
 
 
 """ vim-airline
+" displays all buffers when there's only one tab open
 let g:airline#extensions#tabline#enabled = 1
+" only show buffers
+let g:airline#extensions#tabline#fnamemod = ':t'
 let g:airline_powerline_fonts = 1
 if !exists('g:airline_symbols')
     let g:airline_symbols = {}

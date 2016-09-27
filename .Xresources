@@ -18,6 +18,8 @@ URxvt.transparent:          false
 URxvt.fading:               0
 URxvt*borderless: 1
 URxvt*termName: rxvt-unicode
+! powerline symbols not working without the below
+URxvt.letterSpace: 0.5
 ! URxvt.urgentOnBell:         true
 ! ! URxvt.visualBell:           true
 URxvt.loginShell:           true
@@ -26,7 +28,11 @@ URxvt.internalBorder:       3
 URxvt.lineSpace:            0
 
 ! Fonts
-URxvt*font: xft:inconsolata:size=10:antialias=true
+! format (run fc-list -v for font family names):
+! URxvt*font: xft:<fc_family>:size=<your_size>:antialias=true
+! below working
+URxvt*font: xft:InconsolataForPowerline Nerd Font:size=12:antialias=true:hinting=true
+! URxvt*font: xft:SauceCodePro Nerd Font:size=12:antialias=true:hinting=true
 
 ! Fix font space
 URxvt*letterSpace: -1
