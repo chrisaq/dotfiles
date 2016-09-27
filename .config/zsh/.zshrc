@@ -6,7 +6,8 @@
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
 
-export TERM="xterm-256color"
+# this shouldn't be forced here
+#export TERM="xterm-256color"
 
 # Fonts:
 # https://github.com/gabrielelana/awesome-terminal-fonts
