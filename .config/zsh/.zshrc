@@ -9,6 +9,9 @@
 # this shouldn't be forced here
 #export TERM="xterm-256color"
 
+# becuase xdg-utils are broken
+export DE="generic"
+
 # Fonts:
 # https://github.com/gabrielelana/awesome-terminal-fonts
 # Prompt:
