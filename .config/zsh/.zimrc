@@ -14,7 +14,7 @@
 ### fasd here seems to break its tab completion
 #zmodules=(directory environment git history input utility custom ssh pacman fasd \
 #          syntax-highlighting history-substring-search prompt completion)
-zmodules=(directory environment git history input utility custom ssh pacman \
+zmodules=(directory environment git history input utility custom pacman \
           syntax-highlighting history-substring-search prompt completion)
 
 

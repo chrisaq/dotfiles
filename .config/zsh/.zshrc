@@ -26,6 +26,11 @@ POWERLEVEL9K_DIR_DEFAULT_FOREGROUND="white"
 #POWERLEVEL9K_VI_INSERT_MODE_STRING="INS"
 #POWERLEVEL9K_VI_COMMAND_MODE_STRING="CMD"
 
+if [[ -s ${ZDOTDIR:-${HOME}}/gpg-agent.plugin.zsh ]]; then
+  source ${ZDOTDIR:-${HOME}}/gpg-agent.plugin.zsh
+fi
+
+
 # Source zim after theme
 if [[ -s ${ZDOTDIR:-${HOME}}/.zim/init.zsh ]]; then
   source ${ZDOTDIR:-${HOME}}/.zim/init.zsh
