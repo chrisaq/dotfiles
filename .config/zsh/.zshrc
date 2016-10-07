@@ -6,11 +6,14 @@
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
 
-# this shouldn't be forced here
-#export TERM="xterm-256color"
+# this shouldn't be forced here, but stuff complains
+export TERM="xterm-256color"
 
 # becuase xdg-utils are broken
 export DE="generic"
+
+# fix pinentry
+export GPG_TTY=`tty`
 
 # Fonts:
 # https://github.com/gabrielelana/awesome-terminal-fonts
