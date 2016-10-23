@@ -6,6 +6,9 @@
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
 
+# should be set by pam, but missing in some places
+export XDG_RUNTIME_DIR=/run/user/`id -u`
+
 # this shouldn't be forced here, but stuff complains
 export TERM="xterm-256color"
 
