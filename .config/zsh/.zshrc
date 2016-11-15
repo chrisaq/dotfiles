@@ -77,6 +77,7 @@ if command -v ruby >/dev/null 2>&1 && command -v gem >/dev/null 2>&1; then
     PATH="$(ruby -rubygems -e 'puts Gem.user_dir')/bin:$PATH"
 fi
 
+alias gpg-tty-update="gpg-connect-agent UPDATESTARTUPTTY /bye >/dev/null"
 
 # VI mode, breaks arrow history search
 # bindkey -v
