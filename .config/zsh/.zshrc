@@ -13,6 +13,7 @@
 # should be set by pam, but missing in some places
 export XDG_CONFIG_HOME=${HOME}/.config
 export XDG_DATA_HOME=${HOME}/.local/share
+export XDG_CACHE_HOME=${HOME}/.cache
 export XDG_RUNTIME_DIR=/run/user/`id -u`
 
 # becuase xdg-utils are broken
@@ -25,11 +26,11 @@ export ATOM_HOME="$XDG_DATA_HOME"/atom
 export HTTPIE_CONFIG_DIR="$XDG_CONFIG_HOME"/httpie
 if [[ ! -d "$XDG_CACHE_HOME"/less ]]; then
     mkdir -p "$XDG_CACHE_HOME"/less
-done
+fi
 export LESSHISTFILE="$XDG_CACHE_HOME"/less/history
 if [[ ! -d "$XDG_CONFIG_HOME"/less ]]; then
     mkdir -p "$XDG_CONFIG_HOME"/less
-done
+fi
 export LESSKEY="$XDG_CONFIG_HOME"/less/lesskey
 export MEDNAFEN_HOME="$XDG_CONFIG_HOME"/mednafen
 export NOTMUCH_CONFIG="$XDG_CONFIG_HOME"/notmuch/notmuchrc
