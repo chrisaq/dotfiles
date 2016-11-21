@@ -5,7 +5,7 @@
 # This includes zcompile, zcompdump, etc.
 #
 
-echo logging into `hostname`
+#echo logging into `hostname`
 
 (
   # Function to determine the need of a zcompile. If the .zwc file

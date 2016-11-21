@@ -15,8 +15,15 @@ export TERM="xterm-256color"
 # becuase xdg-utils are broken
 export DE="generic"
 
-# fix pinentry
-export GPG_TTY=`tty`
+### GPG stuff
+# use gui pinentry if we have DISPLAY _AND_ not on a SSH connection, else curses
+if [[ ${DISPLAY:-}  ]] && [[ ! ${SSH_CONNECTION:-} ]]; then
+    export PINENTRY_USER_DATA="USE_CURSES=0"
+else
+    export PINENTRY_USER_DATA="USE_CURSES=1"
+    # fix pinentry
+    export GPG_TTY=`tty`
+fi
 
 # Fonts:
 # https://github.com/gabrielelana/awesome-terminal-fonts
