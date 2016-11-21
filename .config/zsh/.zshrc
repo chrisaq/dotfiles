@@ -6,16 +6,42 @@
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
 
-# should be set by pam, but missing in some places
-export XDG_RUNTIME_DIR=/run/user/`id -u`
-
 # this shouldn't be forced here, but stuff complains
-export TERM="xterm-256color"
+#export TERM="xterm-256color"
+
+#####  XDG stuff #####
+# should be set by pam, but missing in some places
+export XDG_CONFIG_HOME=${HOME}/.config
+export XDG_DATA_HOME=${HOME}/.local/share
+export XDG_RUNTIME_DIR=/run/user/`id -u`
 
 # becuase xdg-utils are broken
 export DE="generic"
 
+##### XDG apps workarounds #####
+# https://wiki.archlinux.org/index.php/XDG_Base_Directory_support
+# TODO: .xinitrc, ~/.Xresources ~/.Xdefaults
+export ATOM_HOME="$XDG_DATA_HOME"/atom
+export HTTPIE_CONFIG_DIR="$XDG_CONFIG_HOME"/httpie
+if [[ ! -d "$XDG_CACHE_HOME"/less ]]; then
+    mkdir -p "$XDG_CACHE_HOME"/less
+done
+export LESSHISTFILE="$XDG_CACHE_HOME"/less/history
+if [[ ! -d "$XDG_CONFIG_HOME"/less ]]; then
+    mkdir -p "$XDG_CONFIG_HOME"/less
+done
+export LESSKEY="$XDG_CONFIG_HOME"/less/lesskey
+export MEDNAFEN_HOME="$XDG_CONFIG_HOME"/mednafen
+export NOTMUCH_CONFIG="$XDG_CONFIG_HOME"/notmuch/notmuchrc
+export NPM_CONFIG_USERCONFIG=$XDG_CONFIG_HOME/npm/npmrc
+export __GL_SHADER_DISK_CACHE_PATH="$XDG_CACHE_HOME"/nv
+export CUDA_CACHE_PATH="$XDG_CACHE_HOME"/nv
+export RANDFILE="$XDG_CACHE_HOME"/rnd
+export RXVT_SOCKET="$XDG_RUNTIME_DIR"/urxvt/urxvt-"$(hostname)"
+
+
 ### GPG stuff
+export GNUPGHOME="$XDG_CONFIG_HOME"/gnupg
 # use gui pinentry if we have DISPLAY _AND_ not on a SSH connection, else curses
 if [[ ${DISPLAY:-}  ]] && [[ ! ${SSH_CONNECTION:-} ]]; then
     export PINENTRY_USER_DATA="USE_CURSES=0"
@@ -24,6 +50,7 @@ else
     # fix pinentry
     export GPG_TTY=`tty`
 fi
+
 
 # Fonts:
 # https://github.com/gabrielelana/awesome-terminal-fonts
