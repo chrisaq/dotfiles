@@ -50,6 +50,11 @@ Plug 'vim-scripts/TaskList.vim'
 Plug 'junegunn/vim-easy-align'
 Plug 'AndrewRadev/splitjoin.vim'
 Plug 'ap/vim-css-color'
+Plug 'pangloss/vim-javascript', { 'for': ['javascript', 'javascript.jsx'] }
+Plug 'mxw/vim-jsx', { 'for': ['javascript', 'javascript.jsx'] }
+Plug 'othree/javascript-libraries-syntax.vim', { 'for': 'javascript' }
+Plug 'ternjs/tern_for_vim', { 'do': 'npm install' }
+Plug 'elzr/vim-json'
 "" Misc scripts
 Plug 'junegunn/fzf', { 'dir': $XDG_DATA_HOME . '/fzf', 'do': 'yes n \| ./install' }
 Plug 'junegunn/fzf.vim'
@@ -411,6 +416,9 @@ au BufRead *.py set efm=%C\ %.%#,%A\ \ File\ \"%f\"\\,\ line\ %l%.%#,%Z%[%^\ ]%\
 """ YAML
 autocmd FileType yaml setlocal shiftwidth=2 tabstop=2
 
+""" JAVASCRIPT
+autocmd FileType js,jsx setlocal expandtab shiftwidth=2 tabstop=2 softtabstop=2
+
 " =====================================================
 "                   ------- --------
 " #########         Plugins settings      #############
@@ -498,6 +506,8 @@ let g:syntastic_mode_map = { 'mode': 'active',
     \ 'active_filetypes': ['python', 'php'],
     \ 'passive_filetypes': ['puppet'] }
 let g:syntastic_python_flake8_args='--ignore=E501'
+" javascript options for syntastic
+let g:syntastic_javascript_checkers = ['eslint']
 
 """ YouComleteMe
 let g:ycm_server_python_interpreter = '/usr/bin/python3'
@@ -545,6 +555,13 @@ let g:flake8_ignore="E501"
 " run flake8 when saving file
 "autocmd BufWritePost *.py call Flake8()
 
+" =====================
+" Javascript settings
+" =====================
+
+""" vim-jsx
+" enable jsx syntax highlights also in .js files
+let g:jsx_pragma_required = 0
 
 """ vim-airline
 " displays all buffers when there's only one tab open
