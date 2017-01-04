@@ -417,7 +417,7 @@ au BufRead *.py set efm=%C\ %.%#,%A\ \ File\ \"%f\"\\,\ line\ %l%.%#,%Z%[%^\ ]%\
 autocmd FileType yaml setlocal shiftwidth=2 tabstop=2
 
 """ JAVASCRIPT
-autocmd FileType js,jsx setlocal expandtab shiftwidth=2 tabstop=2 softtabstop=2
+autocmd FileType javascript setlocal expandtab shiftwidth=2 tabstop=2 softtabstop=2
 
 " =====================================================
 "                   ------- --------
