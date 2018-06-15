@@ -1,8 +1,8 @@
 # dotfiles README/HOWTO
 
-##Setting up for the first time
+## Setting up for the first time
 
-###create git-dotfiles-dir and add alias
+### create git-dotfiles-dir and add alias
 
 ```
 mkdir $HOME/.dotfiles.git
@@ -10,7 +10,7 @@ mkdir $HOME/.dotfiles.git
 alias dotfiles="git --work-tree=$HOME/ --git-dir=$HOME/.dotfiles.git"
 ```
 
-###create additional .gitignore and add it to git config:
+### create additional .gitignore and add it to git config:
 
 ```
 cat <<EOF
@@ -26,7 +26,7 @@ node_modules
 EOF > $HOME/.gitignore
 ```
 
-###init repo:
+### init repo:
 
 ```
 dotfiles init
@@ -36,7 +36,7 @@ dotfiles remote add origin git@github.com:chrisaq/dotfiles.git
 dotfiles push origin master
 ```
 
-##Checkout on new machine
+## Checkout on new machine
 ### WARNING: Will overwrite your files of the same name
 ```sh
 alias dotfiles="git --work-tree=$HOME/ --git-dir=$HOME/.dotfiles.git"
