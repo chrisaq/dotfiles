@@ -109,7 +109,7 @@ fi
 
 # path to user-installed ruby gems bin
 if command -v ruby >/dev/null 2>&1 && command -v gem >/dev/null 2>&1; then
-    PATH="$(ruby -rubygems -e 'puts Gem.user_dir')/bin:$PATH"
+    PATH="$(ruby -r rubygems -e 'puts Gem.user_dir')/bin:$PATH"
 fi
 
 alias gpg-tty-update="gpg-connect-agent UPDATESTARTUPTTY /bye >/dev/null"
@@ -123,6 +123,12 @@ export EDITOR=vim
 # Dotfiles in git
 alias dotfiles='git --git-dir=$HOME/.dotfiles.git/ --work-tree=$HOME'
 unset GREP_OPTIONS
+
+# aws
+
+if [[ -s /usr/bin/aws_zsh_completer.sh ]]; then
+  source /usr/bin/aws_zsh_completer.sh
+fi
 
 # fzf
 HAS_FZF=0 && command -v fzf >/dev/null 2>&1 && HAS_FZF=1
