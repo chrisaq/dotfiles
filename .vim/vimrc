@@ -254,7 +254,7 @@ let g:NERDTreeMapOpenVSplit='v'
 map <leader>u :GundoToggle<CR>
 
 """ tcomment
-let g:tcommentMapLeaderUncommentAnyway = 'gu'
+let g:tcomment_mapleader_uncomment_anyway = 'gu'
 
 """ Goyo
 nmap <leader>G :Goyo<CR>
