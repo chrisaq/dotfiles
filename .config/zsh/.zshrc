@@ -130,6 +130,9 @@ if [[ -s /usr/bin/aws_zsh_completer.sh ]]; then
   source /usr/bin/aws_zsh_completer.sh
 fi
 
+# ag - silver searcher
+alias ag="ag --hidden"
+
 # fzf
 # arch locations
 FZF_BIND="/usr/share/fzf/key-bindings.zsh"
