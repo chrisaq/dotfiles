@@ -515,7 +515,12 @@ let g:ycm_server_python_interpreter = '/usr/bin/python3'
 " let g:ycm_python_binary_path = '/usr/bin/python3'
 let g:ycm_autoclose_preview_window_after_completion=1
 nnoremap <leader>g :YcmCompleter GoToDefinitionElseDeclaration<CR>
-" disable tab in ycm as to not interefer with ultisnips, use c-n/c-p
+let g:ycm_key_list_select_completion = ['<TAB>', '<Down>']
+let g:ycm_key_list_previous_completion = ['<S-TAB>', '<Up>']
+let g:ycm_key_list_stop_completion = ['<C-y>']
+let g:ycm_key_invoke_completion = '<C-Space>'
+
+""disable tab in ycm as to not interefer with ultisnips, use c-n/c-p
 "let g:ycm_key_list_select_completion=[]
 "let g:ycm_key_list_previous_completion=[]
 " let g:ycm_path_to_python_interpreter="/usr/bin/python2"
@@ -523,7 +528,8 @@ nnoremap <leader>g :YcmCompleter GoToDefinitionElseDeclaration<CR>
 "let g:ycm_server_keep_logfiles = 1
 "let g:ycm_server_log_level = 'debug'
 
-""" Ultisnips
+"" Ultisnips
+"" now handled by ycm?
 let g:UltiSnipsExpandTrigger = '<C-j>'
 let g:UltiSnipsJumpForwardTrigger = '<C-j>'
 let g:UltiSnipsJumpBackwardTrigger = '<C-k>'
