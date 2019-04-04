@@ -131,6 +131,13 @@ if [[ -s /usr/bin/aws_zsh_completer.sh ]]; then
 fi
 
 # fzf
+# arch locations
+FZF_BIND="/usr/share/fzf/key-bindings.zsh"
+FZF_COMPL="/usr/share/fzf/completion.zsh"
+[[ -f $FZF_BIND ]] && source $FZF_BIND
+[[ -f $FZF_COMPL ]] && source $FZF_COMPL
+
+
 HAS_FZF=0 && command -v fzf >/dev/null 2>&1 && HAS_FZF=1
 if [[ $HAS_FZF -eq 1  ]]; then
     fkill() {
