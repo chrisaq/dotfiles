@@ -61,14 +61,19 @@ fi
 POWERLEVEL9K_INSTALLATION_PATH=~/.config/zsh/.zim/modules/prompt/external-themes/powerlevel9k/powerlevel9k.zsh-theme
 POWERLEVEL9K_MODE='awesome-fontconfig'
 #POWERLEVEL9K_MODE='awesome-patched'
+POWERLEVEL9K_PROMPT_ON_NEWLINE=true
+#POWERLEVEL9K_RPROMPT_ON_NEWLINE=true
 POWERLEVEL9K_SHORTEN_DIR_LENGTH=2
 POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(context dir vcs)
+#POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(dir vcs newline context)
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status virtualenv time)
 POWERLEVEL9K_DIR_HOME_FOREGROUND="white"
 POWERLEVEL9K_DIR_HOME_SUBFOLDER_FOREGROUND="white"
 POWERLEVEL9K_DIR_DEFAULT_FOREGROUND="white"
 #POWERLEVEL9K_VI_INSERT_MODE_STRING="INS"
 #POWERLEVEL9K_VI_COMMAND_MODE_STRING="CMD"
+POWERLEVEL9K_MULTILINE_FIRST_PROMPT_PREFIX="╭─"
+POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX="╰─契"
 
 if [[ -s ${ZDOTDIR:-${HOME}}/gpg-agent.plugin.zsh ]]; then
   source ${ZDOTDIR:-${HOME}}/gpg-agent.plugin.zsh
@@ -118,7 +123,7 @@ alias gpg-tty-update="gpg-connect-agent UPDATESTARTUPTTY /bye >/dev/null"
 # bindkey -v
 # VIM stuff
 alias vis="vim -S .vim.session"
-export EDITOR=vim
+export EDITOR=nvim
 
 # Dotfiles in git
 alias dotfiles='git --git-dir=$HOME/.dotfiles.git/ --work-tree=$HOME'
@@ -169,3 +174,5 @@ if command -v fasd >/dev/null 2>&1; then
     fi
 fi
 
+alias stt="tabbed -c -r 2 st -w ''"
+alias st="st -f 'Hack Nerd Font:style=Regular:pixelsize=16'"

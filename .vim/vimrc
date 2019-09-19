@@ -44,7 +44,8 @@ Plug 'davidhalter/jedi-vim', { 'for': 'python' }
 Plug 'majutsushi/tagbar', {'on': 'TagbarOpen' } " load on first TagbarOpen
 Plug 'tomtom/tcomment_vim'
 Plug 'nathanaelkane/vim-indent-guides'
-Plug 'tpope/vim-surround'
+Plug 'machakann/vim-sandwich'  " replaces vim-surround below
+"Plug 'tpope/vim-surround'
 Plug 'tpope/vim-repeat'
 Plug 'vim-scripts/TaskList.vim'
 Plug 'junegunn/vim-easy-align'
@@ -87,6 +88,7 @@ Plug 'ambidexterich/mustang'
 Plug 'jonathanfilip/vim-lucius'
 Plug 'vim-airline/vim-airline'
 Plug 'vim-airline/vim-airline-themes'
+Plug 'ryanoasis/vim-devicons'
 
 filetype plugin indent on                   " required!
 call plug#end()

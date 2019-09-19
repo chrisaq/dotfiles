@@ -114,4 +114,7 @@ URxvt.pointerBlank: true
 *color7:                S_base2
 *color15:               S_base3
 
-
+!!! suckless terminal st
+st.termname: xterm-256color
+st.tabspaces: 4
+st.font: Hack Nerd Font:style=Regular:pixelsize=16

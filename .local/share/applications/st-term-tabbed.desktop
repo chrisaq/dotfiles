@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=st tabbed
+Comment=suckless terminal emulator
+Exec=tabbed -c -r 2 /usr/bin/st -w ''
+Icon=terminal-paomedia.svg
+Type=Application
+Categories=System;TerminalEmulator;
+StartupNotify=true

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=st
+Comment=suckless terminal emulator
+Exec=/usr/bin/st %U
+Icon=terminal-paomedia.svg
+Type=Application
+Categories=System;TerminalEmulator;
+StartupNotify=true
