@@ -176,3 +176,4 @@ fi
 
 alias stt="tabbed -c -r 2 st -w ''"
 alias st="st -f 'Hack Nerd Font:style=Regular:pixelsize=16'"
+alias tmux='TERM=xterm-256color tmux -f "$XDG_CONFIG_HOME"/tmux/tmux.conf'
