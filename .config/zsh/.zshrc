@@ -39,7 +39,7 @@ export __GL_SHADER_DISK_CACHE_PATH="$XDG_CACHE_HOME"/nv
 export CUDA_CACHE_PATH="$XDG_CACHE_HOME"/nv
 export RANDFILE="$XDG_CACHE_HOME"/rnd
 export RXVT_SOCKET="$XDG_RUNTIME_DIR"/urxvt/urxvt-"$(hostname)"
-
+export JUPYTER_CONFIG_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/jupyter
 
 ### GPG stuff
 export GNUPGHOME="$XDG_CONFIG_HOME"/gnupg
