@@ -36,6 +36,43 @@ set title                     " show title in console title bar
 set wildmenu                  " Menu completion in command mode on <Tab>
 set wildmode=longest,list,full             " <Tab> cycles between all matching choices.
 set wildignorecase
+
+" don't bell or blink
+set noerrorbells
+set vb t_vb=
+
+" Ignore these files when completing
+set wildignore+=*.o,*.obj,.git,*.pyc
+set grepprg=ack-grep          " replace the default grep program with ack
+
+" Set working directory
+nnoremap <leader>. :lcd %:p:h<CR>
+
+""" Moving Around/Editing
+set cursorline              " have a line indicate the cursor location
+set ruler                   " show the cursor position all the time
+set colorcolumn=80          " show a line at column 80
+set nostartofline           " Avoid moving cursor to BOL when jumping around
+set virtualedit=block       " Let cursor move past the last char in <C-v> mode
+set scrolloff=3             " Keep 3 context lines above and below the cursor
+set backspace=indent,eol,start  " Allow backspacing over autoindent, EOL, and BOL
+set showmatch               " Briefly jump to a paren once it's balanced
+set nowrap                  " don't wrap text
+set linebreak               " don't wrap textin the middle of a word
+set autoindent              " always set autoindenting on
+" smartindent is old and useless according to the internet
+"set smartindent             " use smart indent if there is no indent file
+set tabstop=4               " <tab> inserts 4 spaces
+set shiftwidth=4            " but an indent level is 4 spaces wide.
+set softtabstop=4           " <BS> over an autoindent deletes 4 spaces.
+set expandtab               " Use spaces, not tabs, for autoindent/tab key.
+set shiftround              " rounds indent to a multiple of shiftwidth
+set matchpairs+=<:>         " show matching <> (html mainly) as well
+set foldmethod=indent       " allow us to fold on indents
+set foldlevel=99            " don't fold by default
+set hidden                  " allows buffers to be hidden when modified
+set ssop-=options           " do not store global and local values in a session
+set ssop-=folds             " do not store folds
 " ==========================================================
 
 
@@ -242,3 +279,10 @@ set t_Co=256
 set background=dark
 let g:solarized_termcolors=16
 colorscheme solarized
+
+"if &term =~ '256color'
+    " disable Background Color Erase (BCE) so that color schemes
+    " render properly when inside 256-color tmux and GNU screen.
+    " see also http://sunaku.github.io/vim-256color-bce.html
+"    set t_ut=
+"endif
