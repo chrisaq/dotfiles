@@ -1,0 +1,10 @@
+[Unit]
+Description=mkdocs devel server
+
+[Service]
+ExecStart=/usr/bin/mkdocs serve
+WorkingDirectory=%h/Sync/Wiki/Tech
+
+[Install]
+WantedBy=default.target
+

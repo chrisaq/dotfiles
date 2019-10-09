@@ -16,7 +16,7 @@ export XDG_DATA_HOME=${HOME}/.local/share
 export XDG_CACHE_HOME=${HOME}/.cache
 export XDG_RUNTIME_DIR=/run/user/`id -u`
 
-# becuase xdg-utils are broken
+# because xdg-utils are broken
 export DE="generic"
 
 ##### XDG apps workarounds #####
@@ -24,8 +24,8 @@ export DE="generic"
 # TODO: .xinitrc, ~/.Xresources ~/.Xdefaults
 export ATOM_HOME="$XDG_DATA_HOME"/atom
 export HTTPIE_CONFIG_DIR="$XDG_CONFIG_HOME"/httpie
-if [[ ! -d "$XDG_CACHE_HOME"/less ]]; then
-    mkdir -p "$XDG_CACHE_HOME"/less
+if [[ ! -d "$XDG_CACHE_HOME"/httpie ]]; then
+    mkdir -p "$XDG_CACHE_HOME"/httpie
 fi
 export LESSHISTFILE="$XDG_CACHE_HOME"/less/history
 if [[ ! -d "$XDG_CONFIG_HOME"/less ]]; then
@@ -40,9 +40,22 @@ export CUDA_CACHE_PATH="$XDG_CACHE_HOME"/nv
 export RANDFILE="$XDG_CACHE_HOME"/rnd
 export RXVT_SOCKET="$XDG_RUNTIME_DIR"/urxvt/urxvt-"$(hostname)"
 export JUPYTER_CONFIG_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/jupyter
+export IPYTHONDIR=${XDG_CONFIG_HOME:-$HOME/.config}/ipython
+export AWS_SHARED_CREDENTIALS_FILE="$XDG_CONFIG_HOME"/aws/credentials
+export AWS_CONFIG_FILE="$XDG_CONFIG_HOME"/aws/config
+export DOCKER_CONFIG="$XDG_CONFIG_HOME"/docker
+export GNUPGHOME="$XDG_CONFIG_HOME"/gnupg
+export TMUX_TMPDIR="$XDG_RUNTIME_DIR"
+export WEECHAT_HOME="$XDG_CONFIG_HOME"/weechat
+export XAUTHORITY="$XDG_RUNTIME_DIR"/Xauthority
+export INPUTRC="$XDG_CONFIG_HOME"/readline/inputrc
+
+
+##### XDG using aliases as workarounds
+alias tmux='TERM=xterm-256color tmux -f "$XDG_CONFIG_HOME"/tmux/tmux.conf'
+alias weechat='weechat -d "$XDG_CONFIG_HOME"/weechat'
 
 ### GPG stuff
-export GNUPGHOME="$XDG_CONFIG_HOME"/gnupg
 # use gui pinentry if we have DISPLAY _AND_ not on a SSH connection, else curses
 if [[ ${DISPLAY:-}  ]] && [[ ! ${SSH_CONNECTION:-} ]]; then
     export PINENTRY_USER_DATA="USE_CURSES=0"
@@ -174,6 +187,7 @@ if command -v fasd >/dev/null 2>&1; then
     fi
 fi
 
-alias stt="tabbed -c -r 2 st -w ''"
 alias st="st -f 'Hack Nerd Font:style=Regular:pixelsize=16'"
-alias tmux='TERM=xterm-256color tmux -f "$XDG_CONFIG_HOME"/tmux/tmux.conf'
+alias stt="tabbed -c -r 2 st -w ''"
+alias sysu='systemctl --user'
+alias pass='gopass'
