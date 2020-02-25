@@ -6,11 +6,27 @@ Plug 'tpope/vim-git'
 Plug 'tpope/vim-fugitive'
 Plug 'gregsexton/gitv'
 
+" movement
+Plug 'unblevable/quick-scope'
+Plug 'ap/vim-you-keep-using-that-word'  " disables cw/cW exception of not including the space(s) after word
+" sessions
+Plug 'tpope/vim-obsession'
+Plug 'dhruvasagar/vim-prosession'
+
+" fuzzy search
+Plug 'Yggdroot/LeaderF', { 'do': './install.sh' }
+
 " general programming and completion
 Plug 'neoclide/coc.nvim', {'branch': 'release'}
 Plug 'machakann/vim-sandwich'  " replaces vim-surround below
 " Plug 'tpope/vim-surround'  " replaced by vim-sandwich
 Plug 'tpope/vim-repeat'
+Plug 'juliosueiras/vim-terraform-completion'
+Plug 'hashivim/vim-terraform', { 'for': 'terraform' }
+Plug 'Shougo/deoplete.nvim', { 'for': 'terraform' }
+Plug 'tmsvg/pear-tree' " auto-close parens etc, replaces delimitmate
+Plug 'tpope/vim-commentary'
+Plug 'junegunn/vim-easy-align'
 
 " themes, colors, etc
 Plug 'vim-scripts/Solarized'
@@ -20,7 +36,6 @@ Plug 'ryanoasis/vim-devicons'
 " Initialize plugin system
 call plug#end()
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-
 
 " ==========================================================
 " Basic Settings
@@ -43,7 +58,6 @@ set vb t_vb=
 
 " Ignore these files when completing
 set wildignore+=*.o,*.obj,.git,*.pyc
-set grepprg=ack-grep          " replace the default grep program with ack
 
 " Set working directory
 nnoremap <leader>. :lcd %:p:h<CR>
@@ -77,6 +91,21 @@ set ssop-=folds             " do not store folds
 
 
 " ==========================================================
+
+
+" ==========================================================
+" vim grep setup using ripgrep
+" ==========================================================
+
+if executable('rg')
+    set grepprg=rg\ --vimgrep\ --no-heading
+    set grepformat^=%f:%l:%c:%m
+endif
+
+" ==========================================================
+
+
+" ==========================================================
 " Shortcuts
 " ==========================================================
 "let mapleader=","             " change the leader to be a comma vs backslash
@@ -91,6 +120,11 @@ cmap W! w !sudo tee % >/dev/null
 " for when we forget to use sudo to open/edit a file
 cmap w!! w !sudo tee % >/dev/null
 
+" Edit vimr configuration file
+"nnoremap <Leader>ce :e $MYVIMRC<CR>
+" Reload vimr configuration file
+"nnoremap <Leader>cr :source $MYVIMRC<CR>
+
 """ buffers
 " new empty buffer
 nmap <leader>bn :enew<cr>
@@ -101,7 +135,7 @@ nmap <leader>l :bnext<CR>
 " Move to the previous buffer
 nmap <leader>h :bprevious<CR>"
 
-" ctrl-jklm  changes to that split
+" ctrl-jklm changes to window split in that direction
 map <c-j> <c-w>j
 map <c-k> <c-w>k
 map <c-l> <c-w>l
@@ -112,7 +146,7 @@ map <c-h> <c-w>h
 imap <C-W> <C-O><C-W>
 
 " Paste from clipboard
-map <leader>p "+gP
+map <leader>v "+gP
 
 " Quit window on <leader>q
 nnoremap <leader>q :q<CR>
@@ -123,9 +157,73 @@ nnoremap <leader>Q :qall<CR>
 " hide matches on <leader>space
 nnoremap <leader><space> :nohlsearch<cr>
 
-" Remove trailing whitespace on <leader>s
-nnoremap <leader>s :%s/\s\+$//<cr>:let @/=''<CR>
+" Remove trailing whitespace on <leader>backspace
+"nnoremap <leader>S :%s/\s\+$//<cr>:let @/=''<CR>
+nnoremap <leader><BS> :%s/\s\+$//<cr>:let @/=''<CR>
 
+
+" ==========================================================
+"
+"
+"
+" PLUGINS CONFIG BELOW
+"
+"
+"
+"
+" ==========================================================
+
+
+" ==========================================================
+" sessions - vim-obsession and vim-prosession
+" ==========================================================
+
+let g:prosession_dir = '~/.config/nvim/session'
+let g:prosession_on_startup = 1
+
+
+" ==========================================================
+" quick-scope
+" ==========================================================
+" Trigger a highlight in the appropriate direction when pressing these keys:
+let g:qs_highlight_on_keys = ['f', 'F', 't', 'T']
+" Trigger a highlight only when pressing f and F.
+"let g:qs_highlight_on_keys = ['f', 'F']
+
+" ==========================================================
+" leaderf, fuzzy search
+" ==========================================================
+" don't show the help in normal mode
+let g:Lf_HideHelp = 1
+let g:Lf_UseCache = 0
+let g:Lf_UseVersionControlTool = 0
+let g:Lf_IgnoreCurrentBufferName = 1
+" popup mode
+let g:Lf_WindowPosition = 'popup'
+let g:Lf_PreviewInPopup = 1
+let g:Lf_StlSeparator = { 'left': "\ue0b0", 'right': "\ue0b2", 'font': "DejaVu Sans Mono for Powerline" }
+let g:Lf_PreviewResult = {'Function': 0, 'BufTag': 0 }
+
+let g:Lf_ShortcutF = "<leader>ff"
+noremap <leader>fb :<C-U><C-R>=printf("Leaderf buffer %s", "")<CR><CR>
+noremap <leader>fm :<C-U><C-R>=printf("Leaderf mru %s", "")<CR><CR>
+noremap <leader>ft :<C-U><C-R>=printf("Leaderf bufTag %s", "")<CR><CR>
+noremap <leader>fl :<C-U><C-R>=printf("Leaderf line %s", "")<CR><CR>
+
+noremap <C-B> :<C-U><C-R>=printf("Leaderf! rg --current-buffer -e %s ", expand("<cword>"))<CR>
+noremap <C-F> :<C-U><C-R>=printf("Leaderf! rg -e %s ", expand("<cword>"))<CR>
+" search visually selected text literally
+xnoremap gf :<C-U><C-R>=printf("Leaderf! rg -F -e %s ", leaderf#Rg#visual())<CR>
+noremap go :<C-U>Leaderf! rg --recall<CR>
+
+" should use `Leaderf gtags --update` first
+let g:Lf_GtagsAutoGenerate = 0
+let g:Lf_Gtagslabel = 'native-pygments'
+noremap <leader>fr :<C-U><C-R>=printf("Leaderf! gtags -r %s --auto-jump", expand("<cword>"))<CR><CR>
+noremap <leader>fd :<C-U><C-R>=printf("Leaderf! gtags -d %s --auto-jump", expand("<cword>"))<CR><CR>
+noremap <leader>fo :<C-U><C-R>=printf("Leaderf! gtags --recall %s", "")<CR><CR>
+noremap <leader>fn :<C-U><C-R>=printf("Leaderf gtags --next %s", "")<CR><CR>
+noremap <leader>fp :<C-U><C-R>=printf("Leaderf gtags --previous %s", "")<CR><CR>
 
 " ==========================================================
 " From CoC
@@ -226,10 +324,6 @@ omap if <Plug>(coc-funcobj-i)
 omap af <Plug>(coc-funcobj-a)
 
 " Use <tab> for select selections ranges, needs server support, like: coc-tsserver, coc-python
-nmap <silent> <TAB> <Plug>(coc-range-select)
-xmap <silent> <TAB> <Plug>(coc-range-select)
-xmap <silent> <S-TAB> <Plug>(coc-range-select-backword)
-
 " Use `:Format` to format current buffer
 command! -nargs=0 Format :call CocAction('format')
 
@@ -240,7 +334,7 @@ command! -nargs=? Fold :call     CocAction('fold', <f-args>)
 command! -nargs=0 OR   :call     CocAction('runCommand', 'editor.action.organizeImport')
 
 " Add status line support, for integration with other plugin, checkout `:h coc-status`
-set statusline^=%{coc#status()}%{get(b:,'coc_current_function','')}
+"set statusline^=%{coc#status()}%{get(b:,'coc_current_function','')}
 
 " Using CocList
 " Show all diagnostics
@@ -261,9 +355,16 @@ nnoremap <silent> <space>k  :<C-u>CocPrev<CR>
 nnoremap <silent> <space>p  :<C-u>CocListResume<CR>
 
 
+" ==========================================================
+"
 """"" Colors, themes """""""""""
 "
+" ==========================================================
+"
+" ==========================================================
 """ vim-airline
+" ==========================================================
+"
 " displays all buffers when there's only one tab open
 let g:airline#extensions#tabline#enabled = 1
 " only show buffers
