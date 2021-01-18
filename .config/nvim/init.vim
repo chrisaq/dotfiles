@@ -1,5 +1,6 @@
 """ Plug """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-call plug#begin('~/.local/share/nvim/plugged')
+"call plug#begin('~/.local/share/nvim/plugged')
+call plug#begin(stdpath('data') . '/plugged')
 
 " git
 Plug 'tpope/vim-git'
@@ -9,9 +10,12 @@ Plug 'gregsexton/gitv'
 " movement
 Plug 'unblevable/quick-scope'
 Plug 'ap/vim-you-keep-using-that-word'  " disables cw/cW exception of not including the space(s) after word
-" sessions
+" sessions and such
 Plug 'tpope/vim-obsession'
 Plug 'dhruvasagar/vim-prosession'
+Plug '907th/vim-auto-save'
+Plug 'simnalamburt/vim-mundo'
+Plug 'moll/vim-bbye'
 
 " fuzzy search
 Plug 'Yggdroot/LeaderF', { 'do': './install.sh' }
@@ -62,6 +66,17 @@ set wildignore+=*.o,*.obj,.git,*.pyc
 " Set working directory
 nnoremap <leader>. :lcd %:p:h<CR>
 
+" undo
+set undolevels=1000
+if has('persistent_undo')
+    " silent !mkdir -p stdpath('data') . '/undo' > /dev/null 2>&1
+    call mkdir(stdpath('data') . '/undo', 'p')
+    "set undodir = stdpath('data') . '/undo'
+    let &undodir=stdpath('data') . '/undo'
+    set undofile
+endif
+
+
 """ Moving Around/Editing
 set cursorline              " have a line indicate the cursor location
 set ruler                   " show the cursor position all the time
@@ -87,6 +102,16 @@ set foldlevel=99            " don't fold by default
 set hidden                  " allows buffers to be hidden when modified
 set ssop-=options           " do not store global and local values in a session
 set ssop-=folds             " do not store folds
+    " inc/dec numbers right of cursor using -/+ 
+set nrformats=
+nnoremap + <C-a>
+nnoremap - <C-x>
+" visual replace
+if has("nvim")
+    set inccommand=nosplit
+endif
+
+
 " ==========================================================
 
 
@@ -180,6 +205,26 @@ nnoremap <leader><BS> :%s/\s\+$//<cr>:let @/=''<CR>
 
 let g:prosession_dir = '~/.config/nvim/session'
 let g:prosession_on_startup = 1
+
+" ==========================================================
+" autosave
+" ==========================================================
+
+let g:auto_save        = 1
+let g:auto_save_silent = 1
+let g:auto_save_events = ["InsertLeave", "TextChanged", "FocusLost"]
+" let g:auto_save_write_all_buffers = 1  " write all open buffers as if you would use :wa
+
+" ==========================================================
+" Bbye
+" ==========================================================
+nnoremap <Leader>q :Bdelete<CR>
+
+
+" ==========================================================
+" Mundo
+" ==========================================================
+nnoremap <F5> :MundoToggle<CR>
 
 
 " ==========================================================
