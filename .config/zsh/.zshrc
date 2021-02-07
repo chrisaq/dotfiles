@@ -181,6 +181,11 @@ fi
 alias ag="ag --hidden"
 
 # fzf
+export FZF_DEFAULT_COMMAND='fd --type f'
+# To apply the command to CTRL-T as well
+export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+# trigger fzf on tab, not **
+#export FZF_COMPLETION_TRIGGER=''
 # arch locations
 FZF_BIND="/usr/share/fzf/key-bindings.zsh"
 FZF_COMPL="/usr/share/fzf/completion.zsh"
