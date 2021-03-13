@@ -89,7 +89,6 @@ export IPYTHONDIR=${XDG_CONFIG_HOME:-$HOME/.config}/ipython
 export AWS_SHARED_CREDENTIALS_FILE="$XDG_CONFIG_HOME"/aws/credentials
 export AWS_CONFIG_FILE="$XDG_CONFIG_HOME"/aws/config
 export DOCKER_CONFIG="$XDG_CONFIG_HOME"/docker
-export GNUPGHOME="$XDG_CONFIG_HOME"/gnupg
 export TMUX_TMPDIR="$XDG_RUNTIME_DIR"
 export WEECHAT_HOME="$XDG_CONFIG_HOME"/weechat
 export XAUTHORITY="$XDG_RUNTIME_DIR"/Xauthority
@@ -102,6 +101,8 @@ alias tmux='TERM=xterm-256color tmux -f "$XDG_CONFIG_HOME"/tmux/tmux.conf'
 alias weechat='weechat -d "$XDG_CONFIG_HOME"/weechat'
 
 ### GPG stuff
+export SSH_AUTH_SOCK=$XDG_RUNTIME_DIR/gnupg/S.gpg-agent.ssh
+export GNUPGHOME="$XDG_CONFIG_HOME"/gnupg
 # use gui pinentry if we have DISPLAY _AND_ not on a SSH connection, else curses
 if [[ ${DISPLAY:-}  ]] && [[ ! ${SSH_CONNECTION:-} ]]; then
     export PINENTRY_USER_DATA="USE_CURSES=0"

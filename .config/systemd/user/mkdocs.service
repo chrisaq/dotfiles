@@ -2,7 +2,7 @@
 Description=mkdocs devel server
 
 [Service]
-ExecStart=/usr/bin/mkdocs serve
+ExecStart=/home/chrisq/bin/mkdocs-venv/bin/mkdocs serve
 WorkingDirectory=%h/Sync/Wiki/Tech
 
 [Install]

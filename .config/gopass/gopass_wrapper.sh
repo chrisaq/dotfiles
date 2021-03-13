@@ -7,6 +7,7 @@ else
 	eval $(gpg-agent --daemon)
 fi
 
+export PASSWORD_STORE_DIR=/home/chrisq/Sync/Password-Store
 export GNUPGHOME=/home/chrisq/.config/gnupg
 export PATH="$PATH:/usr/local/bin" # required on MacOS/brew
 export GPG_TTY="$(tty)"
