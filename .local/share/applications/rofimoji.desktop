@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Encoding=UTF-8
+Name=cq-rofimoji
+Comment=rofi emoji picker
+Exec=/usr/bin/rofimoji
+Icon=application.png
+Terminal=false

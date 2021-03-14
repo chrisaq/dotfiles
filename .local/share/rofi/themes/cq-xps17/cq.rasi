@@ -3,8 +3,19 @@ configuration {
   display-drun: "  ";
   display-window: "  ";
   drun-display-format: "{icon} {name}";
-  font: "Hack Nerd Font Mono Regular 24";
+  font: "Hack Nerd Font Mono Regular 20";
   modi: "window,run,drun";
+  icon-theme:         "Papirus";
   show-icons: true;
 }
+/* @theme "/home/chrisq/.local/share/rofi/themes/nord/nord.rasi" */
 @theme "/usr/share/rofi/themes/solarized_alternate.rasi"
+prompt { enabled: false; }
+
+/*
+#textbox-prompt-colon {
+  content: "";
+  expand: false;
+  padding: 15px 5px 0 25px;
+}
+*/
