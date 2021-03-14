@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
 Encoding=UTF-8
-Name=cq-rofi-pass
-Comment=gopass with rofi
-Exec=env PASSWORD_STORE_DIR=/home/chrisq/Sync/Password-Store GNUPGHOME=/home/chrisq/.config/gnupg /home/chrisq/bin/rofi-pass
+Name=cqpass-menu
+Comment=gopass with rofi menu
+Exec=env PASSWORD_STORE_DIR=/home/chrisq/Sync/Password-Store GNUPGHOME=/home/chrisq/.config/gnupg /usr/bin/rofi-pass
 Icon=application.png
 Terminal=false

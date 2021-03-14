@@ -3,6 +3,6 @@ Type=Application
 Encoding=UTF-8
 Name=cqpass
 Comment=gopass with rofi
-Exec=/home/chrisq/bin/cqpass
+Exec=env PASSWORD_STORE_DIR=/home/chrisq/Sync/Password-Store GNUPGHOME=/home/chrisq/.config/gnupg /home/chrisq/bin/cqpass
 Icon=application.png
 Terminal=false
