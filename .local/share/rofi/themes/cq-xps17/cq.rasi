@@ -1,0 +1,10 @@
+configuration {
+  display-run: " ";
+  display-drun: "  ";
+  display-window: "  ";
+  drun-display-format: "{icon} {name}";
+  font: "Hack Nerd Font Mono Regular 24";
+  modi: "window,run,drun";
+  show-icons: true;
+}
+@theme "/usr/share/rofi/themes/solarized_alternate.rasi"
