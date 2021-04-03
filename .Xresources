@@ -118,3 +118,7 @@ URxvt.pointerBlank: true
 st.termname: st-256color
 st.tabspaces: 4
 st.font: Hack Nerd Font:style=Regular:pixelsize=16
+
+!!! i3
+Xft.dpi: 120
+

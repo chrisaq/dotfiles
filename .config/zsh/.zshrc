@@ -60,7 +60,8 @@ export XDG_CONFIG_HOME=${HOME}/.config
 export XDG_DATA_HOME=${HOME}/.local/share
 export XDG_CACHE_HOME=${HOME}/.cache
 export XDG_RUNTIME_DIR=/run/user/`id -u`
-export XDG_DATA_DIRS=""
+# Setting this breaks seahorse and perhaps others
+# export XDG_DATA_DIRS=""
 
 # because xdg-utils are broken
 export DE="generic"
@@ -284,6 +285,9 @@ ff () {
 alias st="st -f 'Hack Nerd Font:style=Regular:pixelsize=16'"
 alias stt="tabbed -c -r 2 st -w ''"
 alias sysu='systemctl --user'
+
+## terraform, iac
+alias tfinit='terraform init -backend-config=tf-init.conf'
 
 ## terminfo
 typeset -g -A key
