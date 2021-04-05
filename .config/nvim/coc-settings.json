@@ -1,0 +1,4 @@
+"markdownlint.config": {
+    "default": true,
+    "whitespace": false
+  },

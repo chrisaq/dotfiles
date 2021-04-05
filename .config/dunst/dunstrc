@@ -2,7 +2,9 @@
     # Lifted from https://github.com/LukeSmithxyz/voidrice/
     monitor = 0
     follow = keyboard
-    geometry = "350x5-0+24"
+    # geo: width_x_num_of_notifs - x+y 
+    geometry = "350x5-0+30"
+    #geometry = "350x5-0+24"
     indicate_hidden = yes
     shrink = yes
     transparency = 20
