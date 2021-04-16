@@ -1,11 +1,11 @@
 #!/bin/sh
 
-if [ -f ~/.gpg-agent-info ] && [ -n "$(pgrep gpg-agent)" ]; then
-	source ~/.gpg-agent-info
-	export GPG_AGENT_INFO
-else
-	eval $(gpg-agent --daemon)
-fi
+#if [ -f ~/.gpg-agent-info ] && [ -n "$(pgrep gpg-agent)" ]; then
+#	source ~/.gpg-agent-info
+#	export GPG_AGENT_INFO
+#else
+#	eval $(gpg-agent --daemon)
+#fi
 
 export PASSWORD_STORE_DIR=/home/chrisq/Sync/Password-Store
 export GNUPGHOME=/home/chrisq/.config/gnupg

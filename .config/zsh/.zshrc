@@ -282,9 +282,12 @@ ff () {
 
 ### ENDS: SEC section ##########################################################
 
+
+####### MISC ALIASES
 alias st="st -f 'Hack Nerd Font:style=Regular:pixelsize=16'"
 alias stt="tabbed -c -r 2 st -w ''"
 alias sysu='systemctl --user'
+alias t="task"
 
 ## terraform, iac
 alias tfinit='terraform init -backend-config=tf-init.conf'
@@ -296,8 +299,6 @@ key[End]="${terminfo[kend]}"
 # setup key accordingly
 [[ -n "${key[Home]}"      ]] && bindkey -- "${key[Home]}"      beginning-of-line
 [[ -n "${key[End]}"       ]] && bindkey -- "${key[End]}"       end-of-line
-
-
 
 # Powerlevel10k
 # To customize prompt, run `p10k configure` or edit ~/.config/zsh/.p10k.zsh.

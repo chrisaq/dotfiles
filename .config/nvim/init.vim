@@ -270,6 +270,10 @@ noremap <leader>fo :<C-U><C-R>=printf("Leaderf! gtags --recall %s", "")<CR><CR>
 noremap <leader>fn :<C-U><C-R>=printf("Leaderf gtags --next %s", "")<CR><CR>
 noremap <leader>fp :<C-U><C-R>=printf("Leaderf gtags --previous %s", "")<CR><CR>
 
+" disable cache as it can't locate newly created files
+let g:Lf_UseCache = 0
+let g:Lf_UseMemoryCache = 0
+
 " ==========================================================
 " From CoC
 " ==========================================================

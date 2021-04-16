@@ -1,0 +1,19 @@
+#!/bin/bash
+
+shopt -s nullglob globstar
+
+# get all the saved password files
+prefix=${PASSWORD_STORE_DIR-~/Sync/Password-Store}
+password_files=( "$prefix"/**/*.gpg )
+password_files=( "${password_files[@]#"$prefix"/}" )
+password_files=( "${password_files[@]%.gpg}" )
+
+# shows a list of all password files and saved the selected one in a variable
+#password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu "$@" -theme ~/.local/share/rofi/themes/nord/nord.rasi)
+password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu "$@" -theme ~/.local/share/rofi/themes/cq-xps17/cq.rasi)
+[[ -n $password ]] || exit
+
+passw=$(pass show $password | head -n1 )
+xdotool type "$passw"
+xdotool key Tab
+fi

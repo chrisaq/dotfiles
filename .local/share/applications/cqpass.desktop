@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
 Encoding=UTF-8
-Name=cqpass
+Name=cqpass-typeout
 Comment=gopass with rofi
-Exec=env PASSWORD_STORE_DIR=/home/chrisq/Sync/Password-Store GNUPGHOME=/home/chrisq/.config/gnupg /home/chrisq/bin/cqpass
+Exec=env PASSWORD_STORE_DIR=/home/chrisq/Sync/Password-Store GNUPGHOME=/home/chrisq/.config/gnupg /home/chrisq/bin/cqpass-typeout
 Icon=application.png
 Terminal=false
