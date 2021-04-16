@@ -206,24 +206,6 @@ if [[ $HAS_FZF -eq 1  ]]; then
         fi
     }
 fi
-# fasd
-if command -v fasd >/dev/null 2>&1; then
-    eval "$(fasd --init auto)"
-    if [[ $HAS_FZF -eq 1  ]]; then
-        unalias z
-        z() {
-            local dir
-            dir="$(fasd -Rdl "$1" | fzf -1 -0 --no-sort +m)" && cd "${dir}" || return 1
-        }
-        v() {
-            local file
-            file="$(fasd -Rfl "$1" | fzf -1 -0 --no-sort +m)" && vim "${file}" || return 1
-        }
-    else
-        alias v='f -t -e vim'
-    fi
-fi
-
 
 256tab() {
     for k in `seq 0 1`;do
