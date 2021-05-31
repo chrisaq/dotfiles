@@ -29,6 +29,7 @@ setopt incappendhistorytime
 setopt hist_ignore_dups
 setopt hist_no_functions
 setopt hist_reduce_blanks
+setopt sharehistory
 setopt autocd
 setopt notify
 setopt interactive_comments
@@ -37,22 +38,51 @@ setopt no_beep
 setopt complete_in_word
 
 # history search
-bindkey "^R" history-incremental-search-backward
-#[[ -n "${key[Up]}" ]] && bindkey "${key[Up]}" history-beginning-search-backward
-#[[ -n "${key[Down]}" ]] && bindkey "${key[Down]}" history-beginning-search-forward
-autoload -U up-line-or-beginning-search
-autoload -U down-line-or-beginning-search
-zle -N up-line-or-beginning-search
-zle -N down-line-or-beginning-search
-bindkey "^[[A" up-line-or-beginning-search # Up
-bindkey "^[[B" down-line-or-beginning-search # Down
+# bindkey "^R" history-incremental-search-backward
+# autoload -U up-line-or-beginning-search
+# autoload -U down-line-or-beginning-search
+# zle -N up-line-or-beginning-search
+# zle -N down-line-or-beginning-search
+# bindkey "^[[A" up-line-or-beginning-search # Up
+# bindkey "^[[B" down-line-or-beginning-search # Down
+
+
+##### history search:  arrows: local -- ctrl-r global
+# setopt sharehistory
+# bindkey "${key[Up]}" up-line-or-local-history
+# bindkey "${key[Down]}" down-line-or-local-history
+#
+# up-line-or-local-history() {
+#     zle set-local-history 1
+#     zle up-line-or-history
+#     zle set-local-history 0
+# }
+# zle -N up-line-or-local-history
+# down-line-or-local-history() {
+#     zle set-local-history 1
+#     zle down-line-or-history
+#     zle set-local-history 0
+# }
+# zle -N down-line-or-local-history
+##### END: local + global history search
+
 
 
 # set PATH so it includes user's private bin if it exists
 if [ -d "$HOME/bin" ] ; then
     PATH="$HOME/bin:$PATH"
 fi
+# XDG bin as well
+if [ -d "$HOME/.local/bin" ] ; then
+    PATH="$HOME/.local/bin:$PATH"
+fi
+# flatpack
+if [ -d "/var/lib/flatpak/exports/bin" ] ; then
+    PATH="$PATH:/var/lib/flatpak/exports/bin"
+fi
 
+# update shell to include recently created group(s)
+alias groups_refresh="exec sudo su -l $USER"
 
 #####  XDG stuff #####
 # should be set by pam, but missing in some places
@@ -65,6 +95,9 @@ export XDG_RUNTIME_DIR=/run/user/`id -u`
 
 # because xdg-utils are broken
 export DE="generic"
+
+# PAGER
+export PAGER=bat
 
 ##### XDG apps workarounds #####
 # https://wiki.archlinux.org/index.php/XDG_Base_Directory_support
@@ -88,8 +121,6 @@ export RANDFILE="$XDG_CACHE_HOME"/rnd
 export RXVT_SOCKET="$XDG_RUNTIME_DIR"/urxvt/urxvt-"$(hostname)"
 export JUPYTER_CONFIG_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/jupyter
 export IPYTHONDIR=${XDG_CONFIG_HOME:-$HOME/.config}/ipython
-export AWS_SHARED_CREDENTIALS_FILE="$XDG_CONFIG_HOME"/aws/credentials
-export AWS_CONFIG_FILE="$XDG_CONFIG_HOME"/aws/config
 export DOCKER_CONFIG="$XDG_CONFIG_HOME"/docker
 export TMUX_TMPDIR="$XDG_RUNTIME_DIR"
 export WEECHAT_HOME="$XDG_CONFIG_HOME"/weechat
@@ -97,13 +128,15 @@ export XAUTHORITY="$XDG_RUNTIME_DIR"/Xauthority
 export INPUTRC="$XDG_CONFIG_HOME"/readline/inputrc
 export TASKDATA="$XDG_DATA_HOME"/task
 export TASKRC="$XDG_CONFIG_HOME"/task/taskrc
+# temp disable
+#export AWS_SHARED_CREDENTIALS_FILE="$XDG_CONFIG_HOME"/aws/credentials
+#export AWS_CONFIG_FILE="$XDG_CONFIG_HOME"/aws/config
 
 ##### XDG using aliases as workarounds
 alias tmux='TERM=xterm-256color tmux -f "$XDG_CONFIG_HOME"/tmux/tmux.conf'
 alias weechat='weechat -d "$XDG_CONFIG_HOME"/weechat'
 
 ### GPG stuff
-export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
 export GNUPGHOME="$XDG_CONFIG_HOME"/gnupg
 # use gui pinentry if we have DISPLAY _AND_ not on a SSH connection, else curses
 if [[ ${DISPLAY:-}  ]] && [[ ! ${SSH_CONNECTION:-} ]]; then
@@ -113,42 +146,99 @@ else
     # fix pinentry
     export GPG_TTY=`tty`
 fi
+# when using a custom GNUPGHOME, this must be set before SSH_AUTH_SOCK to find the correct gpg-agent.conf
+export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
 
-############################# zplugin configuration ############################
-# Installation:
-# git clone https://github.com/zdharma/zplugin.git $XDG_CONFIG_HOME/zsh/zplugin/bin
-[[ ! -f $XDG_CONFIG_HOME/zsh/zplugin/bin/zplugin.zsh ]] && {
-    command mkdir -p $XDG_CONFIG_HOME/zsh/zplugin
-    command git clone https://github.com/zdharma/zplugin $XDG_CONFIG_HOME/zsh/zplugin/bin
+############################# zinit configuration ############################
+[[ ! -f $XDG_CONFIG_HOME/zsh/zinit/bin/zinit.zsh ]] && {
+    command mkdir -p $XDG_CONFIG_HOME/zsh/zinit
+    command git clone https://github.com/zdharma/zinit $XDG_CONFIG_HOME/zsh/zinit/bin
 }
 
-source $ZDOTDIR/zplugin/bin/zplugin.zsh
+source $ZDOTDIR/zinit/bin/zinit.zsh
 
-# Uncomment the below if zplugin is sourced after compinit
-#autoload -Uz _zplugin
-#(( ${+_comps} )) && _comps[zplugin]=_zplugin
+# Uncomment the below if zinit is sourced after compinit
+#autoload -Uz _zinit
+#(( ${+_comps} )) && _comps[zinit]=_zinit
 
-### zplugin plugins
-zplugin ice wait'0'
+### zinit plugins
+zinit ice wait'0'
 
-zplugin ice blockf
-zplugin light zsh-users/zsh-completions
+zinit ice blockf
+#zinit light zsh-users/zsh-completions
 
-zplugin ice depth=1; zplugin light romkatv/powerlevel10k
+zinit ice depth=1; zinit light romkatv/powerlevel10k
 
 ## autosuggestions doesn't work with solarized
-#zplugin ice wait lucid atload'_zsh_autosuggest_start'
-#zplugin load zsh-users/zsh-autosuggestions
+#zinit ice wait lucid atload'_zsh_autosuggest_start'
 
-zplugin load zdharma/fast-syntax-highlighting
-zplugin snippet OMZ::plugins/git/git.plugin.zsh
+#zinit load zsh-users/zsh-autosuggestions
 
-zplugin light zdharma/zui
-zplugin light zdharma/zplugin-crasis
+zinit wait lucid light-mode for \
+  atinit"zicompinit; zicdreplay" \
+    zdharma/fast-syntax-highlighting \
+  blockf atpull'zinit creinstall -q .' \
+    zsh-users/zsh-completions
 
-zplugin wait"1" lucid as"program" pick"$ZPFX/bin/fzy*" atclone"cp contrib/fzy-* $ZPFX/bin/" make"!PREFIX=$ZPFX install" for jhawthorn/fzy
+zinit is-snippet for \
+    OMZL::completion.zsh \
+    OMZL::key-bindings.zsh \
+    OMZL::directories.zsh
 
-##################### ENDS: zplugin plugins and configuration
+zinit is-snippet for \
+    OMZ::plugins/git/git.plugin.zsh \
+    OMZ::plugins/aws/aws.plugin.zsh \
+    OMZ::plugins/sudo/sudo.plugin.zsh \
+    OMZ::plugins/httpie/httpie.plugin.zsh \
+    OMZ::plugins/fzf/fzf.plugin.zsh \
+    OMZ::plugins/docker-compose/docker-compose.plugin.zsh \
+    OMZ::plugins/kubectl/kubectl.plugin.zsh \
+    OMZ::plugins/helm/helm.plugin.zsh
+
+# zinit snippet OMZ::plugins/git/git.plugin.zsh
+# zinit snippet OMZ::plugins/aws/aws.plugin.zsh
+# zinit snippet OMZ::plugins/sudo/sudo.plugin.zsh
+# zinit snippet OMZ::plugins/httpie/httpie.plugin.zsh
+# zinit snippet OMZ::plugins/fzf/fzf.plugin.zsh
+# zinit snippet OMZ::plugins/docker-compose/docker-compose.plugin.zsh
+# zinit snippet OMZ::plugins/kubectl/kubectl.plugin.zsh
+# zinit snippet OMZ::plugins/helm/helm.plugin.zsh
+
+# zinit wait lucid for \
+#     OMZ::plugins/kubectl/kubectl.plugin.zsh \
+#     OMZ::plugins/helm/helm.plugin.zsh
+
+
+
+zinit ice atclone"dircolors -b $HOME/.config/zsh/dircolors > clrs.zsh" \
+    atpull'%atclone' pick"clrs.zsh" nocompile'!' \
+    atload'zstyle ":completion:*" list-colors “${(s.:.)LS_COLORS}”'
+zinit light trapd00r/LS_COLORS
+
+zinit wait lucid is-snippet as"completion" for \
+    OMZP::docker/_docker \
+    OMZP::docker-compose/_docker-compose \
+    OMZP::ripgrep/_ripgrep \
+    OMZP::fd/_fd
+
+# zinit ice as"completion"
+# zinit snippet OMZ::plugins/ripgrep/_ripgrep
+# zinit ice as"completion"
+# zinit snippet OMZ::plugins/fd/_fd
+# zinit ice as"completion"
+# zinit snippet OMZ::plugins/docker/_docker
+
+
+
+zinit light marlonrichert/zsh-autocomplete
+#zinit ice pick"zcolors.plugin.zsh" src"functions/zcolors"
+zinit light marlonrichert/zcolors
+zinit light zdharma/zui
+zinit light zdharma/zinit-crasis
+
+zinit wait"1" lucid as"program" pick"$ZPFX/bin/fzy*" atclone"cp contrib/fzy-* $ZPFX/bin/" make"!PREFIX=$ZPFX install" for jhawthorn/fzy
+
+##################### ENDS: zinit plugins and configuration
 
 zstyle ':completion:*' matcher-list '' 'm:{a-zA-Z}={A-Za-z}'
 autoload -Uz compinit
@@ -270,6 +360,8 @@ alias st="st -f 'Hack Nerd Font:style=Regular:pixelsize=16'"
 alias stt="tabbed -c -r 2 st -w ''"
 alias sysu='systemctl --user'
 alias t="task"
+# the () launches the command  in a subshell, not affecting CWD of shell running the alias.
+alias skraper='(cd ~/bin/Skraper && mono SkraperUI.exe)'
 
 ## terraform, iac
 alias tfinit='terraform init -backend-config=tf-init.conf'

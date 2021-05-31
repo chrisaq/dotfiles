@@ -19,7 +19,7 @@ Plug 'moll/vim-bbye'
 
 " fuzzy search
 Plug 'Yggdroot/LeaderF', { 'do': './install.sh' }
-
+Plug 'tamago324/LeaderF-filer'
 " general programming and completion
 Plug 'neoclide/coc.nvim', {'branch': 'release'}
 Plug 'machakann/vim-sandwich'  " replaces vim-surround below
@@ -102,7 +102,7 @@ set foldlevel=99            " don't fold by default
 set hidden                  " allows buffers to be hidden when modified
 set ssop-=options           " do not store global and local values in a session
 set ssop-=folds             " do not store folds
-    " inc/dec numbers right of cursor using -/+ 
+" inc/dec numbers right of cursor using -/+
 set nrformats=
 nnoremap + <C-a>
 nnoremap - <C-x>
@@ -111,7 +111,7 @@ if has("nvim")
     set inccommand=nosplit
 endif
 
-
+au TextYankPost * silent! lua vim.highlight.on_yank{on_visual = false, higroup="IncSearch", timeout=700}
 " ==========================================================
 
 
@@ -216,12 +216,6 @@ let g:auto_save_events = ["InsertLeave", "TextChanged", "FocusLost"]
 " let g:auto_save_write_all_buffers = 1  " write all open buffers as if you would use :wa
 
 " ==========================================================
-" Bbye
-" ==========================================================
-nnoremap <Leader>q :Bdelete<CR>
-
-
-" ==========================================================
 " Mundo
 " ==========================================================
 nnoremap <F5> :MundoToggle<CR>
@@ -240,14 +234,20 @@ let g:qs_highlight_on_keys = ['f', 'F', 't', 'T']
 " ==========================================================
 " don't show the help in normal mode
 let g:Lf_HideHelp = 1
+" disable cache as it can't locate newly created files
+let g:Lf_UseMemoryCache = 0
 let g:Lf_UseCache = 0
-let g:Lf_UseVersionControlTool = 0
 let g:Lf_IgnoreCurrentBufferName = 1
+let g:Lf_UseVersionControlTool = 0
+let g:Lf_RecurseSubmodules = 1
+let g:Lf_WorkingDirectoryMode = 'Ac' "search from git repo root
+let g:Lf_RootMarkers = ['.git']
 " popup mode
 let g:Lf_WindowPosition = 'popup'
 let g:Lf_PreviewInPopup = 1
 let g:Lf_StlSeparator = { 'left': "\ue0b0", 'right': "\ue0b2", 'font': "DejaVu Sans Mono for Powerline" }
 let g:Lf_PreviewResult = {'Function': 0, 'BufTag': 0 }
+let g:Lf_ShowHidden = 1
 
 let g:Lf_ShortcutF = "<leader>ff"
 noremap <leader>fb :<C-U><C-R>=printf("Leaderf buffer %s", "")<CR><CR>
@@ -258,7 +258,7 @@ noremap <leader>fl :<C-U><C-R>=printf("Leaderf line %s", "")<CR><CR>
 noremap <C-B> :<C-U><C-R>=printf("Leaderf! rg --current-buffer -e %s ", expand("<cword>"))<CR>
 noremap <C-F> :<C-U><C-R>=printf("Leaderf! rg -e %s ", expand("<cword>"))<CR>
 " search visually selected text literally
-xnoremap gf :<C-U><C-R>=printf("Leaderf! rg -F -e %s ", leaderf#Rg#visual())<CR>
+noremap gf :<C-U><C-R>=printf("Leaderf! rg -F -e %s ", leaderf#Rg#visual())<CR>
 noremap go :<C-U>Leaderf! rg --recall<CR>
 
 " should use `Leaderf gtags --update` first
@@ -270,13 +270,19 @@ noremap <leader>fo :<C-U><C-R>=printf("Leaderf! gtags --recall %s", "")<CR><CR>
 noremap <leader>fn :<C-U><C-R>=printf("Leaderf gtags --next %s", "")<CR><CR>
 noremap <leader>fp :<C-U><C-R>=printf("Leaderf gtags --previous %s", "")<CR><CR>
 
-" disable cache as it can't locate newly created files
-let g:Lf_UseCache = 0
-let g:Lf_UseMemoryCache = 0
+" custom mappings
+"noremap <leader>/ :<C-U><C-R>=printf("Leaderf rg -e %s", "")<CR><CR>
+noremap <leader>fg :<C-U><C-R>=printf("Leaderf rg")<CR><CR>
+"" LeaderF - filer
+let g:Lf_FilerShowPromptPath = 1
+noremap <leader>fc :<C-U><C-R>=printf("Leaderf filer" )<CR><CR>
 
 " ==========================================================
 " From CoC
 " ==========================================================
+
+" Coc extensions
+let g:coc_global_extensions = ['coc-json', 'coc-git', 'coc-pyright', 'coc-css', 'coc-go', 'coc-html', 'coc-sh', 'coc-yaml']
 
 " if hidden is not set, TextEdit might fail.
 set hidden
@@ -402,6 +408,7 @@ nnoremap <silent> <space>j  :<C-u>CocNext<CR>
 nnoremap <silent> <space>k  :<C-u>CocPrev<CR>
 " Resume latest coc list
 nnoremap <silent> <space>p  :<C-u>CocListResume<CR>
+
 
 
 " ==========================================================
