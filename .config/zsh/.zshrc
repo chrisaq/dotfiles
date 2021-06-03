@@ -2,6 +2,9 @@
 ### sourced in interactive shells. It should contain commands to set up aliases, functions, options, key bindings, etc.
 #echo sourcing $HOME/.config/zsh/.zshrc
 
+# If not running interactively, don't do anything
+[ -z "$PS1" ] && return
+
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.config/zsh/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block, everything else may go below.
@@ -9,28 +12,18 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# If not running interactively, don't do anything
-[ -z "$PS1" ] && return
-
-# this shouldn't be forced here, but stuff complains
-#export TERM="xterm-256color"
-#
 ### History
-# Having a HISTFILE makes every running zsh share history, which can be annoying
-#HISTFILE=~/.histfile
 # fc -W  # <- try writing history to file, used to test for errors
 HISTFILE=$XDG_CACHE_HOME/zsh-history
-SAVEHIST=10000
-HISTSIZE=30000
+SAVEHIST=10000000
+HISTSIZE=10000000
 ###################### Setopts
-#setopt append_history no_inc_append_history no_share_history
-#setopt append_history
-setopt incappendhistorytime
+setopt extended_history
+setopt inc_append_history_time # replaces sharehistory and inc_append_history
 setopt hist_ignore_dups
 setopt hist_no_functions
 setopt hist_reduce_blanks
-setopt sharehistory
-setopt autocd
+setopt autocd # writing the name of a directory moves shell into it
 setopt notify
 setopt interactive_comments
 setopt list_types
@@ -192,22 +185,8 @@ zinit is-snippet for \
     OMZ::plugins/httpie/httpie.plugin.zsh \
     OMZ::plugins/fzf/fzf.plugin.zsh \
     OMZ::plugins/docker-compose/docker-compose.plugin.zsh \
-    OMZ::plugins/kubectl/kubectl.plugin.zsh \
-    OMZ::plugins/helm/helm.plugin.zsh
-
-# zinit snippet OMZ::plugins/git/git.plugin.zsh
-# zinit snippet OMZ::plugins/aws/aws.plugin.zsh
-# zinit snippet OMZ::plugins/sudo/sudo.plugin.zsh
-# zinit snippet OMZ::plugins/httpie/httpie.plugin.zsh
-# zinit snippet OMZ::plugins/fzf/fzf.plugin.zsh
-# zinit snippet OMZ::plugins/docker-compose/docker-compose.plugin.zsh
-# zinit snippet OMZ::plugins/kubectl/kubectl.plugin.zsh
-# zinit snippet OMZ::plugins/helm/helm.plugin.zsh
-
-# zinit wait lucid for \
-#     OMZ::plugins/kubectl/kubectl.plugin.zsh \
-#     OMZ::plugins/helm/helm.plugin.zsh
-
+    OMZ::plugins/helm/helm.plugin.zsh \
+    OMZ::plugins/kubectl/kubectl.plugin.zsh
 
 
 zinit ice atclone"dircolors -b $HOME/.config/zsh/dircolors > clrs.zsh" \
@@ -215,26 +194,24 @@ zinit ice atclone"dircolors -b $HOME/.config/zsh/dircolors > clrs.zsh" \
     atload'zstyle ":completion:*" list-colors “${(s.:.)LS_COLORS}”'
 zinit light trapd00r/LS_COLORS
 
+
 zinit wait lucid is-snippet as"completion" for \
     OMZP::docker/_docker \
     OMZP::docker-compose/_docker-compose \
     OMZP::ripgrep/_ripgrep \
     OMZP::fd/_fd
-
-# zinit ice as"completion"
-# zinit snippet OMZ::plugins/ripgrep/_ripgrep
-# zinit ice as"completion"
-# zinit snippet OMZ::plugins/fd/_fd
 # zinit ice as"completion"
 # zinit snippet OMZ::plugins/docker/_docker
 
 
-
 zinit light marlonrichert/zsh-autocomplete
-#zinit ice pick"zcolors.plugin.zsh" src"functions/zcolors"
-zinit light marlonrichert/zcolors
-zinit light zdharma/zui
-zinit light zdharma/zinit-crasis
+
+zinit wait lucid light-mode for \
+    marlonrichert/zcolors \
+    zdharma/zui \
+    zdharma/zinit-crasis
+# zinit ice wait lucid
+# zinit light zdharma/zinit-crasis
 
 zinit wait"1" lucid as"program" pick"$ZPFX/bin/fzy*" atclone"cp contrib/fzy-* $ZPFX/bin/" make"!PREFIX=$ZPFX install" for jhawthorn/fzy
 
