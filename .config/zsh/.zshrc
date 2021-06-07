@@ -20,7 +20,7 @@ HISTSIZE=10000000
 ###################### Setopts
 setopt extended_history
 setopt inc_append_history_time # replaces sharehistory and inc_append_history
-setopt hist_ignore_dups
+setopt hist_ignore_all_dups
 setopt hist_no_functions
 setopt hist_reduce_blanks
 setopt autocd # writing the name of a directory moves shell into it
@@ -142,6 +142,27 @@ fi
 # when using a custom GNUPGHOME, this must be set before SSH_AUTH_SOCK to find the correct gpg-agent.conf
 export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
 
+
+# fzf (needs to come before plugins)
+export FZF_ALT_C_COMMAND='fd --hidden --type d'
+# To apply the command to CTRL-T as well
+export FZF_CTRL_T_COMMAND="fd --hidden --type f"
+# trigger fzf on tab, not **
+#export FZF_COMPLETION_TRIGGER=''
+
+HAS_FZF=0 && command -v fzf >/dev/null 2>&1 && HAS_FZF=1
+if [[ $HAS_FZF -eq 1  ]]; then
+    fkill() {
+        pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
+
+        if [ "x$pid" != "x" ]; then
+            kill -${1:-9} $pid
+        fi
+    }
+fi
+
+
+
 ############################# zinit configuration ############################
 [[ ! -f $XDG_CONFIG_HOME/zsh/zinit/bin/zinit.zsh ]] && {
     command mkdir -p $XDG_CONFIG_HOME/zsh/zinit
@@ -183,8 +204,8 @@ zinit is-snippet for \
     OMZ::plugins/aws/aws.plugin.zsh \
     OMZ::plugins/sudo/sudo.plugin.zsh \
     OMZ::plugins/httpie/httpie.plugin.zsh \
-    OMZ::plugins/fzf/fzf.plugin.zsh \
     OMZ::plugins/docker-compose/docker-compose.plugin.zsh \
+    OMZ::plugins/fzf/fzf.plugin.zsh \
     OMZ::plugins/helm/helm.plugin.zsh \
     OMZ::plugins/kubectl/kubectl.plugin.zsh
 
@@ -217,14 +238,24 @@ zinit wait"1" lucid as"program" pick"$ZPFX/bin/fzy*" atclone"cp contrib/fzy-* $Z
 
 ##################### ENDS: zinit plugins and configuration
 
-zstyle ':completion:*' matcher-list '' 'm:{a-zA-Z}={A-Za-z}'
-autoload -Uz compinit
-compinit
+# zstyle ':completion:*' matcher-list '' 'm:{a-zA-Z}={A-Za-z}'
+# autoload -Uz compinit
+# compinit
+
+# zsh-autocomplete options
+zstyle ':autocomplete:*' fzf-completion yes # enable fzf **<tab>
+zstyle ':autocomplete:*' min-input 0
 
 # path to user-installed ruby gems bin
 if command -v ruby >/dev/null 2>&1 && command -v gem >/dev/null 2>&1; then
     PATH="$(ruby -r rubygems -e 'puts Gem.user_dir')/bin:$PATH"
 fi
+
+# direnv
+if command -v direnv >/dev/null 2>&1; then
+    eval "$(direnv hook zsh)"
+fi
+
 
 # VIM stuff
 # VI mode, breaks arrow history search
@@ -240,39 +271,6 @@ unset GREP_OPTIONS
 
 alias pwdcopy='pwd | tr -d "\r\n" |xclip -selection clipboard'
 alias copypwd="pwdcopy"
-
-# aws
-
-if [[ -s /usr/bin/aws_zsh_completer.sh ]]; then
-  source /usr/bin/aws_zsh_completer.sh
-fi
-
-# ag - silver searcher
-alias ag="ag --hidden"
-
-# fzf
-export FZF_DEFAULT_COMMAND='fd --type f'
-# To apply the command to CTRL-T as well
-export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
-# trigger fzf on tab, not **
-#export FZF_COMPLETION_TRIGGER=''
-# arch locations
-FZF_BIND="/usr/share/fzf/key-bindings.zsh"
-FZF_COMPL="/usr/share/fzf/completion.zsh"
-[[ -f $FZF_BIND ]] && source $FZF_BIND
-[[ -f $FZF_COMPL ]] && source $FZF_COMPL
-
-
-HAS_FZF=0 && command -v fzf >/dev/null 2>&1 && HAS_FZF=1
-if [[ $HAS_FZF -eq 1  ]]; then
-    fkill() {
-        pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
-
-        if [ "x$pid" != "x" ]; then
-            kill -${1:-9} $pid
-        fi
-    }
-fi
 
 256tab() {
     for k in `seq 0 1`;do
