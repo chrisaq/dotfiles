@@ -178,15 +178,7 @@ source $ZDOTDIR/zinit/bin/zinit.zsh
 ### zinit plugins
 zinit ice wait'0'
 
-zinit ice blockf
-#zinit light zsh-users/zsh-completions
-
 zinit ice depth=1; zinit light romkatv/powerlevel10k
-
-## autosuggestions doesn't work with solarized
-#zinit ice wait lucid atload'_zsh_autosuggest_start'
-
-#zinit load zsh-users/zsh-autosuggestions
 
 zinit wait lucid light-mode for \
   atinit"zicompinit; zicdreplay" \
@@ -205,9 +197,7 @@ zinit is-snippet for \
     OMZ::plugins/sudo/sudo.plugin.zsh \
     OMZ::plugins/httpie/httpie.plugin.zsh \
     OMZ::plugins/docker-compose/docker-compose.plugin.zsh \
-    OMZ::plugins/fzf/fzf.plugin.zsh \
-    OMZ::plugins/helm/helm.plugin.zsh \
-    OMZ::plugins/kubectl/kubectl.plugin.zsh
+    OMZ::plugins/fzf/fzf.plugin.zsh
 
 
 zinit ice atclone"dircolors -b $HOME/.config/zsh/dircolors > clrs.zsh" \
@@ -221,11 +211,8 @@ zinit wait lucid is-snippet as"completion" for \
     OMZP::docker-compose/_docker-compose \
     OMZP::ripgrep/_ripgrep \
     OMZP::fd/_fd
-# zinit ice as"completion"
-# zinit snippet OMZ::plugins/docker/_docker
 
-
-zinit light marlonrichert/zsh-autocomplete
+#zinit light marlonrichert/zsh-autocomplete
 
 zinit wait lucid light-mode for \
     marlonrichert/zcolors \
@@ -237,6 +224,10 @@ zinit wait lucid light-mode for \
 zinit wait"1" lucid as"program" pick"$ZPFX/bin/fzy*" atclone"cp contrib/fzy-* $ZPFX/bin/" make"!PREFIX=$ZPFX install" for jhawthorn/fzy
 
 ##################### ENDS: zinit plugins and configuration
+
+autoload -Uz compinit
+compinit
+zinit cdreplay -q
 
 # zstyle ':completion:*' matcher-list '' 'm:{a-zA-Z}={A-Za-z}'
 # autoload -Uz compinit
@@ -306,26 +297,15 @@ Pass() {
     gopass -c "$pass"
 }
 
-Passy() {
-    pass=$(gopass ls -f | fzy) && \
-    gopass "$pass"
+PassEdit() {
+    pass=$(gopass ls --flat|fzf)
+    gopass edit $pass
 }
 
 alias pass='gopass'
 alias yubikey_reset_serial='echo rm ${GNUPGHOME}/private-keys-v1.d/{A7311DE4F14645F60A94FAB5A7864BDE48076BF4.key,C2BE7814190B272612D9E293BE85D9B670B76E50.key,F0B427412DD319186D0F26FB1E228AC93B4EA3BA.key} && gpg --card-status'
-### Add the below, besides the alias part, to windows manager as keyboard shortcuts
-# Simply copy the selected password to the clipboard
-alias PassMenu="gopass ls --flat | rofi -dmenu | xargs --no-run-if-empty gopass show -c"
 # First pipe the selected name to gopass, encrypt it and type the password with xdotool.
 alias PassMenux="gopass ls --flat | rofi -dmenu | xargs --no-run-if-empty gopass show -f | head -n 1 | xdotool type --clearmodifiers --file -"
-
-# Turns out the below is just an inconvenient version of fzf's ctrl-t
-# ff: fd and fzy
-# passes all args to command after ff, and then a file/dir as found by fzy at the end
-# ex: "ff ls -l -a -d" results in the command ls -l -a -d <file/dir picked by fzy>
-ff () {
-    ffile=$(fd | fzy) && $1 "${@:2}" $ffile
-}
 
 ### ENDS: SEC section ##########################################################
 
@@ -340,6 +320,24 @@ alias skraper='(cd ~/bin/Skraper && mono SkraperUI.exe)'
 
 ## terraform, iac
 alias tfinit='terraform init -backend-config=tf-init.conf'
+
+# Helm
+alias helm-completion='source <(helm completion zsh)'
+
+# Turns out the below is just an inconvenient version of fzf's ctrl-t
+# ff: fd and fzy
+# passes all args to command after ff, and then a file/dir as found by fzy at the end
+# ex: "ff ls -l -a -d" results in the command ls -l -a -d <file/dir picked by fzy>
+ff () {
+    ffile=$(fd | fzy) && $1 "${@:2}" $ffile
+}
+
+completions-list () {
+    for command completion in ${(kv)_comps:#-*(-|-,*)}
+    do
+        printf "%-32s %s\n" $command $completion
+    done | sort
+}
 
 ## terminfo
 typeset -g -A key

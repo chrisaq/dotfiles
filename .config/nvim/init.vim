@@ -114,6 +114,7 @@ endif
 au TextYankPost * silent! lua vim.highlight.on_yank{on_visual = false, higroup="IncSearch", timeout=700}
 " ==========================================================
 
+let g:python3_host_prog='/usr/bin/python3'
 
 " ==========================================================
 
