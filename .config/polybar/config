@@ -162,7 +162,8 @@ font-4 = "Font Awesome 5 Brands:pixelsize=8;1"
 
 modules-left = i3 xwindow
 modules-center = 
-modules-right = space battery sepbar backlight sepbar memory7 sepbar cpu7 sepbar pavolume sepbar arch-aur-updates sepbar bluetooth sepbar date
+modules-right = space battery sepbar backlight sepbar memory7 sepbar cpu7 sepbar pipewire sepbar arch-aur-updates sepbar bluetooth sepbar date
+;modules-right = space battery sepbar backlight sepbar memory7 sepbar cpu7 sepbar pavolume sepbar arch-aur-updates sepbar bluetooth sepbar date
 ;modules-right = arrow1 networkspeedup networkspeeddown xbacklight arrow2 memory1 arrow3 cpu2 arrow2 pavolume arrow3 arch-aur-updates arrow2 date
 
 separator = 
@@ -1058,6 +1059,25 @@ format-underline = #FFBB00
 label = %output%
 format-prefix = "  "
 format-prefix-foreground = #FFBB00
+
+################################################################################
+
+
+[module/pipewire]
+type = custom/script
+label = "%output%"
+label-font = 2
+interval = 2.0
+exec = ~/.config/polybar/scripts/pipewire.sh
+click-right = exec pavucontrol &
+click-left = ~/.config/polybar/scripts/pipewire.sh mute &
+scroll-up = ~/.config/polybar/scripts/pipewire.sh up &
+scroll-down = ~/.config/scripts/polybar/pipewire.sh down &
+content-foreground = ${colors.foreground}
+content-background =  ${colors.background}
+format-foreground = ${colors.foreground}
+format-background = ${colors.background}
+
 
 ################################################################################
 
