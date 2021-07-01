@@ -162,7 +162,7 @@ font-4 = "Font Awesome 5 Brands:pixelsize=8;1"
 
 modules-left = i3 xwindow
 modules-center = 
-modules-right = space battery sepbar backlight sepbar memory7 sepbar cpu7 sepbar pipewire sepbar arch-aur-updates sepbar bluetooth sepbar date
+modules-right = space battery sepbar backlight sepbar memory7 sepbar cpu7 sepbar system-usb-udev sepbar pipewire sepbar arch-aur-updates sepbar bluetooth sepbar date
 ;modules-right = space battery sepbar backlight sepbar memory7 sepbar cpu7 sepbar pavolume sepbar arch-aur-updates sepbar bluetooth sepbar date
 ;modules-right = arrow1 networkspeedup networkspeeddown xbacklight arrow2 memory1 arrow3 cpu2 arrow2 pavolume arrow3 arch-aur-updates arrow2 date
 
@@ -1119,6 +1119,18 @@ format-underline = #0f0
 format-prefix = "  "
 format-prefix-foreground = #0f0
 label = %output:0:150%
+
+################################################################################
+[module/system-usb-udev]
+type = custom/script
+exec = ~/.config/polybar/scripts/system-usb-udev.sh
+tail = true
+click-left = ~/.config/polybar/scripts/system-usb-udev.sh --mount &
+click-right = ~/.config/polybar/scripts/system-usb-udev.sh --unmount &
+content-foreground = ${colors.foreground}
+content-background =  ${colors.background}
+format-foreground = ${colors.foreground}
+format-background = ${colors.background}
 
 ################################################################################
 
