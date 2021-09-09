@@ -287,7 +287,7 @@ alias gpg-tty-update="gpg-connect-agent UPDATESTARTUPTTY /bye >/dev/null"
 # #if [[ -s ${ZDOTDIR:-${HOME}}/gpg-agent.plugin.zsh ]]; then
 # #  source ${ZDOTDIR:-${HOME}}/gpg-agent.plugin.zsh
 # #fi
-# 
+#
 
 
 export PASSWORD_STORE_DIR=$HOME/Sync/Password-Store
@@ -318,11 +318,16 @@ alias t="task"
 # the () launches the command  in a subshell, not affecting CWD of shell running the alias.
 alias skraper='(cd ~/bin/Skraper && mono SkraperUI.exe)'
 
+alias git_get_all_branches='for abranch in $(git branch -a | grep -v HEAD | grep remotes | sed "s/remotes\/origin\///g"); do git checkout $abranch ; done'
+
 ## terraform, iac
 alias tfinit='terraform init -backend-config=tf-init.conf'
 
 # Helm
 alias helm-completion='source <(helm completion zsh)'
+
+# XRANDR, autorandr etc
+alias cq-autorandr='autorandr $(autorandr | cut -d' ' -f1|rofi -dmenu)'
 
 # Turns out the below is just an inconvenient version of fzf's ctrl-t
 # ff: fd and fzy
