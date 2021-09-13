@@ -208,10 +208,10 @@ let g:prosession_dir = '~/.config/nvim/session'
 let g:prosession_on_startup = 1
 
 " ==========================================================
-" autosave
+" autosave (disabled for now)
 " ==========================================================
 
-let g:auto_save        = 1
+let g:auto_save        = 0
 let g:auto_save_silent = 1
 let g:auto_save_events = ["InsertLeave", "TextChanged", "FocusLost"]
 " let g:auto_save_write_all_buffers = 1  " write all open buffers as if you would use :wa
