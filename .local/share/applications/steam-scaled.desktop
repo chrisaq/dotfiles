@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Steam Scaled (native)
+Comment=Steam started with PRIME for laptop usage
+Exec=env GDK_SCALE=2 STEAM_RUNTIME=0 STEAM_RUNTIME_HEAVY=0 steam %U
+Icon=steam
+Terminal=false
+Type=Application
+Categories=Network;FileTransfer;Game;
+MimeType=x-scheme-handler/steam;
+Actions=Store;Community;Library;Servers;Screenshots;News;Settings;BigPicture;Friends;
+
