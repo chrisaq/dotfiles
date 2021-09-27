@@ -333,7 +333,7 @@ mode "resize" {
 #bindsym $mod+9 exec --no-startup-id blurlock
 
 # Autorandr
-#exec_always --no-startup-id autorandr --change
+exec_always --no-startup-id autorandr --change --skip-option crtc
 
 # keyboard layouts
 exec --no-startup-id setxkbmap "no(nodeadkeys),us" -option 'grp:shifts_toggle'

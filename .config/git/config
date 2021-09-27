@@ -1,3 +1,9 @@
+[user]
+    # These values are set in ~/.config/git/user-config
+
+[include]
+    path = ~/.config/git/user-config
+
 [alias]
 
 	# View abbreviated SHA, description, and history graph of the latest 20 commits
@@ -155,6 +161,7 @@
 [push]
 	# change to maching for machines with older versions of git 1.x.x
 	default = simple
+	pushOption = ci.skip
 
 [url "git@github.com:github"]
 
