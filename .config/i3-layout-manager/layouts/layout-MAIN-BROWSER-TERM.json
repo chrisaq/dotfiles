@@ -1,0 +1,73 @@
+[
+	{
+		"border": "pixel",
+		"floating": "auto_off",
+		"fullscreen_mode": 0,
+		"layout": "splith",
+		"marks": [],
+		"percent": null,
+		"type": "con",
+		"nodes": [
+			{
+				"border": "pixel",
+				"floating": "auto_off",
+				"layout": "stacked",
+				"marks": [],
+				"percent": 0.5,
+				"type": "con",
+				"nodes": [
+					{
+						"border": "pixel",
+						"current_border_width": 2,
+						"floating": "auto_off",
+						"geometry": {
+							"height": 1970,
+							"width": 1440,
+							"x": 0,
+							"y": 0
+						},
+						"marks": [],
+						"name": "New Tab — Mozilla Firefox",
+						"percent": 1,
+						"swallows": [
+							{
+								"instance": "^Navigator$"
+							}
+						],
+						"type": "con"
+					}
+				]
+			},
+			{
+				"border": "pixel",
+				"floating": "auto_off",
+				"layout": "splitv",
+				"marks": [],
+				"percent": 0.5,
+				"type": "con",
+				"nodes": [
+					{
+						"border": "none",
+						"current_border_width": 2,
+						"floating": "auto_off",
+						"geometry": {
+							"height": 578,
+							"width": 962,
+							"x": 0,
+							"y": 0
+						},
+						"marks": [],
+						"name": "Tilix: Terminal",
+						"percent": 1,
+						"swallows": [
+							{
+								"instance": "^tilix$"
+							}
+						],
+						"type": "con"
+					}
+				]
+			}
+		]
+	}
+]
