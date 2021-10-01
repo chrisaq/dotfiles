@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+# ykman is installed in .local/bin/
+export PATH=$HOME/.local/bin:$PATH
+echo -n $(ykman oath accounts code $(ykman oath accounts list | rofi -dmenu) 2>/dev/null | tr -s ' ' |cut -f2 -d ' ')
+# ykman oath accounts code $(ykman oath accounts list | rofi -dmenu) 2>/dev/null | tr -s ' ' |cut -f2 -d ' ' | tr -d '\n'
+
+## debug
+#env | rofi -dmenu

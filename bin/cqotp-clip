@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+# ykman is installed in .local/bin/
+export PATH=$HOME/.local/bin:$HOME/bin:$PATH
+cqotp | xclip -selection clipboard
+
+## debug
+#env | rofi -dmenu
