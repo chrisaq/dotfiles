@@ -1,0 +1,21 @@
+configuration {
+  display-run: " ";
+  display-drun: "  ";
+  display-window: "  ";
+  drun-display-format: "{icon} {name}";
+  font: "Hack Nerd Font Mono Regular 20";
+  modi: "window,run,drun,combi";
+  icon-theme: "Papirus";
+  show-icons: true;
+}
+
+@import "/home/chrisq/.local/share/rofi/themes/cq-xps17/cq.rasi"
+/* @import "/usr/share/rofi/themes/solarized_alternate.rasi" */
+
+prompt { enabled: false; }
+
+#textbox-prompt-colon {
+  str: "";
+  expand: false;
+}
+
