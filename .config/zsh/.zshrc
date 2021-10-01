@@ -215,9 +215,9 @@ zinit wait lucid is-snippet as"completion" for \
 #zinit light marlonrichert/zsh-autocomplete
 
 zinit wait lucid light-mode for \
-    marlonrichert/zcolors \
     zdharma/zui \
     zdharma/zinit-crasis
+    #marlonrichert/zcolors \
 # zinit ice wait lucid
 # zinit light zdharma/zinit-crasis
 
@@ -311,6 +311,8 @@ alias PassMenux="gopass ls --flat | rofi -dmenu | xargs --no-run-if-empty gopass
 
 
 ####### MISC ALIASES
+alias ls='ls --color=auto'
+
 alias st="st -f 'Hack Nerd Font:style=Regular:pixelsize=16'"
 alias stt="tabbed -c -r 2 st -w ''"
 alias sysu='systemctl --user'
