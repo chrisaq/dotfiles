@@ -4,7 +4,3 @@
 # do not ignore:
 !Code/*
 !bin/
-!.vimrc
-!.zshrc
-!.tmux.conf
-!.gitignore_global
