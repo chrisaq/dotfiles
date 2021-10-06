@@ -127,27 +127,57 @@
 
 [color "branch"]
 
-	current = yellow reverse
-	local = yellow
-	remote = green
+	current = 14 normal
+	local = 14 normal dim
+	remote = 197 normal dim
+	plain = 14 normal dim
+	upstream = 197 normal
 
 [color "diff"]
 
-	meta = yellow bold
-	frag = magenta bold # line info
-	old = red # deletions
-	new = green # additions
+    # 8 is invisible
+	meta = 14 normal
+	frag = 14 normal ul
+    #meta = 8 normal
+    #frag = 8 normal ul
+	old = 9 normal dim
+	new = 10 normal
+	commit = 126 normal
+	newMoved = 14 normal
+	oldMovedAlternativeDimmed = 4 normal dim
+	oldMovedAlternative = 12 normal dim
+	contextBold = normal bold
+	newBold = 10 normal bold
+	context = normal
+	oldMoved = 14 normal dim
+	oldBold = 9 normal dim bold
+	newMovedDimmed = 6 normal
+	func = 8 normal ul
+	newDimmed = 2 normal
+	newMovedAlternative = 12 normal
+	newMovedAlternativeDimmed = 4 normal
+	whitespace = normal reverse
+	oldMovedDimmed = 6 normal dim
+	oldDimmed = 1 normal dim
 
 [color "status"]
 
-	added = yellow
-	changed = green
-	untracked = cyan
+	added = 10 normal
+	changed = 11 normal
+	untracked = normal dim
+	branch = 14 normal
+	updated = 10 normal
+	localbranch = 14 normal
+	header = normal
+	remotebranch = 197 normal
+	nobranch = 232 normal bold
+	unmerged = 9 normal
 
 [diff]
 
 	# Detect copies as well as renames
 	renames = copies
+	colorMoved = zebra
 
 [help]
 
@@ -199,3 +229,20 @@
     #gpgsign = true
 [pull]
 	rebase = true
+[color "remote"]
+	hint = normal dim
+	success = 2 normal
+	error = 1 normal
+	warning = 3 normal
+[color "interactive"]
+	header = 8 normal bold
+	prompt = 15 4
+	help = 8 normal
+	error = 232 normal bold
+[color "decorate"]
+	branch = 14 normal
+	tag = 126 normal
+	remotebranch = 197 normal
+	stash = 8 normal
+	grafted = 232 normal bold
+	HEAD = 14 normal italic

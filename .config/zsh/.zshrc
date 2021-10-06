@@ -7,10 +7,16 @@
 
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.config/zsh/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
-# confirmations, etc.) must go above this block, everything else may go below.
+# confirmations, etc.) must go above this block; everything else may go below.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
+
+# Download Znap, if it's not there yet.
+[[ -f ${ZDOTDIR}/zsh-snap/znap.zsh ]] ||
+    git clone https://github.com/marlonrichert/zsh-snap.git ${ZDOTDIR}/zsh-snap
+
+source ${ZDOTDIR}/zsh-snap/znap.zsh  # Start Znap
 
 ### History
 # fc -W  # <- try writing history to file, used to test for errors
@@ -29,37 +35,6 @@ setopt interactive_comments
 setopt list_types
 setopt no_beep
 setopt complete_in_word
-
-# history search
-# bindkey "^R" history-incremental-search-backward
-# autoload -U up-line-or-beginning-search
-# autoload -U down-line-or-beginning-search
-# zle -N up-line-or-beginning-search
-# zle -N down-line-or-beginning-search
-# bindkey "^[[A" up-line-or-beginning-search # Up
-# bindkey "^[[B" down-line-or-beginning-search # Down
-
-
-##### history search:  arrows: local -- ctrl-r global
-# setopt sharehistory
-# bindkey "${key[Up]}" up-line-or-local-history
-# bindkey "${key[Down]}" down-line-or-local-history
-#
-# up-line-or-local-history() {
-#     zle set-local-history 1
-#     zle up-line-or-history
-#     zle set-local-history 0
-# }
-# zle -N up-line-or-local-history
-# down-line-or-local-history() {
-#     zle set-local-history 1
-#     zle down-line-or-history
-#     zle set-local-history 0
-# }
-# zle -N down-line-or-local-history
-##### END: local + global history search
-
-
 
 # set PATH so it includes user's private bin if it exists
 if [ -d "$HOME/bin" ] ; then
@@ -161,78 +136,6 @@ if [[ $HAS_FZF -eq 1  ]]; then
     }
 fi
 
-
-
-############################# zinit configuration ############################
-[[ ! -f $XDG_CONFIG_HOME/zsh/zinit/bin/zinit.zsh ]] && {
-    command mkdir -p $XDG_CONFIG_HOME/zsh/zinit
-    command git clone https://github.com/zdharma/zinit $XDG_CONFIG_HOME/zsh/zinit/bin
-}
-
-source $ZDOTDIR/zinit/bin/zinit.zsh
-
-# Uncomment the below if zinit is sourced after compinit
-#autoload -Uz _zinit
-#(( ${+_comps} )) && _comps[zinit]=_zinit
-
-### zinit plugins
-zinit ice wait'0'
-
-zinit ice depth=1; zinit light romkatv/powerlevel10k
-
-zinit wait lucid light-mode for \
-  atinit"zicompinit; zicdreplay" \
-    zdharma/fast-syntax-highlighting \
-  blockf atpull'zinit creinstall -q .' \
-    zsh-users/zsh-completions
-
-zinit is-snippet for \
-    OMZL::completion.zsh \
-    OMZL::key-bindings.zsh \
-    OMZL::directories.zsh
-
-zinit is-snippet for \
-    OMZ::plugins/git/git.plugin.zsh \
-    OMZ::plugins/aws/aws.plugin.zsh \
-    OMZ::plugins/sudo/sudo.plugin.zsh \
-    OMZ::plugins/httpie/httpie.plugin.zsh \
-    OMZ::plugins/docker-compose/docker-compose.plugin.zsh \
-    OMZ::plugins/fzf/fzf.plugin.zsh
-
-
-zinit ice atclone"dircolors -b $HOME/.config/zsh/dircolors > clrs.zsh" \
-    atpull'%atclone' pick"clrs.zsh" nocompile'!' \
-    atload'zstyle ":completion:*" list-colors “${(s.:.)LS_COLORS}”'
-zinit light trapd00r/LS_COLORS
-
-
-zinit wait lucid is-snippet as"completion" for \
-    OMZP::docker/_docker \
-    OMZP::docker-compose/_docker-compose \
-    OMZP::ripgrep/_ripgrep \
-    OMZP::fd/_fd
-
-#zinit light marlonrichert/zsh-autocomplete
-
-zinit wait lucid light-mode for \
-    zdharma/zui \
-    zdharma/zinit-crasis
-    #marlonrichert/zcolors \
-# zinit ice wait lucid
-# zinit light zdharma/zinit-crasis
-
-zinit wait"1" lucid as"program" pick"$ZPFX/bin/fzy*" atclone"cp contrib/fzy-* $ZPFX/bin/" make"!PREFIX=$ZPFX install" for jhawthorn/fzy
-
-##################### ENDS: zinit plugins and configuration
-
-autoload -Uz compinit
-compinit
-zinit cdreplay -q
-
-# zstyle ':completion:*' matcher-list '' 'm:{a-zA-Z}={A-Za-z}'
-# autoload -Uz compinit
-# compinit
-
 # zsh-autocomplete options
 zstyle ':autocomplete:*' fzf-completion yes # enable fzf **<tab>
 zstyle ':autocomplete:*' min-input 0
@@ -247,13 +150,11 @@ if command -v direnv >/dev/null 2>&1; then
     eval "$(direnv hook zsh)"
 fi
 
-
 # VIM stuff
 # VI mode, breaks arrow history search
 # bindkey -v
 # emacs bindings
 bindkey -e
-alias vis="vim -S .vim.session"
 export EDITOR=nvim
 
 # Dotfiles in git
@@ -353,6 +254,38 @@ key[End]="${terminfo[kend]}"
 # setup key accordingly
 [[ -n "${key[Home]}"      ]] && bindkey -- "${key[Home]}"      beginning-of-line
 [[ -n "${key[End]}"       ]] && bindkey -- "${key[End]}"       end-of-line
+
+#znap config
+zstyle ':znap:*' default-server 'git@github.com:'
+
+znap clone \
+     git@github.com:romkatv/powerlevel10k.git \
+     git@github.com:zdharma/fast-syntax-highlighting \
+     git@github.com:momo-lab/zsh-abbrev-alias.git \
+     git@github.com:Aloxaf/fzf-tab.git \
+     git@github.com:marlonrichert/{zsh-edit,zsh-hist}.git \
+     trapd00r/LS_COLORS \
+     ohmyzsh/ohmyzsh \
+     git@github.com:zsh-users/{zsh-autosuggestions,zsh-history-substring-search,zsh-completions}.git \
+     git@github.com:MichaelAquilina/zsh-you-should-use.git
+
+znap source powerlevel10k
+znap eval trapd00r/LS_COLORS "$( whence -a dircolors gdircolors ) -b LS_COLORS"
+znap source fzf-tab
+znap source ohmyzsh/ohmyzsh lib/{git,theme-and-appearance}
+znap source zsh-abbrev-alias
+znap source zsh-you-should-use
+znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,fzf,git,helm,httpie,nmap,pip,python,sudo,systemd,taskwarrior,terraform,tmux}
+znap fpath _kubectl 'kubectl completion zsh'
+# breaks when higher up for whatever reason
+znap source fast-syntax-highlighting
+znap source zsh-autosuggestions
+znap source zsh-history-substring-search
+znap source zsh-completions
+# ENDS: breaks when higher up for whatever reason
+
+#znap source marlonrichert/zcolors
+#znap eval   marlonrichert/zcolors "zcolors ${(q)LS_COLORS}"
 
 # Powerlevel10k
 # To customize prompt, run `p10k configure` or edit ~/.config/zsh/.p10k.zsh.
