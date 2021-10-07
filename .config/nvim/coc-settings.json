@@ -1,4 +1,6 @@
 {
+"diagnostic.checkCurrentLine": true,
+"diagnostic.virtualText": true,
 "markdownlint.config": {
     "default": true,
     "whitespace": false
