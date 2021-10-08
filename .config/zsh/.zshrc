@@ -272,7 +272,7 @@ znap clone \
 znap source powerlevel10k
 znap eval trapd00r/LS_COLORS "$( whence -a dircolors gdircolors ) -b LS_COLORS"
 znap source fzf-tab
-znap source ohmyzsh/ohmyzsh lib/{git,theme-and-appearance}
+znap source ohmyzsh/ohmyzsh lib/{git,theme-and-appearance,completion}
 znap source zsh-abbrev-alias
 znap source zsh-you-should-use
 znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,fzf,git,helm,httpie,nmap,pip,python,sudo,systemd,taskwarrior,terraform,tmux}

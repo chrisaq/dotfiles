@@ -243,6 +243,7 @@ let g:Lf_UseVersionControlTool = 1
 let g:Lf_RecurseSubmodules = 1
 let g:Lf_WorkingDirectoryMode = 'Ac' "search from git repo root
 let g:Lf_RootMarkers = ['.git']
+let g:Lf_CacheDirectory = '~/.cache/LfCache'
 " popup mode
 let g:Lf_WindowPosition = 'popup'
 let g:Lf_PreviewInPopup = 1

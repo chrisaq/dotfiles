@@ -246,3 +246,20 @@
 	stash = 8 normal
 	grafted = 232 normal bold
 	HEAD = 14 normal italic
+[maintenance]
+	repo = /home/chrisq/.config/zsh/fast-syntax-highlighting
+	repo = /home/chrisq/.config/zsh/fzf-tab
+	repo = /home/chrisq/.config/zsh/github-markdown-toc
+	repo = /home/chrisq/.config/zsh/LS_COLORS
+	repo = /home/chrisq/.config/zsh/ohmyzsh
+	repo = /home/chrisq/.config/zsh/powerlevel10k
+	repo = /home/chrisq/.config/zsh/zcolors
+	repo = /home/chrisq/.config/zsh/zsh-abbrev-alias
+	repo = /home/chrisq/.config/zsh/zsh-autosuggestions
+	repo = /home/chrisq/.config/zsh/zsh-colored-man-pages
+	repo = /home/chrisq/.config/zsh/zsh-completions
+	repo = /home/chrisq/.config/zsh/zsh-edit
+	repo = /home/chrisq/.config/zsh/zsh-hist
+	repo = /home/chrisq/.config/zsh/zsh-history-substring-search
+	repo = /home/chrisq/.config/zsh/zsh-snap
+	repo = /home/chrisq/.config/zsh/zsh-you-should-use
