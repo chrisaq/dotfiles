@@ -16,13 +16,6 @@ alias dotfiles="git --work-tree=$HOME/ --git-dir=$HOME/.dotfiles.git"
 cat <<EOF
 # ignore all by default
 *
-# specific ignores
-*.pyc
-node_modules
-# do not ignore:
-!bin/
-!.vimrc
-!.tmux.conf
 EOF > $HOME/.gitignore
 ```
 
@@ -49,3 +42,31 @@ dotfiles push --set-upstream origin master
 # TODO: Figure out a better way to gitignore
 #git config --global core.excludesfile $HOME/.gitignore_global # this file was created on the initial setup
 ```
+
+## Per machine config in separate dotfiles repo
+
+To keep the same type of system for dotfiles that need to be unique per machine,
+do the same as the above, but with different alias.
+
+This lets you keep shared dotfiles sync'ed with the `dotfiles` command, while machine
+specific config is managed with `dotlocal`.
+
+### Local machine dotfiles setup
+
+```
+mkdir $HOME/.dotfiles-$(hostname).git
+# add the below to your .zshrc or .bashrc
+alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.dotfiles-$(hostname).git"
+dotlocal remote add origin git@github.com:chrisaq/dotfiles-$(hostname).git
+dotlocal add -f .gitignore
+dotlocal commit -am 'gitignore, shared'
+dotolcal push
+```
+
+### Moving files from shared dotfiles to single machine
+
+When config that needs to be different per machine is located and is to be moved,
+use git's `dotfiles rm --cached <file>` or recursive with `dotfiles rm -r --cached <dir>` with `dotfiles`.
+The files/dirs can then be added as normal with `dotlocal add -f <file/dir>`.
+
+
