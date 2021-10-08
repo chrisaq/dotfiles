@@ -1,5 +1,11 @@
 # dotfiles README/HOWTO
 
+I prefer this dotfiles in bare repository approach as it uses standards tools,
+lets me edit config files in their original place with any editor,
+and doesn't place symlinks all over my homedir.
+
+Basically all you need is a git alias, or two if you want some files to be specific to machines.
+
 ## Setting up for the first time
 
 ### create git-dotfiles-dir and add alias
@@ -14,7 +20,8 @@ alias dotfiles="git --work-tree=$HOME/ --git-dir=$HOME/.dotfiles.git"
 
 ```
 cat <<EOF
-# ignore all by default
+# ignore all by default to avoid tracking the entire homedir.
+# requires -f when adding files
 *
 EOF > $HOME/.gitignore
 ```
@@ -60,7 +67,7 @@ alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.dotfiles-$(hostname).git
 dotlocal remote add origin git@github.com:chrisaq/dotfiles-$(hostname).git
 dotlocal add -f .gitignore
 dotlocal commit -am 'gitignore, shared'
-dotolcal push
+dotlocal push
 ```
 
 ### Moving files from shared dotfiles to single machine
