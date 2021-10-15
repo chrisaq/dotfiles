@@ -11,9 +11,9 @@ Basically all you need is a git alias, or two if you want some files to be speci
 ### create git-dotfiles-dir and add alias
 
 ```
-mkdir $HOME/.dotfiles.git
+mkdir $HOME/.local/share/dotfiles.git
 # add the below to your .zshrc or .bashrc
-alias dotfiles="git --work-tree=$HOME/ --git-dir=$HOME/.dotfiles.git"
+alias dotfiles="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles.git"
 ```
 
 ### create additional .gitignore and add it to git config:
@@ -39,7 +39,7 @@ dotfiles push origin master
 ## Checkout on new machine
 ### WARNING: Will overwrite your files of the same name
 ```sh
-alias dotfiles="git --work-tree=$HOME/ --git-dir=$HOME/.dotfiles.git"
+alias dotfiles="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles.git"
 git clone --bare https://github.com/chrisaq/dotfiles.git ~/.dotfiles.git
 dotfiles status -s -uno
 dotfiles reset HEAD
@@ -63,7 +63,7 @@ specific config is managed with `dotlocal`.
 ```
 mkdir $HOME/.dotfiles-$(hostname).git
 # add the below to your .zshrc or .bashrc
-alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.dotfiles-$(hostname).git"
+alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles-$(hostname).git"
 dotlocal remote add origin git@github.com:chrisaq/dotfiles-$(hostname).git
 dotlocal add -f .gitignore
 dotlocal commit -am 'gitignore, shared'

@@ -158,7 +158,14 @@ bindkey -e
 export EDITOR=nvim
 
 # Dotfiles in git
-alias dotfiles='git --git-dir=$HOME/.dotfiles.git/ --work-tree=$HOME'
+if [[ ! -d "$HOME"/.local/share/dotfiles.git ]]; then
+    mkdir -p "$HOME"/.local/share/dotfiles.git
+fi
+alias dotfiles="git --git-dir=$HOME/.local/share/dotfiles.git/ --work-tree=$HOME"
+if [[ ! -d "$HOME"/.local/share/dotlocal.git ]]; then
+    mkdir -p "$HOME"/.local/share/dotlocal-$(hostnamectl --static).git
+fi
+alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles-$(hostnamectl --static).git"
 unset GREP_OPTIONS
 
 alias pwdcopy='pwd | tr -d "\r\n" |xclip -selection clipboard'
