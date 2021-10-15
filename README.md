@@ -64,10 +64,11 @@ specific config is managed with `dotlocal`.
 mkdir $HOME/.dotfiles-$(hostname).git
 # add the below to your .zshrc or .bashrc
 alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles-$(hostname).git"
-dotlocal remote add origin git@github.com:chrisaq/dotfiles-$(hostname).git
+dotlocal init
+dotlocal remote add origin git@github.com:chrisaq/dotfiles-$(hostnamectl --static).git
 dotlocal add -f .gitignore
 dotlocal commit -am 'gitignore, shared'
-dotlocal push
+dotlocal push --set-upstream origin master
 ```
 
 ### Moving files from shared dotfiles to single machine

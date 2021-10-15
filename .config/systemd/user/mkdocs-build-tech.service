@@ -1,0 +1,12 @@
+[Unit]
+Description=Mkdocs builder - tech
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/chrisq/Sync/Wiki/Tech
+ExecStart=/home/chrisq/bin/mkdocs-build-tech.sh
+
+[Install]
+WantedBy=default.target
+
