@@ -1,6 +1,7 @@
-# ignore all by default
+# ignore all by default to avoid tracking the entire homedir.
+# requires -f when adding files
 *
 
-# do not ignore:
-#!Code/*
-#!bin/
+# Alternative, tracks entire $HOME, but hides it, does not require -f:
+# dotfiles config --local status.showUntrackedFiles no
+# dotlocal config --local status.showUntrackedFiles no
