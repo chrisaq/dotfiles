@@ -27,7 +27,7 @@
 							"y": 0
 						},
 						"marks": [],
-						"name": "New Tab — Mozilla Firefox",
+						"name": "Mozilla Firefox",
 						"percent": 1,
 						"swallows": [
 							{
@@ -57,11 +57,11 @@
 							"y": 0
 						},
 						"marks": [],
-						"name": "Tilix: Terminal",
+						"name": "Alacritty",
 						"percent": 1,
 						"swallows": [
 							{
-								"instance": "^tilix$"
+								"instance": "^alacritty$"
 							}
 						],
 						"type": "con"

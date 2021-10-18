@@ -5,6 +5,7 @@
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
 
+export ZSHSTARTED=$(date +%Y%m%d%H%M%S)
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.config/zsh/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
@@ -51,6 +52,9 @@ fi
 
 # update shell to include recently created group(s)
 alias groups_refresh="exec sudo su -l $USER"
+
+#reload zsh config
+alias zshreload="source ${ZDOTDIR}/.zshrc"
 
 #####  XDG stuff #####
 # should be set by pam, but missing in some places
@@ -186,7 +190,6 @@ alias copypwd="pwdcopy"
 
 ################################################################################
 # SEC section - gpg, yubikey, pass, gopass, password-store etc
-#
 
 # gpg
 # restart gpg-agent on new tty
@@ -262,6 +265,11 @@ key[End]="${terminfo[kend]}"
 [[ -n "${key[Home]}"      ]] && bindkey -- "${key[Home]}"      beginning-of-line
 [[ -n "${key[End]}"       ]] && bindkey -- "${key[End]}"       end-of-line
 
+# disable software flow control, ctrl-s (XOFF)/ctrl-q (XON)
+setopt noflowcontrol
+# needs to be set this way or p10k instant prompt makes it print errors
+stty -ixon <$TTY >$TTY
+
 #znap config
 zstyle ':znap:*' default-server 'git@github.com:'
 
@@ -293,6 +301,10 @@ znap source zsh-completions
 
 #znap source marlonrichert/zcolors
 #znap eval   marlonrichert/zcolors "zcolors ${(q)LS_COLORS}"
+
+# TODO; powerlevel10k
+# export ZSHSTARTED=$(date +%Y%m%d%H%M)
+# test $(ls --time-style=+%Y%m%d -l $ZDOTDIR/.zshrc |cut -d' ' -f6) -lt $ZSHSTARTED && echo yes
 
 # Powerlevel10k
 # To customize prompt, run `p10k configure` or edit ~/.config/zsh/.p10k.zsh.
