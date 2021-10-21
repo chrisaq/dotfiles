@@ -1,0 +1,14 @@
+[Unit]
+Description=Mkdocs builder for %f
+After=network.target
+ConditionPathExists=%f
+
+[Service]
+Type=simple
+WorkingDirectory=%f
+#ExecStart=bash -c "echo %f >>/home/chrisq/temp/testfile"
+ExecStart=/home/chrisq/bin/mkdocs-build.sh "%f"
+
+[Install]
+WantedBy=default.target
+
