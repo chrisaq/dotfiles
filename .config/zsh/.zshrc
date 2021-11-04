@@ -218,6 +218,7 @@ alias pass='gopass'
 alias yubikey_reset_serial='rm ${GNUPGHOME}/private-keys-v1.d/{A7311DE4F14645F60A94FAB5A7864BDE48076BF4.key,C2BE7814190B272612D9E293BE85D9B670B76E50.key,F0B427412DD319186D0F26FB1E228AC93B4EA3BA.key} && gpgconf --kill gpg-agent && gpg --card-status'
 # First pipe the selected name to gopass, encrypt it and type the password with xdotool.
 alias PassMenux="gopass ls --flat | rofi -dmenu | xargs --no-run-if-empty gopass show -f | head -n 1 | xdotool type --clearmodifiers --file -"
+alias xkcd_pwgen="gopass pwgen -x"
 
 ### ENDS: SEC section ##########################################################
 
@@ -291,7 +292,7 @@ znap source fzf-tab
 znap source ohmyzsh/ohmyzsh lib/{git,theme-and-appearance,completion}
 znap source zsh-abbrev-alias
 znap source zsh-you-should-use
-znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,fzf,git,helm,httpie,nmap,pip,python,sudo,systemd,taskwarrior,terraform,tmux}
+znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,fzf,git,helm,httpie,nmap,pip,python,sudo,systemd,taskwarrior,terraform}
 znap fpath _kubectl 'kubectl completion zsh'
 # breaks when higher up for whatever reason
 znap source fast-syntax-highlighting

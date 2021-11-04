@@ -1,0 +1,5 @@
+# vim: filetype=neomuttrc
+#source /usr/share/mutt-wizard/mutt-wizard.muttrc
+source /home/chrisq/.config/mutt/shared-muttrc
+source /home/chrisq/.config/mutt/accounts/kotelett.no.muttrc
+macro index,pager i1 '<sync-mailbox><enter-command>source /home/chrisq/.config/mutt/accounts/kotelett.no.muttrc<enter><change-folder>!<enter>;<check-stats>' "switch to kotelett.no"

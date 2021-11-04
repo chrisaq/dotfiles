@@ -1,21 +1,40 @@
 #!/bin/bash
 
-while IFS="" read -r line || [ -n "$line" ]; do
-    echo "${line}"
-    cryptfile=$(cut -d' ' -f1 <<<"${line}")
-    locfile=$(cut -d' ' -f2- <<<"${line}")
-    #echo cryptfile=$cryptfile
-    #echo locfile=$locfile
+for syncfile in `ls ${HOME}/bin/crypt-sync/crypt-sync-list*.txt`; do
 
-    if [ "${locfile}" -ot "${cryptfile}" ]; then
-        #echo "$locfile -ot $cryptfile"
-        echo "decrypting from vault"
-        echo "sync'ing timestamp on files: touch -r ${cryptfile} ${locfile}"
-    elif [ "$cryptfile" -ot "$locfile" ]; then
-        #echo "$cryptfile -ot $locfile"
-        echo "encrypting local file to vault"
-        echo "sync'ing timestamp on files: touch -r ${locfile} ${cryptfile}"
-    else
-        echo "same date, leaving alone"
-    fi
-done < sync-list.txt
+    while IFS="" read -r line || [ -n "$line" ]; do
+        echo "${line}"
+        cryptfile=$(cut -d':' -f1 <<<"${line}")
+        locfile=$(cut -d':' -f2- <<<"${line}")
+        cryptfile=${HOME}/Sync/Password-Store/ConfigFiles/${cryptfile}
+        locfile=${HOME}/${locfile}
+        #echo cryptfile=$cryptfile
+        #echo locfile=$locfile
+
+        # Config file on machine older than encrypted file in Password-Store.
+        # Replacing config file by decrypting newer file.
+        if [ "${locfile}" -ot "${cryptfile}" ]; then
+            #echo "$locfile -ot $cryptfile"
+            echo "decrypting from vault"
+            gpg --yes --output ${locfile} --decrypt ${cryptfile}
+            #echo "sync'ing timestamp on files: touch -r ${cryptfile} ${locfile}"
+            touch -r ${cryptfile} ${locfile}
+        # Encrypted file in Password-Store older than config file.
+        # Encrypting newer config file to Password-Store.
+        elif [ "$cryptfile" -ot "$locfile" ]; then
+            #echo "$cryptfile -ot $locfile"
+            echo "encrypting local file to vault"
+            gpg --yes --encrypt --sign --armor --recipient 0xAEE3FD309AFCC09E --output ${cryptfile} ${locfile}
+            #echo "sync'ing timestamp on files: touch -r ${locfile} ${cryptfile}"
+            touch -r ${locfile} ${cryptfile}
+        else
+            echo "same date, leaving alone"
+        fi
+
+        ls -la ${locfile}
+        ls -la ${cryptfile}
+
+    done < ${syncfile}
+    #done < ${HOME}/bin/crypt-sync/crypt-sync-list.txt
+
+done
