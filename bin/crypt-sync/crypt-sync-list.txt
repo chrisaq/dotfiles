@@ -1,0 +1,2 @@
+user-config.gpg:.config/git/user-config
+kotelett.no.muttrc.gpg:.config/mutt/accounts/kotelett.no.muttrc
