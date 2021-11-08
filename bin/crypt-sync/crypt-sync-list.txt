@@ -1,3 +1,7 @@
 user-config.gpg:.config/git/user-config
 kotelett.no.muttrc.gpg:.config/mutt/accounts/kotelett.no.muttrc
 vdirsynconf.gpg:.config/vdirsyncer/config
+taskrc.gpg:.config/task/taskrc
+task.ca.cert.pem:.local/share/task/ca.cert.pem
+task.chrisq.cert.pem:.local/share/task/chrisq.cert.pem
+task.chrisq.key.pem:.local/share/task/chrisq.key.pem
