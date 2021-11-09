@@ -15,7 +15,9 @@ for syncfile in `ls ${HOME}/bin/crypt-sync/crypt-sync-list*.txt`; do
         # Replacing config file by decrypting newer file.
         if [ "${locfile}" -ot "${cryptfile}" ]; then
             #echo "$locfile -ot $cryptfile"
-            echo "decrypting from vault"
+            echo "Decrypting from vault to config file"
+            ls -la ${locfile}
+            ls -la ${cryptfile}
             gpg --yes --output ${locfile} --decrypt ${cryptfile}
             #echo "sync'ing timestamp on files: touch -r ${cryptfile} ${locfile}"
             touch -r ${cryptfile} ${locfile}
@@ -23,16 +25,16 @@ for syncfile in `ls ${HOME}/bin/crypt-sync/crypt-sync-list*.txt`; do
         # Encrypting newer config file to Password-Store.
         elif [ "$cryptfile" -ot "$locfile" ]; then
             #echo "$cryptfile -ot $locfile"
-            echo "encrypting local file to vault"
+            echo "Encrypting local file to vault"
+            ls -la ${locfile}
+            ls -la ${cryptfile}
             gpg --yes --encrypt --sign --armor --recipient 0xAEE3FD309AFCC09E --output ${cryptfile} ${locfile}
             #echo "sync'ing timestamp on files: touch -r ${locfile} ${cryptfile}"
             touch -r ${locfile} ${cryptfile}
         else
-            echo "same date, leaving alone"
+            echo "Same date, leaving alone"
         fi
 
-        ls -la ${locfile}
-        ls -la ${cryptfile}
 
     done < ${syncfile}
     #done < ${HOME}/bin/crypt-sync/crypt-sync-list.txt
