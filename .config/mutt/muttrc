@@ -3,3 +3,4 @@
 source /home/chrisq/.config/mutt/shared-muttrc
 source /home/chrisq/.config/mutt/accounts/kotelett.no.muttrc
 macro index,pager i1 '<sync-mailbox><enter-command>source /home/chrisq/.config/mutt/accounts/kotelett.no.muttrc<enter><change-folder>!<enter>;<check-stats>' "switch to kotelett.no"
+macro index,pager i2 '<sync-mailbox><enter-command>source /home/chrisq/.config/mutt/accounts/gmail.muttrc<enter><change-folder>!<enter>;<check-stats>' "switch to gmail private"
