@@ -42,17 +42,17 @@ floating_modifier $mod
 # DP-1-0       - latop on samsung screen
 # DP-1-2.2     - laptop on dell-27
 ########
-# HDMI-1       - desktop on samsung
-# DP-1         - desktop on dell-27
-workspace 1 output DP-1-0 eDP-1 HDMI-1
-workspace 2 output DP-1-0 eDP-1 HDMI-1
-workspace 3 output DP-1-0 eDP-1 HDMI-1
-workspace 4 output DP-1-0 eDP-1 HDMI-1
-workspace 5 output DP-1-2.2 eDP-1 HDMI-1
-workspace 6 output DP-1-2.2 eDP-1 HDMI-1
-workspace 7 output DP-1-2.2 eDP-1 DP-1
-workspace 8 output DP-1-2.2 eDP-1 DP-1
-workspace 9 output eDP-1 DP-1
+# HDMI-A-0       - desktop on samsung
+# DisplayPort-0  - desktop on dell-27
+workspace 1 output DP-1-0 eDP-1 HDMI-A-0
+workspace 2 output DP-1-0 eDP-1 HDMI-A-0
+workspace 3 output DP-1-0 eDP-1 HDMI-A-0
+workspace 4 output DP-1-0 eDP-1 HDMI-A-0
+workspace 5 output DP-1-2.2 eDP-1 HDMI-A-0
+workspace 6 output DP-1-2.2 eDP-1 HDMI-A-0
+workspace 7 output DP-1-2.2 eDP-1 DisplayPort-0
+workspace 8 output DP-1-2.2 eDP-1 DisplayPort-0
+workspace 9 output eDP-1 DisplayPort-0
 
 # start a $myTerm
 #set $myTerm tilix
