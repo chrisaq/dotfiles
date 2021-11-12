@@ -9,3 +9,4 @@ mkdir -p $HOME/.local/share/mail/gmail
 mkdir -p $HOME/.config/mutt/accounts
 mkdir -p $HOME/.config/vdirsyncer/status
 mkdir -p $HOME/.config/isync/
+mkdir -p $HOME/.config/notmuch/

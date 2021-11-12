@@ -6,3 +6,4 @@ task.ca.cert.pem.gpg:.local/share/task/ca.cert.pem
 task.chrisq.cert.pem.gpg:.local/share/task/chrisq.cert.pem
 task.chrisq.key.pem.gpg:.local/share/task/chrisq.key.pem
 mbsyncrc.gpg:.config/isync/mbsyncrc
+notmuchrc.gpg:.config/notmuch/notmuchrc
