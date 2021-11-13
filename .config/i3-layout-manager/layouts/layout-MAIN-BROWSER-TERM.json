@@ -27,11 +27,12 @@
 							"y": 0
 						},
 						"marks": [],
-						"name": "Mozilla Firefox",
+						"name": "firefox",
 						"percent": 1,
 						"swallows": [
 							{
-								"instance": "^Firefox$"
+								"instance": "^Navigator$",
+                                "class": "^firefox$"
 							}
 						],
 						"type": "con"
@@ -61,7 +62,8 @@
 						"percent": 1,
 						"swallows": [
 							{
-								"instance": "^Alacritty$"
+								"instance": "^Alacritty$",
+								"class": "^Alacritty$"
 							}
 						],
 						"type": "con"
