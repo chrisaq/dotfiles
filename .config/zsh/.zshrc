@@ -102,7 +102,7 @@ export TASKDATA="$XDG_DATA_HOME"/task
 export TASKRC="$XDG_CONFIG_HOME"/task/taskrc
 export MBSYNCRC="$XDG_DATA_HOME"/isync/mbsyncrc
 export KUBECONFIG="$XDG_CONFIG_HOME"/kube/config
-if [[ ! -d "$XDG_CONFIG_HOME"/kube]]; then
+if [[ ! -d "$XDG_CONFIG_HOME"/kube ]]; then
     mkdir -p "$XDG_CONFIG_HOME"/kube
 fi
 # temp disable
