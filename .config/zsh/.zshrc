@@ -298,6 +298,7 @@ znap source zsh-abbrev-alias
 znap source zsh-you-should-use
 znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,fzf,git,helm,httpie,nmap,pip,python,sudo,systemd,taskwarrior,terraform}
 znap fpath _kubectl 'kubectl completion zsh'
+znap fpath _k0s 'k0s completion zsh'
 # breaks when higher up for whatever reason
 znap source fast-syntax-highlighting
 znap source zsh-autosuggestions
