@@ -101,7 +101,7 @@ export INPUTRC="$XDG_CONFIG_HOME"/readline/inputrc
 export TASKDATA="$XDG_DATA_HOME"/task
 export TASKRC="$XDG_CONFIG_HOME"/task/taskrc
 export MBSYNCRC="$XDG_DATA_HOME"/isync/mbsyncrc
-export KUBECONFIG="$XDG_CONFIG_HOME"/kube/config
+export KUBECONFIG="$XDG_CONFIG_HOME"/kube/config:"$XDG_CONFIG_HOME"/k0s/admin.conf
 if [[ ! -d "$XDG_CONFIG_HOME"/kube ]]; then
     mkdir -p "$XDG_CONFIG_HOME"/kube
 fi
@@ -312,6 +312,12 @@ znap source zsh-completions
 # TODO; powerlevel10k
 # export ZSHSTARTED=$(date +%Y%m%d%H%M)
 # test $(ls --time-style=+%Y%m%d -l $ZDOTDIR/.zshrc |cut -d' ' -f6) -lt $ZSHSTARTED && echo yes
+
+#### HASH shortcuts
+hash -d work=${HOME}/Sync/Work
+hash -d ruter=${HOME}/Sync/Work/Ruter
+hash -d wiki=${HOME}/Sync/Wiki
+hash -d sync=${HOME}/Sync
 
 # Powerlevel10k
 # To customize prompt, run `p10k configure` or edit ~/.config/zsh/.p10k.zsh.
