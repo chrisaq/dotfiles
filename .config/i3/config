@@ -346,7 +346,7 @@ mode "resize" {
 exec_always --no-startup-id autorandr --change --skip-option crtc
 
 # keyboard layouts
-exec --no-startup-id setxkbmap "no(nodeadkeys),us" -option 'grp:shifts_toggle'
+exec --no-startup-id setxkbmap "no(nodeadkeys),us" -option 'grp:shifts_toggle' -option 'compose:rctrl'
 
 # Autostart applications
 exec_always --no-startup-id $HOME/.config/polybar/launch.sh
