@@ -298,8 +298,9 @@ znap source ohmyzsh/ohmyzsh lib/{git,theme-and-appearance,completion}
 znap source zsh-abbrev-alias
 znap source zsh-you-should-use
 znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,fzf,git,helm,httpie,nmap,pip,python,sudo,systemd,taskwarrior,terraform}
-if command -v kubectl>/dev/null 2>&1; then
+if command -v kubectl >/dev/null 2>&1; then
     znap fpath _kubectl 'kubectl completion zsh'
+fi
 if command -v k0s >/dev/null 2>&1; then
     znap fpath _k0s 'k0s completion zsh'
 fi
