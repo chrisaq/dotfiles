@@ -51,10 +51,11 @@ if [ -d "/var/lib/flatpak/exports/bin" ] ; then
 fi
 
 # update shell to include recently created group(s)
-alias groups_refresh="exec sudo su -l $USER"
+alias cq_groups_refresh="exec sudo su -l $USER"
 
 #reload zsh config
 alias zshreload="source ${ZDOTDIR}/.zshrc"
+alias cq_zshreload="source ${ZDOTDIR}/.zshrc"
 
 #####  XDG stuff #####
 # should be set by pam, but missing in some places
@@ -215,7 +216,7 @@ Pass() {
 
 PassEdit() {
     pass=$(gopass ls --flat|fzf)
-    gopass edit $pass
+    gopass edit "$pass"
 }
 
 alias pass='gopass'
@@ -281,7 +282,7 @@ zstyle ':znap:*' default-server 'git@github.com:'
 
 znap clone \
      git@github.com:romkatv/powerlevel10k.git \
-     git@github.com:zdharma/fast-syntax-highlighting \
+     git@github.com:zdharma-continuum/fast-syntax-highlighting \
      git@github.com:momo-lab/zsh-abbrev-alias.git \
      git@github.com:Aloxaf/fzf-tab.git \
      git@github.com:marlonrichert/{zsh-edit,zsh-hist}.git \
@@ -297,8 +298,12 @@ znap source ohmyzsh/ohmyzsh lib/{git,theme-and-appearance,completion}
 znap source zsh-abbrev-alias
 znap source zsh-you-should-use
 znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,fzf,git,helm,httpie,nmap,pip,python,sudo,systemd,taskwarrior,terraform}
-znap fpath _kubectl 'kubectl completion zsh'
-znap fpath _k0s 'k0s completion zsh'
+if command -v kubectl>/dev/null 2>&1; then
+    znap fpath _kubectl 'kubectl completion zsh'
+if command -v k0s >/dev/null 2>&1; then
+    znap fpath _k0s 'k0s completion zsh'
+fi
+
 # breaks when higher up for whatever reason
 znap source fast-syntax-highlighting
 znap source zsh-autosuggestions
