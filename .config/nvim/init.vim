@@ -24,6 +24,7 @@ Plug 'tamago324/LeaderF-filer'
 " general programming and completion
 Plug 'neoclide/coc.nvim', {'branch': 'release'}
 Plug 'machakann/vim-sandwich'  " replaces vim-surround below
+Plug 'towolf/vim-helm'
 " Plug 'tpope/vim-surround'  " replaced by vim-sandwich
 Plug 'tpope/vim-repeat'
 Plug 'juliosueiras/vim-terraform-completion'

@@ -237,6 +237,7 @@ alias sysu='systemctl --user'
 alias t="task"
 # the () launches the command  in a subshell, not affecting CWD of shell running the alias.
 alias skraper='(cd ~/bin/Skraper && mono SkraperUI.exe)'
+alias i3_swap_1and2='i3-msg "rename workspace 1 to temporary; rename workspace 2 to 1; rename workspace temporary to 2"'
 
 alias git_get_all_branches='for abranch in $(git branch -a | grep -v HEAD | grep remotes | sed "s/remotes\/origin\///g"); do git checkout $abranch ; done'
 
