@@ -2,4 +2,10 @@
 
 DOCPATH="${1}"
 
-while inotifywait --event modify --recursive ${DOCPATH} ; do /home/chrisq/bin/mkdocs-venv/bin/mkdocs build; done
+#if [[ ! -L "ManualsDocs" ]]
+#    ln -s $HOME/Sync/ManualsDocs .
+#fi
+
+while inotifywait --event modify --recursive ${DOCPATH} ; do
+    $HOME/bin/mkdocs-venv/bin/mkdocs build
+done
