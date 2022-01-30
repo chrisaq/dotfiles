@@ -1,7 +1,8 @@
 [Desktop Entry]
 Name=Steam Scaled (native)
 Comment=Steam started with PRIME for laptop usage
-Exec=env GDK_SCALE=2 STEAM_RUNTIME=0 STEAM_RUNTIME_HEAVY=0 steam %U
+#Exec=env GDK_SCALE=2 STEAM_RUNTIME=0 STEAM_RUNTIME_HEAVY=0 steam %U
+Exec=/home/chrisq/bin/steam-scale %U
 Icon=steam
 Terminal=false
 Type=Application

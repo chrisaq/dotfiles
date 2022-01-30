@@ -1,4 +1,9 @@
 #!/bin/bash
 
 export GDK_SCALE=2
-exec steam-native
+export STEAM_RUNTIME=0
+export STEAM_RUNTIME_HEAVY=0
+
+scc-daemon stop
+steam $@
+scc-daemon start &
