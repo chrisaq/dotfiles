@@ -16,7 +16,7 @@ Plug 'dhruvasagar/vim-prosession'
 Plug '907th/vim-auto-save'
 Plug 'simnalamburt/vim-mundo'
 Plug 'moll/vim-bbye'
-Plug 'glacambre/firenvim', { 'do': { _ -> firenvim#install(0) } }
+" Plug 'glacambre/firenvim', { 'do': { _ -> firenvim#install(0) } }
 
 " fuzzy search
 Plug 'Yggdroot/LeaderF', { 'do': './install.sh' }
