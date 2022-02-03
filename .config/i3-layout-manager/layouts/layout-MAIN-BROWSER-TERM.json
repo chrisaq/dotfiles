@@ -13,7 +13,7 @@
 				"floating": "auto_off",
 				"layout": "stacked",
 				"marks": [],
-				"percent": 0.5,
+				"percent": 0.6,
 				"type": "con",
 				"nodes": [
 					{
@@ -44,7 +44,7 @@
 				"floating": "auto_off",
 				"layout": "splitv",
 				"marks": [],
-				"percent": 0.5,
+				"percent": 0.4,
 				"type": "con",
 				"nodes": [
 					{

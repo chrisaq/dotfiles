@@ -50,6 +50,11 @@ if [ -d "/var/lib/flatpak/exports/bin" ] ; then
     PATH="$PATH:/var/lib/flatpak/exports/bin"
 fi
 
+# snap
+if [ -d "/var/lib/snapd/snap/bin" ] ; then
+    PATH="$PATH:/var/lib/snapd/snap/bin"
+fi
+
 # update shell to include recently created group(s)
 alias cq_groups_refresh="exec sudo su -l $USER"
 
