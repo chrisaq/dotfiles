@@ -41,7 +41,7 @@ floating_modifier $mod
 # eDP-1        - laptop screen
 # DP-1-X       - latop on samsung screen
 # DP-1-2.2     - laptop on dell-27
-# DP-X         - screen connected to usb-c ports on xps9700
+# DP-X         - screen directly connected to usb-c ports on xps9700
 ######## home office
 # HDMI-A-0       - desktop on samsung
 # DisplayPort-0  - desktop on dell-27
