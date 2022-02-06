@@ -39,13 +39,14 @@ floating_modifier $mod
 # TLDR: try first laptop on dock, fall back to laptop alone, fallback to desktop
 #### standalone / office
 # eDP-1        - laptop screen
+# DP-X         - screen directly connected to usb-c ports on xps9700
+### Connections through dell wds docking
 # DP-1-X       - latop on samsung screen
 # DP-1-2.2     - laptop on dell-27
-# DP-X         - screen directly connected to usb-c ports on xps9700
-######## home office
+### home office
 # HDMI-A-0       - desktop on samsung
 # DisplayPort-0  - desktop on dell-27
-workspace 1 output DP-2 DP-3 DP-1-0 DP-1-1 eDP-1 HDMI-A-0 
+workspace 1 output DP-2 DP-3 DP-1-0 DP-1-1 eDP-1 HDMI-A-0
 workspace 2 output DP-2 DP-3 DP-1-0 DP-1-1 eDP-1 HDMI-A-0
 workspace 3 output DP-2 DP-3 DP-1-0 DP-1-1 eDP-1 HDMI-A-0
 workspace 4 output DP-2 DP-3 DP-1-0 DP-1-1 eDP-1 HDMI-A-0
@@ -70,39 +71,6 @@ bindsym $mod+space exec --no-startup-id "rofi -combi-modi drun,window,run -show 
 # launch categorized menu
 bindsym $mod+' exec --no-startup-id morc_menu
 
-# Apps Launched with <SUPER> + <KEYPAD 1-9>
-bindsym $mod+KP_End exec $myTerm -e lynx -cfg=~/.lynx.cfg -lss=~/.lynx.lss http://www.distrowatch.com
-bindsym $mod+KP_Down exec $myTerm -e sh ./scripts/googler-script.sh
-bindsym $mod+KP_Page_Down exec $myTerm -e newsboat
-bindsym $mod+KP_Left exec $myTerm -e rtv
-bindsym $mod+KP_Begin exec $myTerm -e neomutt
-bindsym $mod+KP_Right exec $myTerm -e twitch-curses
-bindsym $mod+KP_Home exec $myTerm -e sh ./scripts/haxor-news.sh
-bindsym $mod+KP_Up exec $myTerm -e toot curses
-bindsym $mod+KP_Page_Up exec $myTerm -e sh ./scripts/tig-script.sh
-
-# Apps Launched with <SUPER> + <SHIFT> + <KEYPAD 1-9>
-bindsym $mod+Shift+KP_1 exec $myTerm -e vifm
-bindsym $mod+Shift+KP_2 exec $myTerm -e joplin
-bindsym $mod+Shift+KP_3 exec $myTerm -e cmus
-bindsym $mod+Shift+KP_4 exec $myTerm -e irssi
-bindsym $mod+Shift+KP_5 exec $myTerm -e rtorrent
-bindsym $mod+Shift+KP_6 exec $myTerm -e youtube-viewer
-bindsym $mod+Shift+KP_7 exec $myTerm -e ncpamixer
-bindsym $mod+Shift+KP_8 exec $myTerm -e calcurse
-bindsym $mod+Shift+KP_9 exec $myTerm -e vim /home/dt/.i3/config
-
-# Apps Launched with <SUPER> + <CTRL> + <KEYPAD 1-9>
-bindsym $mod+Ctrl+KP_End exec $myTerm -e htop
-bindsym $mod+Ctrl+KP_Down exec $myTerm -e gtop
-bindsym $mod+Ctrl+KP_Page_Down exec $myTerm -e nmon
-bindsym $mod+Ctrl+KP_Left exec $myTerm -e glances
-bindsym $mod+Ctrl+KP_Begin exec $myTerm -e s-tui
-bindsym $mod+Ctrl+KP_Right exec $myTerm -e httping -KY --draw-phase localhost
-bindsym $mod+Ctrl+KP_Home exec $myTerm -e cmatrix -C cyan
-bindsym $mod+Ctrl+KP_Up exec $myTerm -e pianobar
-bindsym $mod+Ctrl+KP_Page_Up exec $myTerm -e wopr report.xml
-
 ################################################################################################
 ## sound-section - DO NOT EDIT if you wish to automatically upgrade Alsa -> Pulseaudio later! ##
 ################################################################################################
@@ -121,16 +89,10 @@ exec --no-startup-id nm-applet
 # bindsym XF86MonBrightnessDown exec "xbacklight -dec 10; notify-send 'brightness down'"
 
 # Start Applications
-bindsym $mod+Ctrl+b exec $myTerm -e 'bmenu'
 bindsym $mod+F1 exec firefox
-bindsym $mod+F2 exec obs
-bindsym $mod+F3 exec kdenlive
-bindsym $mod+F5 exec $myTerm -e 'mocp'
+bindsym $mod+F10 exec $HOME/.config/rofi/scripts/powermenu.sh
 bindsym $mod+Shift+d --release exec "killall dunst; exec notify-send 'restart dunst'"
-bindsym Print exec --no-startup-id i3-scrot
-bindsym $mod+Print --release exec --no-startup-id i3-scrot -w
-bindsym $mod+Shift+Print --release exec --no-startup-id i3-scrot -s
-bindsym $mod+Ctrl+h exec xdg-open /usr/share/doc/manjaro/i3_help.pdf
+bindsym Print exec --no-startup-id "gnome-screenshot --interactive"
 bindsym $mod+Ctrl+x --release exec --no-startup-id xkill
 
 # focus_follows_mouse no
@@ -230,7 +192,6 @@ bindsym $mod+9 workspace $ws9
 # workspace cycling per monitor
 bindsym $mod+Tab workspace next_on_output
 bindsym $mod+Shift+Tab workspace prev_on_output
-
 
 # Move focused container to workspace
 bindsym $mod+Ctrl+1 move container to workspace $ws1
@@ -473,9 +434,9 @@ exec_always --no-startup-id "setxkbmap -model pc105 -layout no,us -variant ,, -o
 # reset xkb: setxkbmap -option
 
 # Pulse Audio controls
-bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume 1 +5% #increase sound volume
-bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume 1 -5% #decrease sound volume
-bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute 1 toggle # mute sound
+bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume 0 +5% #increase sound volume
+bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume 0 -5% #decrease sound volume
+bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute 0 toggle # mute sound
 
 # Sreen brightness controls
 bindsym XF86MonBrightnessUp exec xbacklight -inc 20 # increase screen brightness
