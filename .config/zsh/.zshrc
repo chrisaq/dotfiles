@@ -326,6 +326,7 @@ znap source zsh-completions
 # test $(ls --time-style=+%Y%m%d -l $ZDOTDIR/.zshrc |cut -d' ' -f6) -lt $ZSHSTARTED && echo yes
 
 #### HASH shortcuts
+hash -d code=${HOME}/Code
 hash -d work=${HOME}/Sync/Work
 hash -d ruter=${HOME}/Sync/Work/Ruter
 hash -d wiki=${HOME}/Sync/Wiki
