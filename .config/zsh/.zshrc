@@ -261,6 +261,9 @@ alias helm-completion='source <(helm completion zsh)'
 # XRANDR, autorandr etc
 alias cq-autorandr='autorandr $(autorandr | cut -d' ' -f1|rofi -dmenu)'
 
+# Notes in vim, persistence and such
+alias cqnote="nvim -u $HOME/.config/nvim/init-cqnote.vim  $HOME/Sync/Wiki/Tech/docs/QuickNote.md"
+
 # Turns out the below is just an inconvenient version of fzf's ctrl-t
 # ff: fd and fzy
 # passes all args to command after ff, and then a file/dir as found by fzy at the end
