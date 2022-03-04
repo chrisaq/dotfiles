@@ -23,9 +23,9 @@ new_float normal
 hide_edge_borders none
 
 # change borders
-bindcode $mod+u border none
-bindcode $mod+y border pixel 1
-bindcode $mod+n border normal
+bindsym $mod+u border none
+bindsym $mod+y border pixel 1
+bindsym $mod+n border normal
 
 # Font for window titles. Will also be used by the bar unless a different font
 # is used in the bar {} block below.
@@ -59,17 +59,17 @@ workspace 9 output eDP-1 DisplayPort-0
 # start a $myTerm
 #set $myTerm tilix
 set $myTerm alacritty
-bindcode $mod+Return exec $myTerm
+bindsym $mod+Return exec $myTerm
 
 # kill focused window
-bindcode $mod+Shift+c kill
+bindsym $mod+Shift+c kill
 
 # start program launcher
-#bindcode $mod+Shift+Return exec --no-startup-id "rofi -combi-modi window,drun -show combi -modi combi -matching fuzzy"
-bindcode $mod+space exec --no-startup-id "rofi -combi-modi drun,window,run -show combi -modi combi -matching fuzzy"
+#bindsym $mod+Shift+Return exec --no-startup-id "rofi -combi-modi window,drun -show combi -modi combi -matching fuzzy"
+bindsym $mod+space exec --no-startup-id "rofi -combi-modi drun,window,run -show combi -modi combi -matching fuzzy"
 
 # launch categorized menu
-bindcode $mod+' exec --no-startup-id morc_menu
+bindsym $mod+' exec --no-startup-id morc_menu
 
 ################################################################################################
 ## sound-section - DO NOT EDIT if you wish to automatically upgrade Alsa -> Pulseaudio later! ##
@@ -85,84 +85,86 @@ exec --no-startup-id nm-applet
 ################################################################################################
 
 # Screen brightness controls
-# bindcode XF86MonBrightnessUp exec "xbacklight -inc 10; notify-send 'brightness up'"
-# bindcode XF86MonBrightnessDown exec "xbacklight -dec 10; notify-send 'brightness down'"
+# bindsym XF86MonBrightnessUp exec "xbacklight -inc 10; notify-send 'brightness up'"
+# bindsym XF86MonBrightnessDown exec "xbacklight -dec 10; notify-send 'brightness down'"
 
 # Start Applications
-bindcode $mod+F1 exec firefox
-bindcode $mod+F10 exec $HOME/.config/rofi/scripts/powermenu.sh
-bindcode $mod+Shift+d --release exec "killall dunst; exec notify-send 'restart dunst'"
-bindcode Print exec --no-startup-id "gnome-screenshot --interactive"
-bindcode $mod+Ctrl+x --release exec --no-startup-id xkill
+bindsym $mod+F1 exec firefox
+bindsym $mod+F10 exec $HOME/.config/rofi/scripts/powermenu.sh
+bindsym $mod+Shift+d --release exec "killall dunst; exec notify-send 'restart dunst'"
+bindsym Print exec --no-startup-id "gnome-screenshot --interactive"
+bindsym $mod+Ctrl+x --release exec --no-startup-id xkill
 
 # focus_follows_mouse no
 
 # change focus
-bindcode $mod+h focus left
-bindcode $mod+j focus down
-bindcode $mod+k focus up
-bindcode $mod+l focus right
+bindsym $mod+h focus left
+bindsym $mod+j focus down
+bindsym $mod+k focus up
+bindsym $mod+l focus right
 
 # alternatively, you can use the arrow keys:
-bindcode $mod+Left focus left
-bindcode $mod+Down focus down
-bindcode $mod+Up focus up
-bindcode $mod+Right focus right
+bindsym $mod+Left focus left
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+bindsym $mod+Right focus right
 
 # move focused window
-bindcode $mod+Shift+h move left
-bindcode $mod+Shift+j move down
-bindcode $mod+Shift+k move up
-bindcode $mod+Shift+l move right
+bindsym $mod+Shift+h move left
+bindsym $mod+Shift+j move down
+bindsym $mod+Shift+k move up
+bindsym $mod+Shift+l move right
 
 # alternatively, you can use the arrow keys:
-bindcode $mod+Shift+Left move left
-bindcode $mod+Shift+Down move down
-bindcode $mod+Shift+Up move up
-bindcode $mod+Shift+Right move right
+bindsym $mod+Shift+Left move left
+bindsym $mod+Shift+Down move down
+bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Right move right
 
 # workspace back and forth (with/without active container)
 workspace_auto_back_and_forth yes
-bindcode $mod+b workspace back_and_forth
-bindcode $mod+Shift+b move container to workspace back_and_forth; workspace back_and_forth
+bindsym $mod+b workspace back_and_forth
+bindsym $mod+Shift+b move container to workspace back_and_forth; workspace back_and_forth
 
 # split orientation
-bindcode $mod+z split h;exec notify-send 'tile horizontally'
-bindcode $mod+v split v;exec notify-send 'tile vertically'
-bindcode $mod+q split toggle
+bindsym $mod+z split h;exec notify-send 'tile horizontally'
+bindsym $mod+v split v;exec notify-send 'tile vertically'
+bindsym $mod+q split toggle
 
 # toggle fullscreen mode for the focused container
-bindcode $mod+f fullscreen toggle
+bindsym $mod+f fullscreen toggle
 
 # change container layout (stacked, tabbed, toggle split)
-bindcode $mod+s layout stacking
-bindcode $mod+w layout tabbed
-bindcode $mod+e layout toggle split
+bindsym $mod+s layout stacking
+bindsym $mod+w layout tabbed
+bindsym $mod+e layout toggle split
 
 # toggle tiling / floating
-bindcode $mod+Shift+space floating toggle
+bindsym $mod+Shift+space floating toggle
 
 # TODO: find new shortcut
 # change focus between tiling / floating windows
-# bindcode $mod+space focus mode_toggle
+# bindsym $mod+space focus mode_toggle
 
 # toggle sticky
-# bindcode $mod+Shift+s sticky toggle
-#bindcode $mod+Shift+s exec ~/.i3/i3-display-swap.sh
+# bindsym $mod+Shift+s sticky toggle
+#bindsym $mod+Shift+s exec ~/.i3/i3-display-swap.sh
 
 # focus the parent container
-bindcode $mod+a focus parent
+bindsym $mod+a focus parent
 
 # move the currently focused window to the scratchpad
-bindcode $mod+Shift+minus move scratchpad
+#bindsym $mod+Shift+minus move scratchpad
+bindcode $mod+Shift+61 move scratchpad
 
 # Show the next scratchpad window or hide the focused scratchpad window.
 # If there are multiple scratchpad windows, this command cycles through them.
-bindcode $mod+minus scratchpad show
+#bindsym $mod+minus scratchpad show
+bindcode $mod+61 scratchpad show
 
 #navigate workspaces next / previous
-bindcode $mod+Ctrl+Right workspace next
-bindcode $mod+Ctrl+Left workspace prev
+bindsym $mod+Ctrl+Right workspace next
+bindsym $mod+Ctrl+Left workspace prev
 
 # Workspace names
 # to display names or symbols instead of plain workspace numbers you can use
@@ -179,41 +181,41 @@ set $ws8 8
 set $ws9 9
 
 # switch to workspace
-bindcode $mod+1 workspace $ws1
-bindcode $mod+2 workspace $ws2
-bindcode $mod+3 workspace $ws3
-bindcode $mod+4 workspace $ws4
-bindcode $mod+5 workspace $ws5
-bindcode $mod+6 workspace $ws6
-bindcode $mod+7 workspace $ws7
-bindcode $mod+8 workspace $ws8
-bindcode $mod+9 workspace $ws9
+bindsym $mod+1 workspace $ws1
+bindsym $mod+2 workspace $ws2
+bindsym $mod+3 workspace $ws3
+bindsym $mod+4 workspace $ws4
+bindsym $mod+5 workspace $ws5
+bindsym $mod+6 workspace $ws6
+bindsym $mod+7 workspace $ws7
+bindsym $mod+8 workspace $ws8
+bindsym $mod+9 workspace $ws9
 
 # workspace cycling per monitor
-bindcode $mod+Tab workspace next_on_output
-bindcode $mod+Shift+Tab workspace prev_on_output
+bindsym $mod+Tab workspace next_on_output
+bindsym $mod+Shift+Tab workspace prev_on_output
 
 # Move focused container to workspace
-bindcode $mod+Ctrl+1 move container to workspace $ws1
-bindcode $mod+Ctrl+2 move container to workspace $ws2
-bindcode $mod+Ctrl+3 move container to workspace $ws3
-bindcode $mod+Ctrl+4 move container to workspace $ws4
-bindcode $mod+Ctrl+5 move container to workspace $ws5
-bindcode $mod+Ctrl+6 move container to workspace $ws6
-bindcode $mod+Ctrl+7 move container to workspace $ws7
-bindcode $mod+Ctrl+8 move container to workspace $ws8
-bindcode $mod+Ctrl+9 move container to workspace $ws9
+bindsym $mod+Ctrl+1 move container to workspace $ws1
+bindsym $mod+Ctrl+2 move container to workspace $ws2
+bindsym $mod+Ctrl+3 move container to workspace $ws3
+bindsym $mod+Ctrl+4 move container to workspace $ws4
+bindsym $mod+Ctrl+5 move container to workspace $ws5
+bindsym $mod+Ctrl+6 move container to workspace $ws6
+bindsym $mod+Ctrl+7 move container to workspace $ws7
+bindsym $mod+Ctrl+8 move container to workspace $ws8
+bindsym $mod+Ctrl+9 move container to workspace $ws9
 
 # Move to workspace with focused container
-bindcode $mod+Shift+1 move container to workspace $ws1; workspace $ws1
-bindcode $mod+Shift+2 move container to workspace $ws2; workspace $ws2
-bindcode $mod+Shift+3 move container to workspace $ws3; workspace $ws3
-bindcode $mod+Shift+4 move container to workspace $ws4; workspace $ws4
-bindcode $mod+Shift+5 move container to workspace $ws5; workspace $ws5
-bindcode $mod+Shift+6 move container to workspace $ws6; workspace $ws6
-bindcode $mod+Shift+7 move container to workspace $ws7; workspace $ws7
-bindcode $mod+Shift+8 move container to workspace $ws8; workspace $ws8
-bindcode $mod+Shift+9 move container to workspace $ws9; workspace $ws9
+bindsym $mod+Shift+1 move container to workspace $ws1; workspace $ws1
+bindsym $mod+Shift+2 move container to workspace $ws2; workspace $ws2
+bindsym $mod+Shift+3 move container to workspace $ws3; workspace $ws3
+bindsym $mod+Shift+4 move container to workspace $ws4; workspace $ws4
+bindsym $mod+Shift+5 move container to workspace $ws5; workspace $ws5
+bindsym $mod+Shift+6 move container to workspace $ws6; workspace $ws6
+bindsym $mod+Shift+7 move container to workspace $ws7; workspace $ws7
+bindsym $mod+Shift+8 move container to workspace $ws8; workspace $ws8
+bindsym $mod+Shift+9 move container to workspace $ws9; workspace $ws9
 
 # Open applications on specific workspaces
 # assign [class="Thunderbird"] $ws1
@@ -251,33 +253,33 @@ for_window [class="Xfburn"] floating enable
 for_window [urgent=latest] focus
 
 # reload the configuration file
-bindcode $mod+Ctrl+r reload
+bindsym $mod+Ctrl+r reload
 
 # restart i3 inplace (preserves your layout/session, can be used to upgrade i3)
-bindcode $mod+Shift+r restart
+bindsym $mod+Shift+r restart
 
 # exit i3 (logs you out of your X session)
-# bindcode $mod+Shift+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcut. Do you really want to exit i3? This will end your X session.' -b 'Yes, exit i3' 'i3-msg exit'"
+# bindsym $mod+Shift+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcut. Do you really want to exit i3? This will end your X session.' -b 'Yes, exit i3' 'i3-msg exit'"
 
 # Set shut down, restart and locking features
-bindcode $mod+0 mode "$mode_system"
+bindsym $mod+0 mode "$mode_system"
 set $mode_system (l)ock, (e)xit, switch_(u)ser, (s)uspend, (h)ibernate, (r)eboot, (Shift+s)hutdown
 mode "$mode_system" {
-    bindcode l exec --no-startup-id i3exit lock, mode "default"
-    bindcode s exec --no-startup-id i3exit suspend, mode "default"
-    bindcode u exec --no-startup-id i3exit switch_user, mode "default"
-    bindcode e exec --no-startup-id i3exit logout, mode "default"
-    bindcode h exec --no-startup-id i3exit hibernate, mode "default"
-    bindcode r exec --no-startup-id i3exit reboot, mode "default"
-    bindcode Shift+s exec --no-startup-id i3exit shutdown, mode "default"
+    bindsym l exec --no-startup-id i3exit lock, mode "default"
+    bindsym s exec --no-startup-id i3exit suspend, mode "default"
+    bindsym u exec --no-startup-id i3exit switch_user, mode "default"
+    bindsym e exec --no-startup-id i3exit logout, mode "default"
+    bindsym h exec --no-startup-id i3exit hibernate, mode "default"
+    bindsym r exec --no-startup-id i3exit reboot, mode "default"
+    bindsym Shift+s exec --no-startup-id i3exit shutdown, mode "default"
 
     # exit system mode: "Enter" or "Escape"
-    bindcode Return mode "default"
-    bindcode Escape mode "default"
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
 }
 
 # Resize window (you can also use the mouse for that)
-bindcode $mod+r mode "resize"
+bindsym $mod+r mode "resize"
 mode "resize" {
         # Originally set to jkl;.
         # These bindings trigger as soon as you enter the resize mode
@@ -285,24 +287,24 @@ mode "resize" {
         # Pressing right will grow the window’s width.
         # Pressing up will shrink the window’s height.
         # Pressing down will grow the window’s height.
-        bindcode h resize shrink width 4 px or 4 ppt
-        bindcode j resize grow height 4 px or 4 ppt
-        bindcode k resize shrink height 4 px or 4 ppt
-        bindcode l resize grow width 4 px or 4 ppt
+        bindsym h resize shrink width 4 px or 4 ppt
+        bindsym j resize grow height 4 px or 4 ppt
+        bindsym k resize shrink height 4 px or 4 ppt
+        bindsym l resize grow width 4 px or 4 ppt
 
         # same bindings, but for the arrow keys
-        bindcode Left resize shrink width 10 px or 10 ppt
-        bindcode Down resize grow height 10 px or 10 ppt
-        bindcode Up resize shrink height 10 px or 10 ppt
-        bindcode Right resize grow width 10 px or 10 ppt
+        bindsym Left resize shrink width 10 px or 10 ppt
+        bindsym Down resize grow height 10 px or 10 ppt
+        bindsym Up resize shrink height 10 px or 10 ppt
+        bindsym Right resize grow width 10 px or 10 ppt
 
         # exit resize mode: Enter or Escape
-        bindcode Return mode "default"
-        bindcode Escape mode "default"
+        bindsym Return mode "default"
+        bindsym Escape mode "default"
 }
 
 # Lock screen
-#bindcode $mod+9 exec --no-startup-id blurlock
+#bindsym $mod+9 exec --no-startup-id blurlock
 
 # Autorandr
 exec_always --no-startup-id autorandr --change --skip-option crtc
@@ -391,37 +393,37 @@ smart_borders on
 set $mode_gaps Gaps: (o) outer, (i) inner
 set $mode_gaps_outer Outer Gaps: +|-|0 (local), Shift + +|-|0 (global)
 set $mode_gaps_inner Inner Gaps: +|-|0 (local), Shift + +|-|0 (global)
-bindcode $mod+Shift+g mode "$mode_gaps"
+bindsym $mod+Shift+g mode "$mode_gaps"
 
 mode "$mode_gaps" {
-        bindcode o      mode "$mode_gaps_outer"
-        bindcode i      mode "$mode_gaps_inner"
-        bindcode Return mode "default"
-        bindcode Escape mode "default"
+        bindsym o      mode "$mode_gaps_outer"
+        bindsym i      mode "$mode_gaps_inner"
+        bindsym Return mode "default"
+        bindsym Escape mode "default"
 }
 mode "$mode_gaps_inner" {
-        bindcode plus  gaps inner current plus 5
-        bindcode minus gaps inner current minus 5
-        bindcode 0     gaps inner current set 0
+        bindsym plus  gaps inner current plus 5
+        bindsym minus gaps inner current minus 5
+        bindsym 0     gaps inner current set 0
 
-        bindcode Shift+plus  gaps inner all plus 5
-        bindcode Shift+minus gaps inner all minus 5
-        bindcode Shift+0     gaps inner all set 0
+        bindsym Shift+plus  gaps inner all plus 5
+        bindsym Shift+minus gaps inner all minus 5
+        bindsym Shift+0     gaps inner all set 0
 
-        bindcode Return mode "default"
-        bindcode Escape mode "default"
+        bindsym Return mode "default"
+        bindsym Escape mode "default"
 }
 mode "$mode_gaps_outer" {
-        bindcode plus  gaps outer current plus 5
-        bindcode minus gaps outer current minus 5
-        bindcode 0     gaps outer current set 0
+        bindsym plus  gaps outer current plus 5
+        bindsym minus gaps outer current minus 5
+        bindsym 0     gaps outer current set 0
 
-        bindcode Shift+plus  gaps outer all plus 5
-        bindcode Shift+minus gaps outer all minus 5
-        bindcode Shift+0     gaps outer all set 0
+        bindsym Shift+plus  gaps outer all plus 5
+        bindsym Shift+minus gaps outer all minus 5
+        bindsym Shift+0     gaps outer all set 0
 
-        bindcode Return mode "default"
-        bindcode Escape mode "default"
+        bindsym Return mode "default"
+        bindsym Escape mode "default"
 }
 
 
@@ -434,28 +436,28 @@ exec_always --no-startup-id "setxkbmap -model pc105 -layout no,us -variant ,, -o
 # reset xkb: setxkbmap -option
 
 # Pulse Audio controls
-bindcode XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume 0 +5% #increase sound volume
-bindcode XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume 0 -5% #decrease sound volume
-bindcode XF86AudioMute exec --no-startup-id pactl set-sink-mute 0 toggle # mute sound
+bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume 0 +5% #increase sound volume
+bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume 0 -5% #decrease sound volume
+bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute 0 toggle # mute sound
 
 # Sreen brightness controls
-bindcode XF86MonBrightnessUp exec xbacklight -inc 20 # increase screen brightness
-bindcode XF86MonBrightnessDown exec xbacklight -dec 20 # decrease screen brightness
+bindsym XF86MonBrightnessUp exec xbacklight -inc 20 # increase screen brightness
+bindsym XF86MonBrightnessDown exec xbacklight -dec 20 # decrease screen brightness
 
 # Touchpad controls
-bindcode XF86TouchpadToggle exec /some/path/toggletouchpad.sh # toggle touchpad
+bindsym XF86TouchpadToggle exec /some/path/toggletouchpad.sh # toggle touchpad
 
 # Media player controls
-bindcode XF86AudioPlay exec playerctl play
-bindcode XF86AudioPause exec playerctl pause
-bindcode XF86AudioNext exec playerctl next
-bindcode XF86AudioPrev exec playerctl previous
+bindsym XF86AudioPlay exec playerctl play
+bindsym XF86AudioPause exec playerctl pause
+bindsym XF86AudioNext exec playerctl next
+bindsym XF86AudioPrev exec playerctl previous
 
 ##############################
 ## Misc
 ##############################
 
-bindcode $mod+Shift+s   layout splitv;\
+bindsym $mod+Shift+s   layout splitv;\
                        move left;\
                        resize grow right 20 px or 20 ppt;\
                        split v;\
