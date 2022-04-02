@@ -250,6 +250,12 @@ alias t="task"
 alias skraper='(cd ~/bin/Skraper && mono SkraperUI.exe)'
 alias i3_swap_1and2='i3-msg "rename workspace 1 to temporary; rename workspace 2 to 1; rename workspace temporary to 2"'
 
+function i3_swap() {
+    i3-msg "rename workspace $1 to temporary;
+            rename workspace $2 to $1;
+            rename workspace temporary to $2"
+}
+
 alias git_get_all_branches='for abranch in $(git branch -a | grep -v HEAD | grep remotes | sed "s/remotes\/origin\///g"); do git checkout $abranch ; done'
 
 ## terraform, iac
@@ -259,7 +265,8 @@ alias tfinit='terraform init -backend-config=tf-init.conf'
 alias helm-completion='source <(helm completion zsh)'
 
 # XRANDR, autorandr etc
-alias cq-autorandr='autorandr $(autorandr | cut -d' ' -f1|rofi -dmenu)'
+# make this a script
+# alias cq-autorandr="autorandr $(autorandr | cut -d' ' -f1|rofi -dmenu)"
 
 # Notes in vim, persistence and such
 alias cqnote="nvim -u $HOME/.config/nvim/init-cqnote.vim  $HOME/Sync/Wiki/Tech/docs/QuickNote.md"
