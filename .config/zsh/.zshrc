@@ -192,7 +192,7 @@ unset GREP_OPTIONS
 alias pwdcopy='pwd | tr -d "\r\n" |xclip -selection clipboard'
 alias copypwd="pwdcopy"
 
-256tab() {
+256color() {
     for k in `seq 0 1`;do
         for j in `seq $((16+k*18)) 36 $((196+k*18))`;do
             for i in `seq $j $((j+17))`; do
@@ -203,7 +203,21 @@ alias copypwd="pwdcopy"
     for i in {234..255}; do printf "\e[01;$1;38;5;%sm%4s" $i  $i; done; echo
 }
 
-
+truecolor() {
+    awk 'BEGIN{
+        s="/\\/\\/\\/\\/\\"; s=s s s s s s s s;
+        for (colnum = 0; colnum<77; colnum++) {
+            r = 255-(colnum*255/76);
+            g = (colnum*510/76);
+            b = (colnum*255/76);
+            if (g>255) g = 510-g;
+            printf "\033[48;2;%d;%d;%dm", r,g,b;
+            printf "\033[38;2;%d;%d;%dm", 255-r,255-g,255-b;
+            printf "%s\033[0m", substr(s,colnum+1,1);
+        }
+        printf "\n";
+    }'
+}
 
 ################################################################################
 # SEC section - gpg, yubikey, pass, gopass, password-store etc

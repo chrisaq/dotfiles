@@ -6,39 +6,65 @@ call plug#begin(stdpath('data') . '/plugged')
 Plug 'tpope/vim-git'
 Plug 'tpope/vim-fugitive'
 Plug 'gregsexton/gitv'
+Plug 'lewis6991/gitsigns.nvim'
 
 " movement
 Plug 'unblevable/quick-scope'
 Plug 'ap/vim-you-keep-using-that-word'  " disables cw/cW exception of not including the space(s) after word
+
 " sessions and such
 Plug 'tpope/vim-obsession'
 Plug 'dhruvasagar/vim-prosession'
 Plug '907th/vim-auto-save'
 Plug 'simnalamburt/vim-mundo'
 Plug 'moll/vim-bbye'
-" Plug 'glacambre/firenvim', { 'do': { _ -> firenvim#install(0) } }
 
 " fuzzy search
 Plug 'Yggdroot/LeaderF', { 'do': './install.sh' }
 Plug 'tamago324/LeaderF-filer'
+"
 " general programming and completion
-Plug 'neoclide/coc.nvim', {'branch': 'release'}
+Plug 'nvim-lua/plenary.nvim'
+Plug 'nvim-lua/popup.nvim'
+Plug 'nvim-telescope/telescope.nvim'
+Plug 'neovim/nvim-lspconfig'
+Plug 'williamboman/nvim-lsp-installer', { 'branch': 'main' }
+Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
+Plug 'nvim-treesitter/nvim-treesitter-textobjects'
+Plug 'nvim-treesitter/nvim-treesitter-refactor'
+" completion
+Plug 'hrsh7th/nvim-cmp'
+Plug 'hrsh7th/cmp-buffer'
+Plug 'hrsh7th/cmp-path'
+Plug 'saadparwaiz1/cmp_luasnip'
+Plug 'hrsh7th/cmp-nvim-lsp'
+Plug 'hrsh7th/cmp-nvim-lua'
+Plug 'L3MON4D3/LuaSnip'
+Plug 'rafamadriz/friendly-snippets'
+
 Plug 'machakann/vim-sandwich'  " replaces vim-surround below
 Plug 'towolf/vim-helm'
 " Plug 'tpope/vim-surround'  " replaced by vim-sandwich
 Plug 'tpope/vim-repeat'
-Plug 'juliosueiras/vim-terraform-completion'
-Plug 'hashivim/vim-terraform', { 'for': 'terraform' }
+"Plug 'juliosueiras/vim-terraform-completion'
+"Plug 'hashivim/vim-terraform', { 'for': 'terraform' }
 Plug 'Shougo/deoplete.nvim', { 'for': 'terraform' }
 Plug 'tmsvg/pear-tree' " auto-close parens etc, replaces delimitmate
 Plug 'tpope/vim-commentary'
 Plug 'junegunn/vim-easy-align'
 
 " themes, colors, etc
-Plug 'vim-scripts/Solarized'
-Plug 'vim-airline/vim-airline'
-Plug 'vim-airline/vim-airline-themes'
-Plug 'ryanoasis/vim-devicons'
+"Plug 'stevearc/dressing.nvim'
+Plug 'nvim-telescope/telescope-ui-select.nvim'
+"Plug 'vim-scripts/Solarized'
+"Plug 'vim-airline/vim-airline'
+"Plug 'vim-airline/vim-airline-themes'
+"Plug 'ryanoasis/vim-devicons'
+"Plug 'shaunsingh/solarized.nvim'
+Plug 'feline-nvim/feline.nvim'
+Plug 'kyazdani42/nvim-web-devicons'
+"Plug 'overcache/NeoSolarized'
+Plug 'ishan9299/nvim-solarized-lua'
 " Initialize plugin system
 call plug#end()
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -57,7 +83,7 @@ set title                     " show title in console title bar
 set wildmenu                  " Menu completion in command mode on <Tab>
 set wildmode=longest,list,full             " <Tab> cycles between all matching choices.
 set wildignorecase
-
+set signcolumn=yes
 " don't bell or blink
 set noerrorbells
 set vb t_vb=
@@ -162,6 +188,9 @@ nmap <leader>bd :bdelete<cr>
 nmap <leader>l :bnext<CR>
 " Move to the previous buffer
 nmap <leader>h :bprevious<CR>"
+
+" close all buffers except current
+command! BufOnly execute '%bdelete|edit #|normal `"'
 
 " ctrl-jklm changes to window split in that direction
 map <c-j> <c-w>j
@@ -281,137 +310,47 @@ noremap <leader>fg :<C-U><C-R>=printf("Leaderf rg")<CR><CR>
 let g:Lf_FilerShowPromptPath = 1
 noremap <leader>fc :<C-U><C-R>=printf("Leaderf filer" )<CR><CR>
 
+
 " ==========================================================
-" From CoC
+" Treesitter, lsp etc
 " ==========================================================
 
-" Coc extensions
-let g:coc_global_extensions = ['coc-json', 'coc-git', 'coc-pyright', 'coc-css', 'coc-go', 'coc-html', 'coc-sh', 'coc-yaml']
+" >> Lsp key bindings
+nnoremap <silent> gd    <cmd>lua vim.lsp.buf.definition()<CR>
+nnoremap <silent> <C-]> <cmd>lua vim.lsp.buf.definition()<CR>
+nnoremap <silent> gD    <cmd>lua vim.lsp.buf.declaration()<CR>
+nnoremap <silent> gr    <cmd>lua vim.lsp.buf.references()<CR>
+nnoremap <silent> gi    <cmd>lua vim.lsp.buf.implementation()<CR>
+nnoremap <silent> <C-k> <cmd>lua vim.lsp.buf.signature_help()<CR>
+nnoremap <silent> gf    <cmd>lua vim.lsp.buf.formatting()<CR>
+nnoremap <silent> gn    <cmd>lua vim.lsp.buf.rename()<CR>
 
-" if hidden is not set, TextEdit might fail.
-set hidden
+" >> telescope
+nnoremap <Leader>pp <cmd>lua require'telescope.builtin'.builtin{}<CR>
 
-" Some servers have issues with backup files, see #649
-set nobackup
-set nowritebackup
+" most recently used files
+nnoremap <Leader>m <cmd>lua require'telescope.builtin'.oldfiles{}<CR>
 
-" Better display for messages
-set cmdheight=2
+" find buffer
+nnoremap ; <cmd>lua require'telescope.builtin'.buffers{}<CR>
 
-" You will have bad experience for diagnostic messages when it's default 4000.
-set updatetime=300
+" find in current buffer
+nnoremap <Leader>/ <cmd>lua require'telescope.builtin'.current_buffer_fuzzy_find{}<CR>
 
-" don't give |ins-completion-menu| messages.
-set shortmess+=c
+" bookmarks
+nnoremap <Leader>' <cmd>lua require'telescope.builtin'.marks{}<CR>
 
-" always show signcolumns
-set signcolumn=yes
+" git files
+nnoremap <Leader>f <cmd>lua require'telescope.builtin'.git_files{}<CR>
 
-" Use tab for trigger completion with characters ahead and navigate.
-" Use command ':verbose imap <tab>' to make sure tab is not mapped by other plugin.
-inoremap <silent><expr> <TAB>
-      \ pumvisible() ? "\<C-n>" :
-      \ <SID>check_back_space() ? "\<TAB>" :
-      \ coc#refresh()
-inoremap <expr><S-TAB> pumvisible() ? "\<C-p>" : "\<C-h>"
+" all files
+nnoremap <Leader>bfs <cmd>lua require'telescope.builtin'.find_files{}<CR>
 
-function! s:check_back_space() abort
-  let col = col('.') - 1
-  return !col || getline('.')[col - 1]  =~# '\s'
-endfunction
+" ripgrep like grep through dir
+nnoremap <Leader>rg <cmd>lua require'telescope.builtin'.live_grep{}<CR>
 
-" Use <c-space> to trigger completion.
-inoremap <silent><expr> <c-space> coc#refresh()
-
-" Use <cr> to confirm completion, `<C-g>u` means break undo chain at current position.
-" Coc only does snippet and additional edit on confirm.
-inoremap <expr> <cr> pumvisible() ? "\<C-y>" : "\<C-g>u\<CR>"
-
-" Use `[g` and `]g` to navigate diagnostics
-nmap <silent> [g <Plug>(coc-diagnostic-prev)
-nmap <silent> ]g <Plug>(coc-diagnostic-next)
-
-" Remap keys for gotos
-nmap <silent> gd <Plug>(coc-definition)
-nmap <silent> gy <Plug>(coc-type-definition)
-nmap <silent> gi <Plug>(coc-implementation)
-nmap <silent> gr <Plug>(coc-references)
-
-" Use K to show documentation in preview window
-nnoremap <silent> K :call <SID>show_documentation()<CR>
-
-function! s:show_documentation()
-  if (index(['vim','help'], &filetype) >= 0)
-    execute 'h '.expand('<cword>')
-  else
-    call CocAction('doHover')
-  endif
-endfunction
-
-" Highlight symbol under cursor on CursorHold
-autocmd CursorHold * silent call CocActionAsync('highlight')
-
-" Remap for rename current word
-nmap <leader>rn <Plug>(coc-rename)
-
-" Remap for format selected region
-xmap <leader>f  <Plug>(coc-format-selected)
-nmap <leader>f  <Plug>(coc-format-selected)
-
-augroup mygroup
-  autocmd!
-  " Setup formatexpr specified filetype(s).
-  autocmd FileType typescript,json setl formatexpr=CocAction('formatSelected')
-  " Update signature help on jump placeholder
-  autocmd User CocJumpPlaceholder call CocActionAsync('showSignatureHelp')
-augroup end
-
-" Remap for do codeAction of selected region, ex: `<leader>aap` for current paragraph
-xmap <leader>a  <Plug>(coc-codeaction-selected)
-nmap <leader>a  <Plug>(coc-codeaction-selected)
-
-" Remap for do codeAction of current line
-nmap <leader>ac  <Plug>(coc-codeaction)
-" Fix autofix problem of current line
-nmap <leader>qf  <Plug>(coc-fix-current)
-
-" Create mappings for function text object, requires document symbols feature of languageserver.
-
-xmap if <Plug>(coc-funcobj-i)
-xmap af <Plug>(coc-funcobj-a)
-omap if <Plug>(coc-funcobj-i)
-omap af <Plug>(coc-funcobj-a)
-
-" Use <tab> for select selections ranges, needs server support, like: coc-tsserver, coc-python
-" Use `:Format` to format current buffer
-command! -nargs=0 Format :call CocAction('format')
-
-" Use `:Fold` to fold current buffer
-command! -nargs=? Fold :call     CocAction('fold', <f-args>)
-
-" use `:OR` for organize import of current buffer
-command! -nargs=0 OR   :call     CocAction('runCommand', 'editor.action.organizeImport')
-
-" Add status line support, for integration with other plugin, checkout `:h coc-status`
-"set statusline^=%{coc#status()}%{get(b:,'coc_current_function','')}
-
-" Using CocList
-" Show all diagnostics
-nnoremap <silent> <space>a  :<C-u>CocList diagnostics<cr>
-" Manage extensions
-nnoremap <silent> <space>e  :<C-u>CocList extensions<cr>
-" Show commands
-nnoremap <silent> <space>c  :<C-u>CocList commands<cr>
-" Find symbol of current document
-nnoremap <silent> <space>o  :<C-u>CocList outline<cr>
-" Search workspace symbols
-nnoremap <silent> <space>s  :<C-u>CocList -I symbols<cr>
-" Do default action for next item.
-nnoremap <silent> <space>j  :<C-u>CocNext<CR>
-" Do default action for previous item.
-nnoremap <silent> <space>k  :<C-u>CocPrev<CR>
-" Resume latest coc list
-nnoremap <silent> <space>p  :<C-u>CocListResume<CR>
+" pick color scheme
+nnoremap <Leader>cs <cmd>lua require'telescope.builtin'.colorscheme{}<CR>
 
 
 
@@ -426,20 +365,22 @@ nnoremap <silent> <space>p  :<C-u>CocListResume<CR>
 " ==========================================================
 "
 " displays all buffers when there's only one tab open
-let g:airline#extensions#tabline#enabled = 1
+"let g:airline#extensions#tabline#enabled = 1
 " only show buffers
-let g:airline#extensions#tabline#fnamemod = ':t'
-let g:airline_powerline_fonts = 1
-if !exists('g:airline_symbols')
-    let g:airline_symbols = {}
-endif
-let g:airline_theme='solarized'
+"let g:airline#extensions#tabline#fnamemod = ':t'
+"let g:airline_powerline_fonts = 1
+"if !exists('g:airline_symbols')
+"    let g:airline_symbols = {}
+"endif
+"let g:airline_theme='solarized'
 
 """ solarized
-set t_Co=256
+"set t_Co=256
+set termguicolors
 set background=dark
-let g:solarized_termcolors=16
-colorscheme solarized
+"let g:solarized_termcolors=16
+"colorscheme solarized
+"colorscheme NeoSolarized
 
 "if &term =~ '256color'
     " disable Background Color Erase (BCE) so that color schemes
@@ -447,3 +388,29 @@ colorscheme solarized
     " see also http://sunaku.github.io/vim-256color-bce.html
 "    set t_ut=
 "endif
+
+lua <<EOF
+require("cqconf")
+require("lsp")
+require("treesitter")
+require("completion")
+EOF
+
+lua <<EOF
+require'nvim-treesitter.configs'.setup {
+  refactor = {
+    highlight_definitions = {
+      enable = true,
+      -- Set to false if you have an `updatetime` of ~100.
+      clear_on_cursor_move = true,
+    },
+    highlight_current_scope = { enable = true },
+        smart_rename = {
+      enable = true,
+      keymaps = {
+        smart_rename = "grr",
+      },
+    },
+  },
+}
+EOF
