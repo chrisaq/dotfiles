@@ -309,9 +309,6 @@ mode "resize" {
 # Autorandr
 exec_always --no-startup-id autorandr --change --skip-option crtc
 
-# keyboard layouts
-exec --no-startup-id setxkbmap "no(nodeadkeys),us" -option 'grp:shifts_toggle' -option 'compose:rctrl'
-
 # Autostart applications
 exec_always --no-startup-id $HOME/.config/polybar/launch.sh
 exec_always --no-startup-id dunst -config ~/.config/dunst/dunstrc
@@ -432,8 +429,11 @@ mode "$mode_gaps_outer" {
 ###############################
 
 # set keyboard, lshift+rshift switches between layouts
-exec_always --no-startup-id "setxkbmap -model pc105 -layout no,us -variant ,, -option grp:shifts_toggle, compose:rctrl"
+exec_always --no-startup-id "setxkbmap -model pc105 -layout no(nodeadkeys),us -variant ,, -option grp:shifts_toggle, compose:rctrl"
+#exec_always --no-startup-id "setxkbmap -model pc105 -layout no,us -variant ,, -option grp:shifts_toggle, compose:rctrl"
 # reset xkb: setxkbmap -option
+#exec --no-startup-id setxkbmap "no(nodeadkeys),us" -option 'grp:shifts_toggle' -option 'compose:rctrl'
+
 
 # Pulse Audio controls
 bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume 0 +5% #increase sound volume
