@@ -55,7 +55,7 @@ set nm_default_url = "notmuch:///home/chrisq/.local/share/mail"
 ## read entire thread of the current message
 #bind index,pager + entire-thread
 #bind index,pager \eC vfolder-from-query
-bind index,pager \eC vfolder-from-query
+bind index,pager \eC vfolder-from-query # search using notmuch: <ESC>C
 ## generate virtual folder from query with time window
 #bind index < vfolder-window-backward
 #bind index > vfolder-window-forward

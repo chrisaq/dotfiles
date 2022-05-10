@@ -117,7 +117,8 @@
 	# Make `git rebase` safer on OS X
 	# More info: <http://www.git-tower.com/blog/make-git-rebase-safe-on-osx/>
 	trustctime = false
-	editor = vim
+	editor = nvim
+    pager = delta
 
 [color]
 
@@ -177,7 +178,9 @@
 
 	# Detect copies as well as renames
 	renames = copies
-	colorMoved = zebra
+    #colorMoved = zebra
+    colorMoved = default
+	tool = vimdiff3
 
 [help]
 
@@ -188,6 +191,8 @@
 
 	# Include summaries of merged commits in newly created merge commit messages
 	log = true
+    conflictstyle = diff3
+	tool = vimdiff3
 
 [push]
 	# change to maching for machines with older versions of git 1.x.x
@@ -205,6 +210,7 @@
 	pushInsteadOf = "https://github.com/"
 	pushInsteadOf = "github:"
 	pushInsteadOf = "git://github.com/"
+	insteadOf = https://github.com/
 
 [url "git://github.com/"]
 
@@ -266,3 +272,13 @@
 	repo = /home/chrisq/.config/zsh/zsh-history-substring-search
 	repo = /home/chrisq/.config/zsh/zsh-snap
 	repo = /home/chrisq/.config/zsh/zsh-you-should-use
+[interactive]
+    diffFilter = delta --color-only
+[delta]
+    navigate = true  # use n and N to move between diff sections
+    side-by-side = true
+
+[difftool "vimdiff3"]
+	path = nvim
+[mergetool "vimdiff3"]
+	path = nvim
