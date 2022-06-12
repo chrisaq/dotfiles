@@ -18,6 +18,9 @@ opt.signcolumn = "number"
 opt.belloff = "all" 	                -- don't bell
 opt.vb = false	                        -- or blink
 opt.wildignore = "*.o,*.obj,.git,*.pyc" -- Ignore these files when completing
+opt.list = true
+-- opt.listchars:append("space:⋅")
+opt.listchars:append("eol:↴")
 
 -- undo
 opt.undolevels=1000

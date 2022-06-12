@@ -32,8 +32,10 @@ return require('packer').startup(function(use)
   use "nvim-lua/plenary.nvim"
   use "nvim-lua/popup.nvim"
   use "neovim/nvim-lspconfig"
+  use "onsails/lspkind.nvim"
   use "williamboman/nvim-lsp-installer" -- , { "branch": "main" }
   use "folke/trouble.nvim" -- show list of issues
+  use "lukas-reineke/indent-blankline.nvim"
   use({
     "nvim-treesitter/nvim-treesitter",
     requires = {
@@ -49,7 +51,7 @@ return require('packer').startup(function(use)
     }
   })
 -- Completion
-  use({
+    use({
     "hrsh7th/nvim-cmp",
     requires = {
       "hrsh7th/cmp-buffer",
@@ -61,6 +63,7 @@ return require('packer').startup(function(use)
       "rafamadriz/friendly-snippets",
     }
   })
+  use {'tzachar/cmp-tabnine', run='./install.sh', requires = 'hrsh7th/nvim-cmp'}
 -- Fuzzy search
   use({
     "nvim-telescope/telescope.nvim",
@@ -84,6 +87,7 @@ return require('packer').startup(function(use)
     "kyazdani42/nvim-tree.lua",
     requires = "kyazdani42/nvim-web-devicons"        -- filesystem icons
   }
+  use "nvim-telescope/telescope-file-browser.nvim"
 
 -- themes, colors, etc
   use "nvim-telescope/telescope-ui-select.nvim"

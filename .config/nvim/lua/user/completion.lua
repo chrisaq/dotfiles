@@ -1,4 +1,7 @@
 -- from: https://github.com/VonHeikemen/lsp-zero.nvim/wiki/Under-the-hood
+---
+-- luasnip
+---
 local luasnip = require('luasnip')
 require('luasnip.loaders.from_vscode').load()
 
@@ -6,6 +9,28 @@ luasnip.config.set_config({
   region_check_events = 'InsertEnter',
   delete_check_events = 'InsertLeave'
 })
+
+---
+-- tabnine
+---
+local tabnine = require('cmp_tabnine.config')
+tabnine:setup({
+	max_lines = 1000;
+	max_num_results = 20;
+	sort = true;
+	run_on_every_keystroke = true;
+	snippet_placeholder = '..';
+	ignored_file_types = { -- default is not to ignore
+		-- uncomment to ignore in lua:
+		-- lua = true
+	};
+	show_prediction_strength = false;
+})
+
+---
+-- cmp
+---
+local lspkind = require('lspkind')
 
 vim.o.completeopt = "menuone,noselect"
 
@@ -25,6 +50,7 @@ cmp.setup {
     {name = 'nvim_lsp', keyword_length = 3},
     {name = 'buffer', keyword_length = 3},
     {name = 'luasnip', keyword_length = 2},
+    {name = 'cmp_tabnine'},
   },
   window = {
     documentation = vim.tbl_deep_extend(
@@ -37,18 +63,29 @@ cmp.setup {
     )
   },
   formatting = {
-    fields = {'abbr', 'menu', 'kind'},
-    format = function(entry, item)
-      local short_name = {
-        nvim_lsp = 'LSP',
-        nvim_lua = 'nvim'
-      }
-
-      local menu_name = short_name[entry.source.name] or entry.source.name
-
-      item.menu = string.format('[%s]', menu_name)
-      return item
-    end,
+    format = lspkind.cmp_format({
+      mode = 'symbol_text', -- show only symbol annotations
+      maxwidth = 50, -- prevent the popup from showing more than provided characters (e.g 50 will not show more than 50 characters)
+      -- The function below will be called before any actual modifications from lspkind
+      -- so that you can provide more controls on popup customization. (See [#30](https://github.com/onsails/lspkind-nvim/pull/30))
+      -- before = function (entry, vim_item)
+      --   ...
+      --   return vim_item
+      -- end
+      })
+    --  -- OLD config
+    -- fields = {'abbr', 'menu', 'kind'},
+    -- format = function(entry, item)
+    --   local short_name = {
+    --     nvim_lsp = 'LSP',
+    --     nvim_lua = 'nvim'
+    --   }
+    --
+    --   local menu_name = short_name[entry.source.name] or entry.source.name
+    --
+    --   item.menu = string.format('[%s]', menu_name)
+    --   return item
+    -- end,
   },
   mapping = {
     -- confirm selection

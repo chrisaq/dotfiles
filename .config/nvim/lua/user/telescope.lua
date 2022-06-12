@@ -28,6 +28,7 @@ require("telescope").setup {
       case_mode = "smart_case", -- this is default
     },
     file_browser = {
+      theme = "ivy",
       hidden = true,
     },
     ["ui-select"] = {
@@ -140,6 +141,10 @@ require('neoclip').setup({
     },
 })
 require("telescope").load_extension "neoclip"
+
+
+-- file browser
+require("telescope").load_extension "file_browser"
 
 -- bookmarks
 --[[
@@ -268,3 +273,12 @@ key_map(
   [[<Cmd>lua require('telescope').extensions.neoclip.default()<CR>]],
   { noremap = true, silent = true }
 )
+
+-- file_browser
+key_map(
+  "n",
+  "<leader>fd",
+  ":Telescope file_browser<CR>",
+  { noremap = true }
+)
+

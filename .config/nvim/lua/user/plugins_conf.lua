@@ -44,6 +44,12 @@ letg.qs_highlight_on_keys = {"f", "F", "t", "T"}
 letg.auto_save = 0
 letg.auto_save_silents = 1
 
+require("indent_blankline").setup {
+    space_char_blankline = " ",
+    show_current_context = true,
+    show_current_context_start = true,
+}
+
 -- comment.nvim
 require('Comment').setup {
     ---Add a space b/w comment and the line
