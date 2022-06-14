@@ -71,6 +71,9 @@ bindsym $mod+space exec --no-startup-id "rofi -combi-modi drun,window,run -show 
 # launch categorized menu
 bindsym $mod+' exec --no-startup-id morc_menu
 
+# Start polkit
+exec --no-startup-id /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
+
 ################################################################################################
 ## sound-section - DO NOT EDIT if you wish to automatically upgrade Alsa -> Pulseaudio later! ##
 ################################################################################################
