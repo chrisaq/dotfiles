@@ -13,11 +13,14 @@ return require('packer').startup(function(use)
   -- Git
   use "tpope/vim-git"
   use "tpope/vim-fugitive"
-  use "gregsexton/gitv"
-  use "lewis6991/gitsigns.nvim"
-  use "airblade/vim-gitgutter"
+  use ({"lewis6991/gitsigns.nvim",
+    config = function()
+      require('gitsigns').setup()
+    end
+  })
 -- Movement
   use {"unblevable/quick-scope",  -- color next match for f,F,t,T
+    setup = [[vim.g.qs_highlight_on_keys = {'f', 'F', 't', 'T'}]]
   }
   use "ap/vim-you-keep-using-that-word"  	-- disables cw/cW exception of not including the space(s) after word
 -- Sessions
@@ -51,7 +54,7 @@ return require('packer').startup(function(use)
     }
   })
 -- Completion
-    use({
+  use({
     "hrsh7th/nvim-cmp",
     requires = {
       "hrsh7th/cmp-buffer",
@@ -63,7 +66,6 @@ return require('packer').startup(function(use)
       "rafamadriz/friendly-snippets",
     }
   })
-  use {'tzachar/cmp-tabnine', run='./install.sh', requires = 'hrsh7th/nvim-cmp'}
 -- Fuzzy search
   use({
     "nvim-telescope/telescope.nvim",
@@ -99,7 +101,8 @@ return require('packer').startup(function(use)
   -- use "overcache/NeoSolarized"
   use "folke/tokyonight.nvim" -- , { "branch": "main" }
   use "ishan9299/nvim-solarized-lua"
-
+  use("projekt0n/github-nvim-theme")
+  use("joshdick/onedark.vim")
 
   -- Automatically set up your configuration after cloning packer.nvim
   -- Put this at the end after all plugins
