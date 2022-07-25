@@ -256,7 +256,9 @@ alias xkcd_pwgen="gopass pwgen -x"
 ####### MISC ALIASES
 alias ls='ls --color=auto'
 
-alias pysu='sudo $(printenv VIRTUAL_ENV)/bin/python3'
+alias pysu='sudo $(printenv VIRTUAL_ENV)/bin/python'
+alias pysu2='sudo $(printenv VIRTUAL_ENV)/bin/python2'
+alias pysu3='sudo $(printenv VIRTUAL_ENV)/bin/python3'
 alias st="st -f 'Hack Nerd Font:style=Regular:pixelsize=16'"
 alias stt="tabbed -c -r 2 st -w ''"
 alias sysu='systemctl --user'
