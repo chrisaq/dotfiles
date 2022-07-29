@@ -15,6 +15,7 @@ opt.wildmode = "longest,list,full"      -- <Tab> cycles between all matching cho
 opt.wildignorecase = true
 opt.ignorecase = true                   -- ignore case when tab completing
 opt.signcolumn = "number"
+opt.showcmd = true
 opt.belloff = "all" 	                -- don't bell
 opt.vb = false	                        -- or blink
 opt.wildignore = "*.o,*.obj,.git,*.pyc" -- Ignore these files when completing
