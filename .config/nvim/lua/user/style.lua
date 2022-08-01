@@ -2,7 +2,8 @@ local opt = vim.opt -- to set options
 opt.termguicolors = true
 opt.background = "dark"
 
-vim.cmd('colorscheme solarized')
+vim.cmd('colorscheme catppuccin')
+-- vim.cmd('colorscheme solarized')
 vim.g.solarized_diffmode = 'normal'
 vim.g.solarized_visibility = 'normal'
 -- To enable transparency

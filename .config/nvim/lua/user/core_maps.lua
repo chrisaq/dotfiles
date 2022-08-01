@@ -18,11 +18,11 @@ cmd(":command! Q :q<CR>")
 key_map("c", "W!", [[<Cmd>w !sudo tee % >/dev/null<CR>]], { noremap = true, silent = true })
 -- cmap W! w !sudo tee % >/dev/null
 -- for when we forget to use sudo to open/edit a file
-key_map("c", "w!!", [[<Cmd>w !sudo tee % >/dev/null]], { noremap = true, silent = true })
+key_map("c", "w!!", [[<Cmd>w !sudo tee % >/dev/null<CR>]], { noremap = true, silent = true })
 
 key_map("n", "<leader>bn", ":enew<CR>", { noremap = true, silent = true })
 key_map("n", "<leader>bx", ":new<CR>", { noremap = true, silent = true })
-key_map("n", "<leader>bd", ":bdelete<CR>", { noremap = true, silent = true })
+key_map("n", "<leader>bd", ":Bdelete<CR>", { noremap = true, silent = true })
 key_map("n", "<leader>l", ":bnext<CR>", { noremap = true, silent = true })
 key_map("n", "<leader>h", ":bprevious<CR>", { noremap = true, silent = true })
 

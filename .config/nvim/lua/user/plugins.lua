@@ -19,9 +19,23 @@ return require('packer').startup(function(use)
     end
   })
 -- Movement
-  use {"unblevable/quick-scope",  -- color next match for f,F,t,T
-    setup = [[vim.g.qs_highlight_on_keys = {'f', 'F', 't', 'T'}]]
-  }
+--  use ({"unblevable/quick-scope",  -- color next match for f,F,t,T
+--    setup = [[vim.g.qs_highlight_on_keys = {'f', 'F', 't', 'T'}]]
+--  })
+  -- quick-scope in lua
+  use ({"jinh0/eyeliner.nvim",
+    config = function()
+      require'eyeliner'.setup {
+        highlight_on_key = true
+      }
+      vim.api.nvim_create_autocmd('ColorScheme', {
+        pattern = '*',
+        callback = function()
+          vim.api.nvim_set_hl(0, 'EyelinerPrimary', { bold = true, underline = true })
+        end,
+      })
+  end
+  })
   use "ap/vim-you-keep-using-that-word"  	-- disables cw/cW exception of not including the space(s) after word
 -- Sessions
   use "tpope/vim-obsession"
@@ -81,7 +95,6 @@ return require('packer').startup(function(use)
     config = function()
         require('Comment').setup()
     end}
-  use "junegunn/vim-easy-align"
   use "folke/which-key.nvim" -- show mappings
   use "AckslD/nvim-neoclip.lua"
   use "dstein64/vim-startuptime"
@@ -103,6 +116,37 @@ return require('packer').startup(function(use)
   use "ishan9299/nvim-solarized-lua"
   use("projekt0n/github-nvim-theme")
   use("joshdick/onedark.vim")
+  use { "catppuccin/nvim",
+    as = "catppuccin",
+    config = function()
+      require("catppuccin").setup({
+        integrations = {
+          treesitter = true,
+          native_lsp = {
+              enabled = true,
+              virtual_text = {
+                  errors = { "italic" },
+                  hints = { "italic" },
+                  warnings = { "italic" },
+                  information = { "italic" },
+              },
+              underlines = {
+                  errors = { "underline" },
+                  hints = { "underline" },
+                  warnings = { "underline" },
+                  information = { "underline" },
+              },
+          },
+          lsp_trouble = true,
+          gitsigns = true,
+          telescope = true,
+          which_key = true,
+          markdown = true,
+        }
+      })
+      vim.g.catppuccin_flavour = "macchiato" -- latte, frappe, macchiato, mocha
+    end
+  }
 
   -- Automatically set up your configuration after cloning packer.nvim
   -- Put this at the end after all plugins

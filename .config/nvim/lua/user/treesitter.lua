@@ -17,6 +17,20 @@ require'nvim-treesitter.configs'.setup {
         node_decremental = "grm",       -- decrement to the previous node
       }
     },
+    refactor = {
+        highlight_definitions = {
+            enable = true,
+            -- Set to false if you have an `updatetime` of ~100.
+            clear_on_cursor_move = true,
+        },
+        highlight_current_scope = { enable = true }, -- highlight scope, such as function or class
+        smart_rename = {
+            enable = true,
+            keymaps = {
+                smart_rename = "grr",
+            },
+        },
+    },
     textobjects = {
       -- These are provided by
       select = {

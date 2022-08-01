@@ -33,7 +33,6 @@ cmp.setup {
     {name = 'nvim_lsp', keyword_length = 3},
     {name = 'buffer', keyword_length = 3},
     {name = 'luasnip', keyword_length = 2},
-    {name = 'cmp_tabnine'},
   },
   window = {
     documentation = vim.tbl_deep_extend(
@@ -72,7 +71,8 @@ cmp.setup {
   },
   mapping = {
     -- confirm selection
-    ['<CR>'] = cmp.mapping.confirm({select = true}),
+    --['<CR>'] = cmp.mapping.confirm({select = true}),
+    ['<C-Space>'] = cmp.mapping.confirm({select = true}),
 
     -- navigate items on the list
     ['<Up>'] = cmp.mapping.select_prev_item(cmp_select_opts),
