@@ -62,6 +62,10 @@ alias cq_groups_refresh="exec sudo su -l $USER"
 alias zshreload="source ${ZDOTDIR}/.zshrc"
 alias cq_zshreload="source ${ZDOTDIR}/.zshrc"
 
+# lower mouse accel
+alias mouseslow="xinput --set-prop $(xinput list | grep 'Razer Razer Orochi' | grep -vi keyboard| cut -d '=' -f2 | cut -f1) 'libinput Accel Speed' -1"
+alias cqmouseslow="xinput --set-prop $(xinput list | grep 'Razer Razer Orochi' | grep -vi keyboard| cut -d '=' -f2 | cut -f1) 'libinput Accel Speed' -1"
+
 #####  XDG stuff #####
 # should be set by pam, but missing in some places
 export XDG_CONFIG_HOME=${HOME}/.config
