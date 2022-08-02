@@ -63,8 +63,6 @@ alias zshreload="source ${ZDOTDIR}/.zshrc"
 alias cq_zshreload="source ${ZDOTDIR}/.zshrc"
 
 # lower mouse accel
-alias mouseslow="xinput --set-prop $(xinput list | grep 'Razer Razer Orochi' | grep -vi keyboard| cut -d '=' -f2 | cut -f1) 'libinput Accel Speed' -1"
-alias cqmouseslow="xinput --set-prop $(xinput list | grep 'Razer Razer Orochi' | grep -vi keyboard| cut -d '=' -f2 | cut -f1) 'libinput Accel Speed' -1"
 
 #####  XDG stuff #####
 # should be set by pam, but missing in some places
@@ -259,8 +257,12 @@ alias xkcd_pwgen="gopass pwgen -x"
 
 ####### MISC ALIASES
 alias ls='ls --color=auto'
-
+alias mouseslow="xinput --set-prop $(xinput list | grep 'Razer Razer Orochi' | grep -vi keyboard| cut -d '=' -f2 | cut -f1) 'libinput Accel Speed' -1"
+alias cqmouseslow="xinput --set-prop $(xinput list | grep 'Razer Razer Orochi' | grep -vi keyboard| cut -d '=' -f2 | cut -f1) 'libinput Accel Speed' -1"
+alias hiddenfiles='ls -d .*'
+alias cqhiddenfiles='ls -d .*'
 alias pysu='sudo $(printenv VIRTUAL_ENV)/bin/python'
+alias pyvenvsu='sudo $(printenv VIRTUAL_ENV)/bin/python'
 alias pysu2='sudo $(printenv VIRTUAL_ENV)/bin/python2'
 alias pysu3='sudo $(printenv VIRTUAL_ENV)/bin/python3'
 alias st="st -f 'Hack Nerd Font:style=Regular:pixelsize=16'"
