@@ -134,3 +134,8 @@ require('Comment').setup {
 -- nvim-tree.lua
 require'nvim-tree'.setup {
 } -- END_DEFAULT_OPTS
+
+require("which-key").setup {
+}
+
+

@@ -2,6 +2,7 @@
 -- Basic Settings
 -- ==========================================================
 local opt = vim.opt -- to set options
+local letg = vim.g
 
 -- this needs to be set before all color schemes and so on
 vim.o.termguicolors = true
@@ -76,3 +77,5 @@ au TextYankPost * silent! lua vim.highlight.on_yank{on_visual = false, higroup="
 let g:python3_host_prog='/usr/bin/python3'
 --]]
 
+letg.python_host_prog = '/usr/bin/python'
+letg.python3_host_prog = '/usr/bin/python3'

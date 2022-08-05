@@ -1,15 +1,5 @@
 -- from: https://github.com/VonHeikemen/lsp-zero.nvim/wiki/Under-the-hood
----
--- luasnip
----
-local luasnip = require('luasnip')
-require('luasnip.loaders.from_vscode').load()
-
-luasnip.config.set_config({
-  region_check_events = 'InsertEnter',
-  delete_check_events = 'InsertLeave'
-})
-
+--
 ---
 -- cmp
 ---
@@ -23,16 +13,10 @@ cmp.setup {
   completion = {
     completeopt = 'menu,menuone,noinsert'
   },
-  snippet = {
-    expand = function(args)
-      luasnip.lsp_expand(args.body)
-    end,
-  },
   sources = {
     {name = 'path'},
     {name = 'nvim_lsp', keyword_length = 3},
     {name = 'buffer', keyword_length = 3},
-    {name = 'luasnip', keyword_length = 2},
   },
   window = {
     documentation = vim.tbl_deep_extend(
@@ -91,24 +75,6 @@ cmp.setup {
         cmp.complete()
       end
     end),
-
-    -- go to next placeholder in the snippet
-    ['<C-d>'] = cmp.mapping(function(fallback)
-      if luasnip.jumpable(1) then
-        luasnip.jump(1)
-      else
-        fallback()
-      end
-    end, {'i', 's'}),
-
-    -- go to previous placeholder in the snippet
-    ['<C-b>'] = cmp.mapping(function(fallback)
-      if luasnip.jumpable(-1) then
-        luasnip.jump(-1)
-      else
-        fallback()
-      end
-    end, {'i', 's'}),
 
     -- when menu is visible, navigate to next item
     -- when line is empty, insert a tab character
