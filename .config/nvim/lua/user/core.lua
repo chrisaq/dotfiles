@@ -4,6 +4,12 @@
 local opt = vim.opt -- to set options
 local letg = vim.g
 
+-- filetype detection using lua
+vim.g.do_filetype_lua = 1
+-- disable filetype detection using vimscript
+vim.g.did_load_filetypes = 0
+
+
 -- this needs to be set before all color schemes and so on
 vim.o.termguicolors = true
 
