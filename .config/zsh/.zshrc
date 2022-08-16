@@ -257,8 +257,8 @@ alias xkcd_pwgen="gopass pwgen -x"
 
 ####### MISC ALIASES
 alias ls='ls --color=auto'
-alias mouseslow="xinput --set-prop $(xinput list | grep 'Razer Razer Orochi' | grep -vi keyboard| cut -d '=' -f2 | cut -f1) 'libinput Accel Speed' -1"
-alias cqmouseslow="xinput --set-prop $(xinput list | grep 'Razer Razer Orochi' | grep -vi keyboard| cut -d '=' -f2 | cut -f1) 'libinput Accel Speed' -1"
+alias mouseslow='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "libinput Accel Speed" -1'
+alias cqmouseslow='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "libinput Accel Speed" -1'
 alias hiddenfiles='ls -d .*'
 alias cqhiddenfiles='ls -d .*'
 alias pysu='sudo $(printenv VIRTUAL_ENV)/bin/python'

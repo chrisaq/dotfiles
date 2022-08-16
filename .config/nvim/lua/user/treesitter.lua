@@ -52,7 +52,6 @@ require'nvim-treesitter.configs'.setup {
     },
 }
 
-
 key_map("n", "gd", [[<Cmd>lua vim.lsp.buf.definition()<CR>]],
   { noremap = true, silent = true })
 key_map("n", "<C-]>", [[<Cmd>lua vim.lsp.buf.definition()<CR>]],
@@ -69,22 +68,3 @@ key_map("n", "gn", [[<Cmd>lua vim.lsp.buf.rename()<CR>]],
   { noremap = true, silent = true })
 key_map("n", "<C-k>", [[<Cmd>lua vim.lsp.buf.signature_help()<CR>]],
   { noremap = true, silent = true })
-
---[[
-require'nvim-treesitter.configs'.setup {
-  refactor = {
-    highlight_definitions = {
-      enable = true,
-      -- Set to false if you have an `updatetime` of ~100.
-      clear_on_cursor_move = true,
-    },
-    highlight_current_scope = { enable = true }, -- highlight scope, such as function or class
-    smart_rename = {
-      enable = true,
-      keymaps = {
-      smart_rename = "grr",
-      },
-    },
-  },
-}
---]]

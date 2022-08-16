@@ -5,7 +5,8 @@
 ---
 local lspkind = require('lspkind')
 
-vim.o.completeopt = "menuone,noselect"
+-- vim.o.completeopt = "menuone,noselect"
+vim.opt.completeopt = {'menu', 'menuone', 'noselect'}
 
 local cmp = require('cmp')
 
@@ -14,10 +15,12 @@ cmp.setup {
     completeopt = 'menu,menuone,noinsert'
   },
   sources = {
-    {name = 'path'},
     {name = 'nvim_lsp', keyword_length = 3},
-    {name = 'buffer', keyword_length = 3},
+    {name = 'path'},
+  }, {
+    {name = 'buffer', keyword_length = 5},
   },
+  experimental = { ghost_text = true },
   window = {
     documentation = vim.tbl_deep_extend(
       'force',
@@ -100,3 +103,32 @@ cmp.setup {
     end, {'i', 's'}),
   }
 }
+
+_G.util = {}
+
+local uv = vim.loop
+
+util.check_back_space = function()
+  local col = vim.fn.col('.') - 1
+  if col == 0 or vim.fn.getline('.'):sub(col, col):match('%s') then
+    return true
+  else
+    return false
+  end
+end
+
+util.write_file = function(path, contents)
+  local fd = assert(uv.fs_open(path, 'w', 438))
+  uv.fs_write(fd, contents, -1)
+  assert(uv.fs_close(fd))
+end
+
+util.read_file = function(path)
+  local fd = assert(uv.fs_open(path, 'r', 438))
+  local fstat = assert(uv.fs_fstat(fd))
+  local contents = assert(uv.fs_read(fd, fstat.size, 0))
+  assert(uv.fs_close(fd))
+  return contents
+end
+
+
