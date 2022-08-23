@@ -287,6 +287,9 @@ alias tfinit='terraform init -backend-config=tf-init.conf'
 # Helm
 alias helm-completion='source <(helm completion zsh)'
 
+# NODEJS
+[[ -f /usr/share/nvm/init-nvm.sh ]] && source /usr/share/nvm/init-nvm.sh
+
 # XRANDR, autorandr etc
 # make this a script
 # alias cq-autorandr="autorandr $(autorandr | cut -d' ' -f1|rofi -dmenu)"
@@ -342,7 +345,7 @@ znap source fzf-tab
 znap source ohmyzsh/ohmyzsh lib/{git,theme-and-appearance,completion}
 znap source zsh-abbrev-alias
 znap source zsh-you-should-use
-znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,fzf,git,helm,httpie,nmap,pip,python,sudo,systemd,taskwarrior,terraform}
+znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,fzf,git,nmap,pip,python,sudo,systemd,taskwarrior,terraform}
 if command -v kubectl >/dev/null 2>&1; then
     znap fpath _kubectl 'kubectl completion zsh'
 fi
@@ -356,13 +359,6 @@ znap source zsh-autosuggestions
 znap source zsh-history-substring-search
 znap source zsh-completions
 # ENDS: breaks when higher up for whatever reason
-
-#znap source marlonrichert/zcolors
-#znap eval   marlonrichert/zcolors "zcolors ${(q)LS_COLORS}"
-
-# TODO; powerlevel10k
-# export ZSHSTARTED=$(date +%Y%m%d%H%M)
-# test $(ls --time-style=+%Y%m%d -l $ZDOTDIR/.zshrc |cut -d' ' -f6) -lt $ZSHSTARTED && echo yes
 
 #### HASH shortcuts
 hash -d code=${HOME}/Code
