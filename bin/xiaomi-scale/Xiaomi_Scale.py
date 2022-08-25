@@ -36,7 +36,7 @@ def customUserDecoder(userDict):
 # Configuraiton...
 # Trying To Load Config From options.json (HA Add-On)
 try:
-    with open('./data/options.json') as json_file:
+    with open('/data/options.json') as json_file:
         sys.stdout.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Loading Config From Options.json...\n")
         data = json.load(json_file)["options"]
         try:
@@ -149,8 +149,6 @@ def discovery():
         message+= '"json_attributes_topic": "' + MQTT_PREFIX + '/' + MQTTUser.NAME + '/weight",'
         message+= '"icon": "mdi:scale-bathroom",'
         message+= '"state_class": "measurement"}'
-        print(f"{message}")
-        print(f"{MQTT_DISCOVERY_PREFIX} + '/sensor/' + {MQTT_PREFIX} + '/' + {MQTTUser.NAME} + '/config',message,retain=True,hostname={MQTT_HOST},port={MQTT_PORT},auth='username':{MQTT_USERNAME}, 'password':{MQTT_PASSWORD},tls={MQTT_TLS}")
         publish.single(
                         MQTT_DISCOVERY_PREFIX + '/sensor/' + MQTT_PREFIX + '/' + MQTTUser.NAME + '/config',
                         message,
