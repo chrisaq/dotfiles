@@ -12,6 +12,23 @@ vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(vim.lsp.diagn
 
 vim.cmd([[ command! Format execute 'lua vim.lsp.buf.formatting_sync()' ]])
 
+key_map("n", "gd", [[<Cmd>lua vim.lsp.buf.definition()<CR>]],
+  { noremap = true, silent = true })
+key_map("n", "<C-]>", [[<Cmd>lua vim.lsp.buf.definition()<CR>]],
+  { noremap = true, silent = true })
+key_map("n", "gD", [[<Cmd>lua vim.lsp.buf.declaration()<CR>]],
+  { noremap = true, silent = true })
+key_map("n", "gr", [[<Cmd>lua vim.lsp.buf.references()<CR>]],
+  { noremap = true, silent = true })
+key_map("n", "gi", [[<Cmd>lua vim.lsp.buf.implementation()<CR>]],
+  { noremap = true, silent = true })
+key_map("n", "gf", [[<Cmd>lua vim.lsp.buf.formatting()<CR>]],
+  { noremap = true, silent = true })
+key_map("n", "gn", [[<Cmd>lua vim.lsp.buf.rename()<CR>]],
+  { noremap = true, silent = true })
+key_map("n", "<C-k>", [[<Cmd>lua vim.lsp.buf.signature_help()<CR>]],
+  { noremap = true, silent = true })
+
 ---
 -- lspkind
 ---
