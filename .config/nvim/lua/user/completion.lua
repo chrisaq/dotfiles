@@ -58,8 +58,8 @@ cmp.setup {
   },
   mapping = {
     -- confirm selection
-    --['<CR>'] = cmp.mapping.confirm({select = true}),
-    ['<C-Space>'] = cmp.mapping.confirm({select = true}),
+    -- ['<CR>'] = cmp.mapping.confirm({select = true}),
+    ['<C-CR>'] = cmp.mapping.confirm({select = true}),
 
     -- navigate items on the list
     ['<Up>'] = cmp.mapping.select_prev_item(cmp_select_opts),
@@ -69,16 +69,7 @@ cmp.setup {
     ['<C-f>'] = cmp.mapping.scroll_docs(5),
     ['<C-u>'] = cmp.mapping.scroll_docs(-5),
 
-    -- toggle completion
-    ['<C-e>'] = cmp.mapping(function(fallback)
-      if cmp.visible() then
-        cmp.close()
-        fallback()
-      else
-        cmp.complete()
-      end
-    end),
-
+    ['<C-Space>'] = cmp.mapping.abort(),
     -- when menu is visible, navigate to next item
     -- when line is empty, insert a tab character
     -- else, activate completion

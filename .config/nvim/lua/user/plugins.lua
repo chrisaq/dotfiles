@@ -77,7 +77,7 @@ return require("packer").startup(function(use)
 					"jsonls", -- language servers
 					"tsserver",
 					"jsonnet_ls",
-					"zk",
+					"zk@v0.10.1",
 					"pyright",
 					"taplo",
 					"terraformls",
