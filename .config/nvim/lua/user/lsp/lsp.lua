@@ -10,6 +10,8 @@ vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(vim.lsp.diagn
 	underline = true,
 })
 
+local key_map = vim.api.nvim_set_keymap
+
 vim.cmd([[ command! Format execute 'lua vim.lsp.buf.formatting_sync()' ]])
 
 key_map("n", "gd", [[<Cmd>lua vim.lsp.buf.definition()<CR>]],

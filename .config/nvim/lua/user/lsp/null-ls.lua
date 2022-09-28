@@ -14,7 +14,7 @@ null_ls.setup({
         formatting.prettier.with({ extra_args = { "--no-semi", "--single-quote", "--jsx-single-quote" } }),
         -- PYTHON
 		formatting.black.with({ extra_args = { "--fast" } }),
-        diagnostics.flake8,
+        diagnostics.flake8.with({ extra_args = { "--ignore=E501,W503" } }),
         -- LUA
 		formatting.stylua,
         null_ls.builtins.completion.spell, -- You still need to execute `:set spell`
