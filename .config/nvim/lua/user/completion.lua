@@ -1,125 +1,119 @@
--- from: https://github.com/VonHeikemen/lsp-zero.nvim/wiki/Under-the-hood
---
----
--- cmp
----
-local lspkind = require('lspkind')
+local luasnip = require("luasnip")
+local cmp_autopairs = require("nvim-autopairs.completion.cmp")
+local cmp = require("cmp")
+local lspkind = require("lspkind")
 
--- vim.o.completeopt = "menuone,noselect"
-vim.opt.completeopt = {'menu', 'menuone', 'noselect'}
 
-local cmp = require('cmp')
-
+-- put this to setup function and press <a-e> to use fast_wrap
+require("nvim-autopairs").setup({
+  enable_check_bracket_line = false,
+  check_ts = true,
+  ignored_next_char = "[%w%.]",
+  fast_wrap = {
+    map = "<M-e>",
+    chars = { "{", "[", "(", "\"", "'" },
+    pattern = [=[[%"%"%)%>%]%)%}%,]]=],
+    end_key = "$",
+    keys = "qwertyuiopzxcvbnmasdfghjkl",
+    check_comma = true,
+    highlight = "Search",
+    highlight_grey = "Comment"
+  },
+})
 cmp.setup {
-  completion = {
-    completeopt = 'menu,menuone,noinsert'
-  },
-  sources = {
-    {name = 'nvim_lsp', keyword_length = 3},
-    {name = 'path'},
-  }, {
-    {name = 'buffer', keyword_length = 5},
-  },
-  experimental = { ghost_text = true },
   window = {
-    documentation = vim.tbl_deep_extend(
-      'force',
-      cmp.config.window.bordered(),
-      {
-        max_height = 15,
-        max_width = 60,
-      }
-    )
+    completion = {
+      winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
+      col_offset = -3,
+      side_padding = 0,
+      border = 'rounded',
+      scrollbar = '║'
+    },
+    documentation = { -- no border; native-style scrollbar
+      border = nil,
+      scrollbar = '',
+    },
   },
+  -- trying to get cmp to not select any items unless specifically chosen
+  preselect = cmp.PreselectMode.None,
   formatting = {
     format = lspkind.cmp_format({
-      mode = 'symbol_text', -- show only symbol annotations
-      maxwidth = 50, -- prevent the popup from showing more than provided characters (e.g 50 will not show more than 50 characters)
-      -- The function below will be called before any actual modifications from lspkind
-      -- so that you can provide more controls on popup customization. (See [#30](https://github.com/onsails/lspkind-nvim/pull/30))
-      -- before = function (entry, vim_item)
-      --   ...
-      --   return vim_item
-      -- end
+      mode = "symbol_text",
+      menu = ({
+        buffer = "[Buf]",
+        nvim_lsp = "[LSP]",
+        nvim_lua =  "[Lua]",
+        luasnip = "[Snip]",
+        copilot = "[GHub]"
       })
-    --  -- OLD config
-    -- fields = {'abbr', 'menu', 'kind'},
-    -- format = function(entry, item)
-    --   local short_name = {
-    --     nvim_lsp = 'LSP',
-    --     nvim_lua = 'nvim'
-    --   }
-    --
-    --   local menu_name = short_name[entry.source.name] or entry.source.name
-    --
-    --   item.menu = string.format('[%s]', menu_name)
-    --   return item
-    -- end,
+    })
   },
-  mapping = {
-    -- confirm selection
-    -- ['<CR>'] = cmp.mapping.confirm({select = true}),
-    ['<C-CR>'] = cmp.mapping.confirm({select = true}),
-
-    -- navigate items on the list
-    ['<Up>'] = cmp.mapping.select_prev_item(cmp_select_opts),
-    ['<Down>'] = cmp.mapping.select_next_item(cmp_select_opts),
-
-    -- scroll up and down in the completion documentation
-    ['<C-f>'] = cmp.mapping.scroll_docs(5),
-    ['<C-u>'] = cmp.mapping.scroll_docs(-5),
-
-    ['<C-Space>'] = cmp.mapping.abort(),
-    -- when menu is visible, navigate to next item
-    -- when line is empty, insert a tab character
-    -- else, activate completion
-    ['<Tab>'] = cmp.mapping(function(fallback)
+  snippet = {
+    expand = function(args)
+      luasnip.lsp_expand(args.body)
+    end,
+  },
+  confirmation = { completeopt = 'menu,menuone,noinsert' },
+  mapping = cmp.mapping.preset.insert({
+    ["<C-d>"] = cmp.mapping.scroll_docs(-4),
+    ["<C-f>"] = cmp.mapping.scroll_docs(4),
+    ["<C-Space>"] = cmp.mapping.complete({
+      reason = cmp.ContextReason.Auto,
+    }),
+    ["<CR>"] = cmp.mapping.confirm {
+      behavior = cmp.ConfirmBehavior.Replace,
+      select = false -- testing
+    },
+    ["<Tab>"] = cmp.mapping(function(fallback)
       if cmp.visible() then
-        cmp.select_next_item(cmp_select_opts)
-      elseif util.check_back_space() then
-        fallback()
-      else
-        cmp.complete()
-      end
-    end, {'i', 's'}),
-
-    -- when menu is visible, navigate to previous item on list
-    -- else, revert to default behavior
-    ['<S-Tab>'] = cmp.mapping(function(fallback)
-      if cmp.visible() then
-        cmp.select_prev_item(cmp_select_opts)
+        cmp.select_next_item()
+      elseif luasnip.expand_or_jumpable() then
+        luasnip.expand_or_jump()
       else
         fallback()
       end
-    end, {'i', 's'}),
-  }
+    end, { "i", "s", 'c' }),
+    ["<S-Tab>"] = cmp.mapping(function(fallback)
+      if cmp.visible() then
+        cmp.select_prev_item()
+      elseif luasnip.jumpable(-1) then
+        luasnip.jump(-1)
+      else
+        fallback()
+      end
+    end, { "i", "s", 'c' }),
+  }),
+  sources = {
+    { name = "nvim_lsp" },
+    { name = "luasnip" },
+    { name = "nvim_lsp_signature_help" },
+    { name = "crates" },
+    { name = "path"}
+  },
+  view = { entries = { name = "custom", selection_order = "near_cursor" } },
 }
 
-_G.util = {}
-
-local uv = vim.loop
-
-util.check_back_space = function()
-  local col = vim.fn.col('.') - 1
-  if col == 0 or vim.fn.getline('.'):sub(col, col):match('%s') then
-    return true
-  else
-    return false
-  end
-end
-
-util.write_file = function(path, contents)
-  local fd = assert(uv.fs_open(path, 'w', 438))
-  uv.fs_write(fd, contents, -1)
-  assert(uv.fs_close(fd))
-end
-
-util.read_file = function(path)
-  local fd = assert(uv.fs_open(path, 'r', 438))
-  local fstat = assert(uv.fs_fstat(fd))
-  local contents = assert(uv.fs_read(fd, fstat.size, 0))
-  assert(uv.fs_close(fd))
-  return contents
-end
-
-
+cmp.setup.filetype('gitcommit', {
+    sources = cmp.config.sources(
+    {{ name = 'git' }},
+    {{ name = 'buffer' }}
+  )
+})
+require("cmp_git").setup()
+cmp.event:on(
+  'confirm_done',
+  cmp_autopairs.on_confirm_done()
+)
+cmp.setup.cmdline(':', {
+  confirmation = { completeopt = 'menu,menuone,noinsert' },
+  sources = {
+    { name = 'cmdline' },
+    { name = 'cmdline_history' },
+    { name = 'path'}
+  }
+})
+cmp.setup.cmdline('/', {
+  sources = {
+    { name = 'buffer' }
+  },
+})

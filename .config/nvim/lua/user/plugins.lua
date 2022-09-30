@@ -137,6 +137,8 @@ return require("packer").startup(function(use)
 			"hrsh7th/cmp-nvim-lua",
 			"hrsh7th/cmp-buffer",
 			"hrsh7th/cmp-path",
+      "petertriho/cmp-git",
+      "hrsh7th/cmp-nvim-lsp-signature-help",
 		},
 	})
 	-- Fuzzy search
@@ -148,7 +150,18 @@ return require("packer").startup(function(use)
 	use("tami5/sqlite.lua") -- required for firefox
 	use("machakann/vim-sandwich") -- replaces vim-surround below
 	use("tpope/vim-repeat")
-	use("tmsvg/pear-tree") -- auto-close parens etc, replaces delimitmate
+	use({
+    "windwp/nvim-autopairs",
+    config = function()
+      require("nvim-autopairs").setup {}
+    end
+  }) -- auto-close parens etc, replaces delimitmate
+  use({
+    "windwp/nvim-ts-autotag",
+    config = function()
+      require('nvim-ts-autotag').setup()
+    end
+  })
 	use({
 		"numToStr/Comment.nvim", -- comments
 		config = function()
