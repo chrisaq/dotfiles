@@ -41,6 +41,14 @@ require("telescope").setup {
     command_palette = {
     },
   },
+  pickers = {
+    find_files = {
+      find_command = {'rg', '--files', '--hidden', '-g', '!.git'},
+      layout_config = {
+        height = 0.70
+      }
+    }
+  },
   defaults = {
     preview = {
       timeout = 500,

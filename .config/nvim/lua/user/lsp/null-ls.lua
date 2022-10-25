@@ -13,10 +13,10 @@ null_ls.setup({
         -- JS
         formatting.prettier.with({ extra_args = { "--no-semi", "--single-quote", "--jsx-single-quote" } }),
         -- PYTHON
-		formatting.black.with({ extra_args = { "--fast" } }),
+        formatting.black.with({ extra_args = { "--fast" } }),
         diagnostics.flake8.with({ extra_args = { "--ignore=E501,W503" } }),
         -- LUA
-		formatting.stylua,
+        formatting.stylua,
         null_ls.builtins.completion.spell, -- You still need to execute `:set spell`
         null_ls.builtins.diagnostics.markdownlint, -- Install it with `npm i -g markdownlint-cli`
         -- null_ls.builtins.diagnostics.phpcs.with({ -- Use the local installation first

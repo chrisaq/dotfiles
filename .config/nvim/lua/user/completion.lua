@@ -44,7 +44,6 @@ cmp.setup {
         nvim_lsp = "[LSP]",
         nvim_lua =  "[Lua]",
         luasnip = "[Snip]",
-        copilot = "[GHub]"
       })
     })
   },
@@ -72,7 +71,8 @@ cmp.setup {
       else
         fallback()
       end
-    end, { "i", "s", 'c' }),
+    end, { "i", "s" }),
+    -- end, { "i", "s", 'c' }),
     ["<S-Tab>"] = cmp.mapping(function(fallback)
       if cmp.visible() then
         cmp.select_prev_item()
@@ -81,13 +81,13 @@ cmp.setup {
       else
         fallback()
       end
-    end, { "i", "s", 'c' }),
+    end, { "i", "s" }),
+    -- end, { "i", "s", 'c' }),
   }),
   sources = {
     { name = "nvim_lsp" },
     { name = "luasnip" },
     { name = "nvim_lsp_signature_help" },
-    { name = "crates" },
     { name = "path"}
   },
   view = { entries = { name = "custom", selection_order = "near_cursor" } },

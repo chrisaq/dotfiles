@@ -119,6 +119,11 @@ fi
 if [[ ! -d "$XDG_CONFIG_HOME"/kube ]]; then
     mkdir -p "$XDG_CONFIG_HOME"/kube
 fi
+
+export ASDF_DATA_DIR="${XDG_DATA_HOME:-~./local/share}/asdf"
+export ASDF_CONFIG_FILE="${XDG_CONFIG_HOME:-~./config}/asdf/asdfrc"
+# export ASDF_DIR="${XDG_CONFIG_HOME}/asdf/"
+
 # temp disable
 #export AWS_SHARED_CREDENTIALS_FILE="$XDG_CONFIG_HOME"/aws/credentials
 #export AWS_CONFIG_FILE="$XDG_CONFIG_HOME"/aws/config
@@ -358,6 +363,7 @@ znap source fast-syntax-highlighting
 znap source zsh-autosuggestions
 znap source zsh-history-substring-search
 znap source zsh-completions
+znap source asdf-vm/asdf
 # ENDS: breaks when higher up for whatever reason
 
 #### HASH shortcuts
