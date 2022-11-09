@@ -1,5 +1,6 @@
 local fn = vim.fn
 local letg = vim.g
+local keymap = vim.keymap.set
 -- vim.o.runtimepath = vim.fn.stdpath('data') .. '/site/pack/*/start/*,' .. vim.o.runtimepath
 vim.o.runtimepath = vim.fn.stdpath("data") .. "/site/packer/*/start/*," .. vim.o.runtimepath
 local install_path = fn.stdpath("data") .. "/site/packer/packer/start/packer.nvim"
@@ -85,12 +86,21 @@ return require("packer").startup(function(use)
 					"vuels",
 					"yamlls",
 					"eslint",
-					"yamllint", -- linters
-					"black",
-				}, -- formatters
+				},
 			})
 		end,
 	})
+  use({
+    "glepnir/lspsaga.nvim",
+    branch = "main",
+    requires = "kyazdani42/nvim-web-devicons",
+    config = function()
+      local saga = require("lspsaga")
+      saga.init_lsp_saga({
+        symbol_in_winbar = { in_custom = true },
+      })
+    end
+  })
 	use({
 		"VonHeikemen/lsp-zero.nvim",
 		requires = {
@@ -113,7 +123,24 @@ return require("packer").startup(function(use)
 			lsp.setup()
 		end,
 	})
-	use("folke/trouble.nvim") -- show list of issues
+	-- use({"folke/trouble.nvim",
+ --    requires = "kyazdani42/nvim-web-devicons",
+ --    config = function()
+ --      require("trouble").setup {
+ --        mode = "document_diagnostics",
+ --      }
+ --    end
+ --  }) -- show list of issues
+  use({
+    "folke/noice.nvim",
+    config = function()
+      require("noice").setup()
+    end,
+    requires = {
+      "MunifTanjim/nui.nvim",
+      "rcarriga/nvim-notify",
+    }
+  })
 	use("lukas-reineke/indent-blankline.nvim")
 	use({
 		"nvim-treesitter/nvim-treesitter",

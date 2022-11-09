@@ -299,8 +299,11 @@ alias helm-completion='source <(helm completion zsh)'
 # make this a script
 # alias cq-autorandr="autorandr $(autorandr | cut -d' ' -f1|rofi -dmenu)"
 
+# NeoVim / vim aliases
 # Notes in vim, persistence and such
-alias cqnote="nvim -u $HOME/.config/nvim/init-cqnote.vim  $HOME/Sync/Wiki/Tech/docs/QuickNote.md"
+alias cqnote="nvim -u $XDG_CONFIG_HOME/nvim-configs/cqnote/init.lua $HOME/Sync/Wiki/Tech/docs/QuickNote.md"
+# Separate nvim configs example:
+# alias cqnvim="nvim -u $XDG_CONFIG_HOME/cqnvim/init.lua"
 
 # Turns out the below is just an inconvenient version of fzf's ctrl-t
 # ff: fd and fzy
