@@ -17,7 +17,8 @@ null_ls.setup({
         diagnostics.flake8.with({ extra_args = { "--ignore=E501,W503" } }),
         -- LUA
         formatting.stylua,
-        null_ls.builtins.completion.spell, -- You still need to execute `:set spell`
+        --  Spell (below) makes all those Text suggestions for LSP, avoid
+        -- null_ls.builtins.completion.spell, -- You still need to execute `:set spell`
         null_ls.builtins.diagnostics.markdownlint, -- Install it with `npm i -g markdownlint-cli`
         -- null_ls.builtins.diagnostics.phpcs.with({ -- Use the local installation first
         --    prefer_local = "vendor/bin",

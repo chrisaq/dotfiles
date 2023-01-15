@@ -302,6 +302,9 @@ alias helm-completion='source <(helm completion zsh)'
 # NeoVim / vim aliases
 # Notes in vim, persistence and such
 alias cqnote="nvim -u $XDG_CONFIG_HOME/nvim-configs/cqnote/init.lua $HOME/Sync/Wiki/Tech/docs/QuickNote.md"
+alias cqnote-init="cqnote --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'"
+# Install nvim configuration from scratch:
+# nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'
 # Separate nvim configs example:
 # alias cqnvim="nvim -u $XDG_CONFIG_HOME/cqnvim/init.lua"
 

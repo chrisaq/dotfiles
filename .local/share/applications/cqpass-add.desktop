@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Encoding=UTF-8
+Name=cqpass-clip
+Comment=gopass insert with rofi
+Exec=env PASSWORD_STORE_DIR=/home/chrisq/Sync/Password-Store GNUPGHOME=/home/chrisq/.config/gnupg /home/chrisq/bin/cqpass-add
+Icon=application.png
+Terminal=false

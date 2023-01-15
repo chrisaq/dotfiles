@@ -12,7 +12,8 @@ configuration {
 @import "/home/chrisq/.local/share/rofi/themes/cq-xps17/cq.rasi"
 /* @import "/usr/share/rofi/themes/solarized_alternate.rasi" */
 
-prompt { enabled: false; }
+// the option below disables setting any kind of prompt
+// prompt { enabled: false; }
 
 #textbox-prompt-colon {
   str: "";
