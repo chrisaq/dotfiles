@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Encoding=UTF-8
+Name=spotify-psst
+Comment=Psst spotify player
+Exec=/usr/bin/psst-gui
+Icon=spotify-client
+Terminal=false

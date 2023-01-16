@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Encoding=UTF-8
+Name=spotify-playlist
+Comment=play spotify playlist
+Exec=/home/chrisq/bin/spotify-playlist
+Icon=application.png
+Terminal=false

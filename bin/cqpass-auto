@@ -17,7 +17,7 @@ password_files=( "${password_files[@]%.gpg}" )
 
 # shows a list of all password files and saved the selected one in a variable
 #password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu "$@" -theme ~/.local/share/rofi/themes/nord/nord.rasi)
-password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu "$@" -theme ~/.local/share/rofi/themes/cq-xps17/cq.rasi)
+password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu -f '' "$@" -theme ~/.local/share/rofi/themes/cq-xps17/cq.rasi)
 [[ -n $password ]] || exit
 
 # pass -c copied the password in clipboard. The additional output from pass is piped in to /dev/null 

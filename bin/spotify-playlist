@@ -1,0 +1,8 @@
+#!/bin/bash
+
+shopt -s nullglob globstar
+
+echo args: $@
+
+PLAYLIST=$(spt list --playlists | rofi -dmenu -p 'Choose list '|cut -d'(' -f2 |cut -d ')' -f1)
+spt play --uri "${PLAYLIST}"

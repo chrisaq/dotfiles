@@ -273,10 +273,15 @@ alias pysu3='sudo $(printenv VIRTUAL_ENV)/bin/python3'
 alias st="st -f 'Hack Nerd Font:style=Regular:pixelsize=16'"
 alias stt="tabbed -c -r 2 st -w ''"
 alias sysu='systemctl --user'
+alias josu='journalctl --user'
 alias t="task"
 # the () launches the command  in a subshell, not affecting CWD of shell running the alias.
 alias skraper='(cd ~/bin/Skraper && mono SkraperUI.exe)'
 alias i3_swap_1and2='i3-msg "rename workspace 1 to temporary; rename workspace 2 to 1; rename workspace temporary to 2"'
+alias spotify-ncspot='ncspot'
+alias spotify-spotube='spotube'
+alias spotify-tui='spt'
+alias spotify-psst='psst'
 
 function i3_swap() {
     i3-msg "rename workspace $1 to temporary;

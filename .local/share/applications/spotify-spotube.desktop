@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Encoding=UTF-8
+Name=spotify-spotube
+Comment=Spotube spotify player
+Exec=/usr/bin/spotube
+Icon=spotify-client
+Terminal=false
