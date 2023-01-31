@@ -266,6 +266,7 @@ alias mouseslow='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | g
 alias cqmouseslow='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "libinput Accel Speed" -1'
 alias hiddenfiles='ls -d .*'
 alias cqhiddenfiles='ls -d .*'
+alias crypt-sync="${HOME}/bin/crypt-sync/crypt-sync.sh"
 alias pysu='sudo $(printenv VIRTUAL_ENV)/bin/python'
 alias pyvenvsu='sudo $(printenv VIRTUAL_ENV)/bin/python'
 alias pysu2='sudo $(printenv VIRTUAL_ENV)/bin/python2'

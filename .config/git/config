@@ -235,7 +235,7 @@
     defaultBranch = master
 
 [commit]
-    #gpgsign = true
+    gpgsign = true
 [pull]
 	rebase = true
 [color "remote"]

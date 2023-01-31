@@ -95,11 +95,8 @@ return require("packer").startup(function(use)
     branch = "main",
     requires = "kyazdani42/nvim-web-devicons",
     config = function()
-      local saga = require("lspsaga")
-      saga.init_lsp_saga({
-        symbol_in_winbar = { in_custom = true },
-      })
-    end
+      require('lspsaga').setup({})
+    end,
   })
 	use({
 		"VonHeikemen/lsp-zero.nvim",
@@ -123,14 +120,14 @@ return require("packer").startup(function(use)
 			lsp.setup()
 		end,
 	})
-	-- use({"folke/trouble.nvim",
- --    requires = "kyazdani42/nvim-web-devicons",
- --    config = function()
- --      require("trouble").setup {
- --        mode = "document_diagnostics",
- --      }
- --    end
- --  }) -- show list of issues
+	use({"folke/trouble.nvim",
+    requires = "kyazdani42/nvim-web-devicons",
+    config = function()
+      require("trouble").setup {
+        mode = "document_diagnostics",
+      }
+    end
+  }) -- show list of issues
   use({
     "folke/noice.nvim",
     config = function()

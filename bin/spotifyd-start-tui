@@ -1,0 +1,8 @@
+#!/bin/bash
+
+shopt -s nullglob globstar
+
+echo args: $@
+
+systemctl --user restart spotifyd
+spt
