@@ -5,7 +5,15 @@
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
 
+zstyle ':znap:*' default-server 'git@github.com:'
+# Download Znap, if it's not there yet.
+[[ -f ${ZDOTDIR}/zsh-snap/znap.zsh ]] ||
+    git clone https://github.com/marlonrichert/zsh-snap.git ${ZDOTDIR}/zsh-snap
+
+source ~/.config/zsh/zsh-snap/znap.zsh
+
 export ZSHSTARTED=$(date +%Y%m%d%H%M%S)
+#
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.config/zsh/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
@@ -13,11 +21,6 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# Download Znap, if it's not there yet.
-[[ -f ${ZDOTDIR}/zsh-snap/znap.zsh ]] ||
-    git clone https://github.com/marlonrichert/zsh-snap.git ${ZDOTDIR}/zsh-snap
-
-source ${ZDOTDIR}/zsh-snap/znap.zsh  # Start Znap
 
 ### History
 # fc -W  # <- try writing history to file, used to test for errors
@@ -119,6 +122,12 @@ fi
 if [[ ! -d "$XDG_CONFIG_HOME"/kube ]]; then
     mkdir -p "$XDG_CONFIG_HOME"/kube
 fi
+if [[ ! -d "$XDG_DATA_HOME"/pyenv ]]; then
+    mkdir -p "$XDG_DATA_HOME"/pyenv
+fi
+export PYENV_ROOT="${XDG_DATA_HOME}/pyenv"
+# disable shared library build for pyenv
+export PYTHON_CONFIGURE_OPTS="--disable-shared"
 
 export ASDF_DATA_DIR="${XDG_DATA_HOME:-~./local/share}/asdf"
 export ASDF_CONFIG_FILE="${XDG_CONFIG_HOME:-~./config}/asdf/asdfrc"
@@ -165,8 +174,8 @@ if [[ $HAS_FZF -eq 1  ]]; then
 fi
 
 # zsh-autocomplete options
-zstyle ':autocomplete:*' fzf-completion yes # enable fzf **<tab>
-zstyle ':autocomplete:*' min-input 0
+# zstyle ':autocomplete:*' fzf-completion yes # enable fzf **<tab>
+# zstyle ':autocomplete:*' min-input 0
 
 # path to user-installed ruby gems bin
 if command -v ruby >/dev/null 2>&1 && command -v gem >/dev/null 2>&1; then
@@ -176,6 +185,13 @@ fi
 # direnv
 if command -v direnv >/dev/null 2>&1; then
     eval "$(direnv hook zsh)"
+fi
+
+# pyenv / pipx
+if command -v pyenv >/dev/null 2>&1; then
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init -)"
+    export PIPX_DEFAULT_PYTHON=$(which python)
 fi
 
 # VIM stuff
@@ -329,6 +345,14 @@ completions-list () {
     done | sort
 }
 
+# Set env from KEY=value list in file
+env_arg() {set -o allexport; source $@; set +o allexport}
+env_select() {set -o allexport; source $(fd .conf ~/.config/env -t f|fzf); set +o allexport}
+
+# Run command with env from ./.env
+with_env() {
+    (set -a && . ./.env && "$@")
+  }
 ## terminfo
 typeset -g -A key
 key[Home]="${terminfo[khome]}"
@@ -343,26 +367,27 @@ setopt noflowcontrol
 stty -ixon <$TTY >$TTY
 
 #znap config
-zstyle ':znap:*' default-server 'git@github.com:'
 
 znap clone \
      git@github.com:romkatv/powerlevel10k.git \
      git@github.com:zdharma-continuum/fast-syntax-highlighting \
      git@github.com:momo-lab/zsh-abbrev-alias.git \
-     git@github.com:Aloxaf/fzf-tab.git \
      git@github.com:marlonrichert/{zsh-edit,zsh-hist}.git \
      trapd00r/LS_COLORS \
      ohmyzsh/ohmyzsh \
      git@github.com:zsh-users/{zsh-autosuggestions,zsh-history-substring-search,zsh-completions}.git \
      git@github.com:MichaelAquilina/zsh-you-should-use.git
+#     git@github.com:Aloxaf/fzf-tab.git \
 
 znap source powerlevel10k
 znap eval trapd00r/LS_COLORS "$( whence -a dircolors gdircolors ) -b LS_COLORS"
-znap source fzf-tab
+#znap source fzf-tab
 znap source ohmyzsh/ohmyzsh lib/{git,theme-and-appearance,completion}
 znap source zsh-abbrev-alias
 znap source zsh-you-should-use
-znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,fzf,git,nmap,pip,python,sudo,systemd,taskwarrior,terraform}
+znap source marlonrichert/zsh-autocomplete
+znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,git,nmap,pip,python,sudo,systemd,taskwarrior,terraform}
+# znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,fzf,git,nmap,pip,python,sudo,systemd,taskwarrior,terraform}
 if command -v kubectl >/dev/null 2>&1; then
     znap fpath _kubectl 'kubectl completion zsh'
 fi
