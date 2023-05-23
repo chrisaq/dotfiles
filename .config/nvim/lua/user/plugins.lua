@@ -69,7 +69,6 @@ return require("packer").startup(function(use)
 		config = function()
 			require("mason-lspconfig").setup({
 				ensure_installed = {
-					"sumneko_lua",
 					"rust_analyzer",
 					"bashls",
 					"cssls",
@@ -79,7 +78,6 @@ return require("packer").startup(function(use)
 					"tsserver",
 					"jsonnet_ls",
 					"zk@v0.10.1",
-					"pyright",
 					"taplo",
 					"terraformls",
 					"tflint",

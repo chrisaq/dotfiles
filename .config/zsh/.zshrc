@@ -27,12 +27,25 @@ fi
 HISTFILE=$XDG_CACHE_HOME/zsh-history
 SAVEHIST=10000000
 HISTSIZE=10000000
+
+# # testing Manual history search
+# up-line-or-history-beginning-search () {
+#   if [[ -n $PREBUFFER ]]; then
+#     zle up-line-or-history
+#   else
+#     zle history-beginning-search-backward
+#   fi
+# }
+# zle -N up-line-or-history-beginning-search
+#
 ###################### Setopts
 setopt extended_history
 setopt inc_append_history_time # replaces sharehistory and inc_append_history
-setopt hist_ignore_all_dups
-setopt hist_no_functions
+setopt hist_ignore_dups # do not write dups if same as previous command
+setopt hist_ignore_space # do not write command to history if it starts with a space
 setopt hist_reduce_blanks
+# setopt hist_ignore_all_dups # do not write any dups to history, delete previous entry
+# setopt hist_no_functions # do not write functions to history
 setopt autocd # writing the name of a directory moves shell into it
 setopt notify
 setopt interactive_comments
@@ -155,12 +168,38 @@ fi
 export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
 
 
-# fzf (needs to come before plugins)
-export FZF_ALT_C_COMMAND='fd --hidden --type d'
-# To apply the command to CTRL-T as well
-export FZF_CTRL_T_COMMAND="fd --hidden --type f"
-# trigger fzf on tab, not **
-#export FZF_COMPLETION_TRIGGER=''
+# fzf
+export FZF_COMMON_OPTIONS="
+  --bind='?:toggle-preview'
+  --bind='ctrl-u:preview-page-up'
+  --bind='ctrl-d:preview-page-down'
+  --preview-window 'right:60%:hidden:wrap'
+  --preview '([[ -d {} ]] && tree -C {}) || ([[ -f {} ]] && bat --style=full --color=always {}) || echo {}'"
+export FZF_PREVIEW_COMMAND="bat --style=numbers,changes \
+    --wrap never --color always {} || cat {} || tree -C {}"
+export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git --exclude node_modules'
+export FZF_DEFAULT_OPTS="$FZF_COMMON_OPTIONS"
+# fzf commands
+export FZF_ALT_C_COMMAND='fd --hidden --type d --exclude .git --exclude node_modules'
+export FZF_ALT_C_OPTS=""
+export FZF_CTRL_T_COMMAND="fd --hidden --type f --exclude .git --exclude node_modules"
+export FZF_CTRL_T_OPTS=" \
+    $FZF_COMMON_OPTIONS \
+    --preview '($FZF_PREVIEW_COMMAND)' \
+    --height 60% --border sharp \
+    --layout reverse --prompt '∷ ' --pointer ▶ --marker ⇒ "
+
+#export FZF_CTRL_T_OPTS="--height 60% --border sharp \
+#    --layout reverse --prompt '∷ ' --pointer ▶ --marker ⇒"
+# $FZF_COMPLETION_OPTS    (default: empty)
+#export FZF_COMPLETION_TRIGGER='' # trigger fzf on tab, not **
+# fzf-zsh-plugin
+## less viewer with a pre-processor to display improved previews for a wide range of files
+# export FZF_PREVIEW_ADVANCED=true
+# --preview-window
+# export FZF_PREVIEW_WINDOW='right:65%:nohidden'
+export FZF_PATH=${HOME}/.config/zsh/fzf
+export LESSOPEN='| ${HOME}/.config/zsh/fzf-zsh-plugin/bin/lessfilter-fzf %s'
 
 HAS_FZF=0 && command -v fzf >/dev/null 2>&1 && HAS_FZF=1
 if [[ $HAS_FZF -eq 1  ]]; then
@@ -174,8 +213,21 @@ if [[ $HAS_FZF -eq 1  ]]; then
 fi
 
 # zsh-autocomplete options
-# zstyle ':autocomplete:*' fzf-completion yes # enable fzf **<tab>
-# zstyle ':autocomplete:*' min-input 0
+zstyle ':autocomplete:*' fzf-completion yes # enable fzf **<tab>
+zstyle ':autocomplete:*' min-input 0
+
+# fzf-tab recommended config
+# disable sort when completing `git checkout`
+zstyle ':completion:*:git-checkout:*' sort false
+# set descriptions format to enable group support
+zstyle ':completion:*:descriptions' format '[%d]'
+# set list-colors to enable filename colorizing
+zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+# preview directory's content with exa when completing cd
+zstyle ':fzf-tab:complete:cd:*' fzf-preview 'exa -1 --color=always $realpath'
+# switch group using `,` and `.`
+zstyle ':fzf-tab:*' switch-group ',' '.'
+
 
 # path to user-installed ruby gems bin
 if command -v ruby >/dev/null 2>&1 && command -v gem >/dev/null 2>&1; then
@@ -241,6 +293,12 @@ truecolor() {
         printf "\n";
     }'
 }
+
+alias xl="exa --group-directories-first --classify --git"
+alias xll="xl -l"
+export SKIM_DEFAULT_COMMAND="rg --files || find ."
+alias skvi='f(){ x="$(sk --bind "ctrl-p:toggle-preview" --ansi --preview="preview.sh -v {}" --preview-window=up:50%:hidden)"; [[ $? -eq 0 ]] && nvim "$x" || true }; f'
+alias rgvi='f(){ x="$(sk --bind "ctrl-p:toggle-preview" --ansi -i -c "rg --color=always --line-number \"{}\"" --preview="preview.sh -v {}" --preview-window=up:50%:hidden)"; [[ $? -eq 0 ]] && nvim "$(echo $x|cut -d: -f1)" "+$(echo $x|cut -d: -f2)" || true }; f'
 
 ################################################################################
 # SEC section - gpg, yubikey, pass, gopass, password-store etc
@@ -338,7 +396,7 @@ ff () {
     ffile=$(fd | fzy) && $1 "${@:2}" $ffile
 }
 
-completions-list () {
+cq-completions-list () {
     for command completion in ${(kv)_comps:#-*(-|-,*)}
     do
         printf "%-32s %s\n" $command $completion
@@ -346,13 +404,13 @@ completions-list () {
 }
 
 # Set env from KEY=value list in file
-env_arg() {set -o allexport; source $@; set +o allexport}
-env_select() {set -o allexport; source $(fd .conf ~/.config/env -t f|fzf); set +o allexport}
+cq_env_arg() {set -o allexport; source $@; set +o allexport}
+cq_env_select() {set -o allexport; source $(fd .conf ~/.config/env -t f|fzf); set +o allexport}
 
 # Run command with env from ./.env
-with_env() {
+cq_with_env() {
     (set -a && . ./.env && "$@")
-  }
+}
 ## terminfo
 typeset -g -A key
 key[Home]="${terminfo[khome]}"
@@ -361,33 +419,46 @@ key[End]="${terminfo[kend]}"
 [[ -n "${key[Home]}"      ]] && bindkey -- "${key[Home]}"      beginning-of-line
 [[ -n "${key[End]}"       ]] && bindkey -- "${key[End]}"       end-of-line
 
+# Needs to be below terminfo stuff above
+# arrow-up/down partial match search
+autoload -U up-line-or-beginning-search
+autoload -U down-line-or-beginning-search
+zle -N up-line-or-beginning-search
+zle -N down-line-or-beginning-search
+bindkey "^[[A" up-line-or-beginning-search # Up
+bindkey "^[[B" down-line-or-beginning-search # Down
+
+
 # disable software flow control, ctrl-s (XOFF)/ctrl-q (XON)
 setopt noflowcontrol
 # needs to be set this way or p10k instant prompt makes it print errors
 stty -ixon <$TTY >$TTY
 
 #znap config
-
 znap clone \
      git@github.com:romkatv/powerlevel10k.git \
      git@github.com:zdharma-continuum/fast-syntax-highlighting \
      git@github.com:momo-lab/zsh-abbrev-alias.git \
-     git@github.com:marlonrichert/{zsh-edit,zsh-hist}.git \
+     git@github.com:junegunn/fzf.git \
      trapd00r/LS_COLORS \
      ohmyzsh/ohmyzsh \
-     git@github.com:zsh-users/{zsh-autosuggestions,zsh-history-substring-search,zsh-completions}.git \
+     git@github.com:zsh-users/{zsh-autosuggestions,zsh-completions}.git \
+     git@github.com:Aloxaf/fzf-tab.git \
+     git@github.com:Freed-Wu/fzf-tab-source.git \
      git@github.com:MichaelAquilina/zsh-you-should-use.git
-#     git@github.com:Aloxaf/fzf-tab.git \
+#     git@github.com:unixorn/fzf-zsh-plugin.git \
+     # git@github.com:zsh-users/{zsh-autosuggestions,zsh-history-substring-search,zsh-completions}.git \
 
 znap source powerlevel10k
 znap eval trapd00r/LS_COLORS "$( whence -a dircolors gdircolors ) -b LS_COLORS"
-#znap source fzf-tab
+znap source junegunn/fzf shell/{completion,key-bindings}.zsh
+znap source fzf-tab
+znap source fzf-tab-source fzf-tab-source.plugin.zsh
 znap source ohmyzsh/ohmyzsh lib/{git,theme-and-appearance,completion}
 znap source zsh-abbrev-alias
 znap source zsh-you-should-use
-znap source marlonrichert/zsh-autocomplete
-znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,git,nmap,pip,python,sudo,systemd,taskwarrior,terraform}
-# znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,fzf,git,nmap,pip,python,sudo,systemd,taskwarrior,terraform}
+# znap source marlonrichert/zsh-autocomplete
+znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,git,nmap,pip,pyenv,python,sudo,systemd,taskwarrior,terraform}
 if command -v kubectl >/dev/null 2>&1; then
     znap fpath _kubectl 'kubectl completion zsh'
 fi
@@ -397,8 +468,12 @@ fi
 
 # breaks when higher up for whatever reason
 znap source fast-syntax-highlighting
+ZSH_AUTOSUGGEST_STRATEGY=( history )
+ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=cyan,bg=bold,underline"
+# ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=red,bg=grey,bold,underline"
+# ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#ff00ff,bg=cyan,bold,underline"
 znap source zsh-autosuggestions
-znap source zsh-history-substring-search
+# znap source zsh-history-substring-search
 znap source zsh-completions
 znap source asdf-vm/asdf
 # ENDS: breaks when higher up for whatever reason
