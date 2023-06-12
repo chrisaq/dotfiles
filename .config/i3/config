@@ -68,8 +68,8 @@ bindsym $mod+Shift+c kill
 #bindsym $mod+Shift+Return exec --no-startup-id "rofi -combi-modi window,drun -show combi -modi combi -matching fuzzy"
 bindsym $mod+space exec --no-startup-id "rofi -combi-modi drun,window,run -show combi -modi combi -matching fuzzy -display-combi ''"
 
-# launch categorized menu
-bindsym $mod+' exec --no-startup-id morc_menu
+# gopass rofi
+bindsym $mod+p exec --no-startup-id /home/chrisq/bin/cqpass-typeout
 
 # Start polkit
 exec --no-startup-id /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
@@ -79,8 +79,6 @@ exec --no-startup-id /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
 ################################################################################################
 
 exec --no-startup-id volumeicon
-#exec --no-startup-id pulseaudio
-#exec --no-startup-id pa-applet
 
 ### Network
 exec --no-startup-id nm-applet

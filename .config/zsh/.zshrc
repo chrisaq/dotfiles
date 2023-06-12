@@ -71,12 +71,19 @@ if [ -d "/var/lib/snapd/snap/bin" ] ; then
     PATH="$PATH:/var/lib/snapd/snap/bin"
 fi
 
+# perl
+if [ -d "/usr/bin/vendor_perl/" ] ; then
+    PATH="$PATH:/usr/bin/vendor_perl"
+fi
+
+
 # update shell to include recently created group(s)
 alias cq_groups_refresh="exec sudo su -l $USER"
 
 #reload zsh config
 alias zshreload="source ${ZDOTDIR}/.zshrc"
-alias cq_zshreload="source ${ZDOTDIR}/.zshrc"
+# alias cq_zshreload="source ${ZDOTDIR}/.zshrc"
+alias cq_zshreload="znap restart"
 
 # lower mouse accel
 
@@ -84,9 +91,10 @@ alias cq_zshreload="source ${ZDOTDIR}/.zshrc"
 # should be set by pam, but missing in some places
 export XDG_CONFIG_HOME=${HOME}/.config
 export XDG_DATA_HOME=${HOME}/.local/share
+export XDG_BIN_HOME=${HOME}/.local/bin
 export XDG_CACHE_HOME=${HOME}/.cache
 export XDG_RUNTIME_DIR=/run/user/`id -u`
-# Setting this breaks seahorse and perhaps others
+# Setting this breaks seahorse and perhaps others:
 # export XDG_DATA_DIRS=""
 
 # because xdg-utils are broken
@@ -154,6 +162,11 @@ export ASDF_CONFIG_FILE="${XDG_CONFIG_HOME:-~./config}/asdf/asdfrc"
 alias tmux='TERM=xterm-256color tmux -f "$XDG_CONFIG_HOME"/tmux/tmux.conf'
 alias weechat='weechat -d "$XDG_CONFIG_HOME"/weechat'
 
+### LESS
+export LESSOPEN='| ${HOME}/.config/less/lessfilter %s'
+export LESS=' -R '
+# export LESSOPEN='| ${HOME}/.config/zsh/fzf-zsh-plugin/bin/lessfilter-fzf %s'
+
 ### GPG stuff
 export GNUPGHOME="$XDG_CONFIG_HOME"/gnupg
 # use gui pinentry if we have DISPLAY _AND_ not on a SSH connection, else curses
@@ -168,38 +181,31 @@ fi
 export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
 
 
-# fzf
+export MDCAT_PAGER='less --pattern=^┄(┄|)'
+
+# fzf - `?` for file preview, `.`, 
 export FZF_COMMON_OPTIONS="
   --bind='?:toggle-preview'
   --bind='ctrl-u:preview-page-up'
   --bind='ctrl-d:preview-page-down'
   --preview-window 'right:60%:hidden:wrap'
   --preview '([[ -d {} ]] && tree -C {}) || ([[ -f {} ]] && bat --style=full --color=always {}) || echo {}'"
+  export FZF_EXCLUDES="--exclude .git --exclude node_modules --exclude '.mozilla' --exclude '.cache'"
 export FZF_PREVIEW_COMMAND="bat --style=numbers,changes \
     --wrap never --color always {} || cat {} || tree -C {}"
-export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git --exclude node_modules'
+export FZF_DEFAULT_COMMAND="fd --type f --hidden --follow ${FZF_EXCLUDES}"
 export FZF_DEFAULT_OPTS="$FZF_COMMON_OPTIONS"
 # fzf commands
-export FZF_ALT_C_COMMAND='fd --hidden --type d --exclude .git --exclude node_modules'
+export FZF_ALT_C_COMMAND="fd --hidden --one-file-system --type d ${FZF_EXCLUDES}"
 export FZF_ALT_C_OPTS=""
-export FZF_CTRL_T_COMMAND="fd --hidden --type f --exclude .git --exclude node_modules"
+export FZF_CTRL_T_COMMAND="fd --hidden --one-file-system --type f ${FZF_EXCLUDES}"
 export FZF_CTRL_T_OPTS=" \
     $FZF_COMMON_OPTIONS \
     --preview '($FZF_PREVIEW_COMMAND)' \
     --height 60% --border sharp \
     --layout reverse --prompt '∷ ' --pointer ▶ --marker ⇒ "
 
-#export FZF_CTRL_T_OPTS="--height 60% --border sharp \
-#    --layout reverse --prompt '∷ ' --pointer ▶ --marker ⇒"
-# $FZF_COMPLETION_OPTS    (default: empty)
-#export FZF_COMPLETION_TRIGGER='' # trigger fzf on tab, not **
-# fzf-zsh-plugin
-## less viewer with a pre-processor to display improved previews for a wide range of files
-# export FZF_PREVIEW_ADVANCED=true
-# --preview-window
-# export FZF_PREVIEW_WINDOW='right:65%:nohidden'
 export FZF_PATH=${HOME}/.config/zsh/fzf
-export LESSOPEN='| ${HOME}/.config/zsh/fzf-zsh-plugin/bin/lessfilter-fzf %s'
 
 HAS_FZF=0 && command -v fzf >/dev/null 2>&1 && HAS_FZF=1
 if [[ $HAS_FZF -eq 1  ]]; then
@@ -217,17 +223,20 @@ zstyle ':autocomplete:*' fzf-completion yes # enable fzf **<tab>
 zstyle ':autocomplete:*' min-input 0
 
 # fzf-tab recommended config
-# disable sort when completing `git checkout`
-zstyle ':completion:*:git-checkout:*' sort false
-# set descriptions format to enable group support
-zstyle ':completion:*:descriptions' format '[%d]'
-# set list-colors to enable filename colorizing
-zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
-# preview directory's content with exa when completing cd
-zstyle ':fzf-tab:complete:cd:*' fzf-preview 'exa -1 --color=always $realpath'
-# switch group using `,` and `.`
+# # disable sort when completing `git checkout`
+# zstyle ':completion:*:git-checkout:*' sort false
+# # set descriptions format to enable group support
+# zstyle ':completion:*:descriptions' format '[%d]'
+# # set list-colors to enable filename colorizing
+# zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+# # preview directory's content with exa when completing cd
+# zstyle ':fzf-tab:complete:cd:*' fzf-preview 'exa -1 --color=always $realpath'
+# # switch group using `,` and `.`
 zstyle ':fzf-tab:*' switch-group ',' '.'
-
+# zstyle ':fzf-tab:complete:cd:*' fzf-preview 'exa -1 --color=always $realpath' # remember to use single quote here!!!
+zstyle ':fzf-tab:complete:*:*' fzf-preview '${XDG_BIN_HOME}/lessfilter ${(Q)realpath}'
+# zstyle ':fzf-tab:complete:*:*' fzf-preview 'less -e +G ${(Q)realpath}'
+# zstyle ':fzf-tab:complete:*:*' fzf-preview 'less /home/chrisq/Sync/Memes/unsorted/98-dd9492-1928-4-d93-90-c4-c3-ade727-ce53-618x447.jpg' # remember to use single quote here!!!
 
 # path to user-installed ruby gems bin
 if command -v ruby >/dev/null 2>&1 && command -v gem >/dev/null 2>&1; then
@@ -258,10 +267,12 @@ if [[ ! -d "$HOME"/.local/share/dotfiles.git ]]; then
     mkdir -p "$HOME"/.local/share/dotfiles.git
 fi
 alias dotfiles="git --git-dir=$HOME/.local/share/dotfiles.git/ --work-tree=$HOME"
+    compdef dotfiles=git # use same completion for dotfiles as git
 if [[ ! -d "$HOME"/.local/share/dotlocal.git ]]; then
     mkdir -p "$HOME"/.local/share/dotlocal-$(hostnamectl --static).git
 fi
 alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles-$(hostnamectl --static).git"
+compdef dotlocal=git # use same completion for dotfiles as git
 unset GREP_OPTIONS
 
 alias pwdcopy='pwd | tr -d "\r\n" |xclip -selection clipboard'
@@ -438,7 +449,7 @@ stty -ixon <$TTY >$TTY
 znap clone \
      git@github.com:romkatv/powerlevel10k.git \
      git@github.com:zdharma-continuum/fast-syntax-highlighting \
-     git@github.com:momo-lab/zsh-abbrev-alias.git \
+     git@github.com:chrisaq/zsh-abbrev-alias.git \
      git@github.com:junegunn/fzf.git \
      trapd00r/LS_COLORS \
      ohmyzsh/ohmyzsh \
@@ -448,17 +459,19 @@ znap clone \
      git@github.com:MichaelAquilina/zsh-you-should-use.git
 #     git@github.com:unixorn/fzf-zsh-plugin.git \
      # git@github.com:zsh-users/{zsh-autosuggestions,zsh-history-substring-search,zsh-completions}.git \
+     # git@github.com:momo-lab/zsh-abbrev-alias.git \
 
 znap source powerlevel10k
 znap eval trapd00r/LS_COLORS "$( whence -a dircolors gdircolors ) -b LS_COLORS"
 znap source junegunn/fzf shell/{completion,key-bindings}.zsh
+# fzf-tab before plugins which will wrap widgets 
+# such as zsh-autosuggestions or fast-syntax-highlighting
 znap source fzf-tab
-znap source fzf-tab-source fzf-tab-source.plugin.zsh
+znap source fzf-tab-source
 znap source ohmyzsh/ohmyzsh lib/{git,theme-and-appearance,completion}
-znap source zsh-abbrev-alias
 znap source zsh-you-should-use
-# znap source marlonrichert/zsh-autocomplete
-znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,git,nmap,pip,pyenv,python,sudo,systemd,taskwarrior,terraform}
+znap source zsh-abbrev-alias
+znap source ohmyzsh/ohmyzsh plugins/{globalias,aws,direnv,docker-compose,fabric,git,nmap,pip,pyenv,python,sudo,systemd,taskwarrior,terraform}
 if command -v kubectl >/dev/null 2>&1; then
     znap fpath _kubectl 'kubectl completion zsh'
 fi
@@ -484,6 +497,10 @@ hash -d work=${HOME}/Sync/Work
 hash -d ruter=${HOME}/Sync/Work/Ruter
 hash -d wiki=${HOME}/Sync/Wiki
 hash -d sync=${HOME}/Sync
+
+#### abbrev
+abbrev-alias -g Q="compgen -c | grep '^cq' | fzf"
+abbrev-alias -g G="| rg"
 
 # Powerlevel10k
 # To customize prompt, run `p10k configure` or edit ~/.config/zsh/.p10k.zsh.
