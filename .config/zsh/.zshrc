@@ -414,6 +414,9 @@ cq-completions-list () {
     done | sort
 }
 
+# what package does a binary belong to
+function pacwhich() {pacman -Qo $(which $1 )}
+
 # Set env from KEY=value list in file
 cq_env_arg() {set -o allexport; source $@; set +o allexport}
 cq_env_select() {set -o allexport; source $(fd .conf ~/.config/env -t f|fzf); set +o allexport}
@@ -499,7 +502,10 @@ hash -d wiki=${HOME}/Sync/Wiki
 hash -d sync=${HOME}/Sync
 
 #### abbrev
-abbrev-alias -g Q="compgen -c | grep '^cq' | fzf"
+function Q() {
+    qcmd=$(compgen -c | grep '^cq' | fzf)
+    $qcmd
+}
 abbrev-alias -g G="| rg"
 
 # Powerlevel10k

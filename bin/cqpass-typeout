@@ -13,6 +13,8 @@ password_files=( "${password_files[@]%.gpg}" )
 password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu -p '' "$@" -theme ~/.local/share/rofi/themes/cq-xps17/cq.rasi)
 [[ -n $password ]] || exit
 
+# xdotool type ${password}
+
 passw=$(pass show $password | head -n1 )
 xdotool type "$passw"
 xdotool key Tab
