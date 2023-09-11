@@ -133,12 +133,12 @@ export INPUTRC="$XDG_CONFIG_HOME"/readline/inputrc
 export TASKDATA="$XDG_DATA_HOME"/task
 export TASKRC="$XDG_CONFIG_HOME"/task/taskrc
 export MBSYNCRC="$XDG_DATA_HOME"/isync/mbsyncrc
-if [[ -f "$XDG_CONFIG_HOME"/kube/config ]] &&  [[ -f  "$XDG_CONFIG_HOME"/k0s/admin.conf ]]; then
-    export KUBECONFIG="$XDG_CONFIG_HOME"/kube/config:"$XDG_CONFIG_HOME"/k0s/admin.conf
-elif [[ -f "$XDG_CONFIG_HOME"/kube/config ]]; then
-    export KUBECONFIG="$XDG_CONFIG_HOME"/kube/config
-elif [[ -f  "$XDG_CONFIG_HOME"/k0s/admin.conf ]]; then
-    export KUBECONFIG="$XDG_CONFIG_HOME"/kube/config
+export KUBECONFIG="$XDG_CONFIG_HOME"/kube/config
+if [[ -f  "$XDG_CONFIG_HOME"/kube/k3s-home.yaml ]]; then
+    export KUBECONFIG=$KUBECONFIG:"$XDG_CONFIG_HOME"/kube/k3s-home.yaml
+fi
+if [[ -f  "$XDG_CONFIG_HOME"/k0s/admin.conf ]]; then
+    export KUBECONFIG=$KUBECONFIG:"$XDG_CONFIG_HOME"/k0s/admin.conf
 fi
 if [[ ! -d "$XDG_CONFIG_HOME"/kube ]]; then
     mkdir -p "$XDG_CONFIG_HOME"/kube
