@@ -8,4 +8,5 @@ task.chrisq.key.pem.gpg:.local/share/task/chrisq.key.pem
 mbsyncrc.gpg:.config/isync/mbsyncrc
 notmuchrc.gpg:.config/notmuch/notmuchrc
 kubeconfig.gpg:.config/kube/config
+k3s_home_config.gpg:.config/kube/k3s-home.yaml
 ruter-gl-token.gpg:.config/gitlab/ruter.token

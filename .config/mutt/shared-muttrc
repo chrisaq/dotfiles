@@ -7,7 +7,8 @@
 #set mailcap_path = ~/.config/mutt/mailcap:$mailcap_path
 set mailcap_path = ~/.config/mutt/mailcap:$mailcap_path
 set mime_type_query_command = "file --mime-type -b %s"
-set date_format="%y/%m/%d %I:%M%p"
+# set date_format="%y/%m/%d %I:%M%p"
+set date_format="%d/%m/%y %I:%M%p"
 set index_format="%2C %Z %?X?A& ? %D %-15.15F %s (%-4.4c)"
 #set sort = 'reverse-date'
 set sort = 'reverse-threads'
