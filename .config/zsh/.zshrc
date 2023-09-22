@@ -134,8 +134,8 @@ export TASKDATA="$XDG_DATA_HOME"/task
 export TASKRC="$XDG_CONFIG_HOME"/task/taskrc
 export MBSYNCRC="$XDG_DATA_HOME"/isync/mbsyncrc
 export KUBECONFIG="$XDG_CONFIG_HOME"/kube/config
-if [[ -f  "$XDG_CONFIG_HOME"/kube/k3s-home.yaml ]]; then
-    export KUBECONFIG=$KUBECONFIG:"$XDG_CONFIG_HOME"/kube/k3s-home.yaml
+if [[ -f  "$XDG_CONFIG_HOME"/k3s/k3s-home.yaml ]]; then
+    export KUBECONFIG=$KUBECONFIG:"$XDG_CONFIG_HOME"/k3s/k3s-home.yaml
 fi
 if [[ -f  "$XDG_CONFIG_HOME"/k0s/admin.conf ]]; then
     export KUBECONFIG=$KUBECONFIG:"$XDG_CONFIG_HOME"/k0s/admin.conf
