@@ -267,12 +267,13 @@ if [[ ! -d "$HOME"/.local/share/dotfiles.git ]]; then
     mkdir -p "$HOME"/.local/share/dotfiles.git
 fi
 alias dotfiles="git --git-dir=$HOME/.local/share/dotfiles.git/ --work-tree=$HOME"
-    compdef dotfiles=git # use same completion for dotfiles as git
+alias dcssm='dotfiles commit --gpg-sign --signoff --message'
+compdef dotfiles=git # use same completion for dotfiles as git
 if [[ ! -d "$HOME"/.local/share/dotlocal.git ]]; then
     mkdir -p "$HOME"/.local/share/dotlocal-$(hostnamectl --static).git
 fi
 alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles-$(hostnamectl --static).git"
-compdef dotlocal=git # use same completion for dotfiles as git
+compdef dotlocal=git # use same completion for dotlocal as git
 unset GREP_OPTIONS
 
 alias pwdcopy='pwd | tr -d "\r\n" |xclip -selection clipboard'
@@ -368,6 +369,7 @@ alias spotify-ncspot='ncspot'
 alias spotify-spotube='spotube'
 alias spotify-tui='spt'
 alias spotify-psst='psst'
+alias cq_snd_restart="systemctl --user restart pipewire pipewire-pulse wireplumber"
 
 function i3_swap() {
     i3-msg "rename workspace $1 to temporary;
