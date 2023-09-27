@@ -66,7 +66,7 @@ specific config is managed with `dotlocal`.
 ```
 mkdir $HOME/.dotfiles-$(hostname).git
 # add the below to your .zshrc or .bashrc
-alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles-$(hostname).git"
+alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles-$(hostnamectl --static).git"
 dotlocal init
 dotlocal remote add origin git@github.com:${GITHUBUSER}/dotfiles-$(hostnamectl --static).git
 dotlocal add -f .gitignore
