@@ -1,0 +1,14 @@
+#!/bin/bash
+
+shopt -s nullglob globstar
+
+# Running "/home/chrisq/bin/spotifyd-hook" using "/bin/zsh" with environment variables {"PLAYER_EVENT": "volumeset", "VOLUME": "32767"}
+
+function pexit() {
+    echo "$1"
+    exit
+}
+
+#env
+echo args: $@
+

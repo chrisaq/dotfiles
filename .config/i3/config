@@ -245,6 +245,18 @@ mode "$mode_system" {
     bindsym Escape mode "default"
 }
 
+
+bindsym $mod+x mode "$mode_screens"
+set $mode_screens (w)ork, (n)one
+mode "$mode_screens" {
+    bindsym w exec --no-startup-id autorandr --load work --force ; mode "default"
+    bindsym n exec --no-startup-id autorandr --load noscreens --force ; mode "default"
+    # exit system mode: "Enter" or "Escape"
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+
+
 # Resize window (you can also use the mouse for that)
 bindsym $mod+r mode "resize"
 mode "resize" {
@@ -274,7 +286,7 @@ mode "resize" {
 #bindsym $mod+9 exec --no-startup-id blurlock
 
 # Autorandr
-exec_always --no-startup-id autorandr --change --skip-option crtc
+#exec_always --no-startup-id autorandr --change --skip-option crtc
 
 # Autostart applications
 exec_always --no-startup-id $HOME/.config/polybar/launch.sh
@@ -389,7 +401,8 @@ mode "$mode_gaps_outer" {
 ###############################
 
 # set keyboard, lshift+rshift switches between layouts
-exec_always --no-startup-id "setxkbmap -model pc105 -layout no(nodeadkeys),us -variant ,, -option grp:shifts_toggle, compose:rctrl"
+# exec_always --no-startup-id "setxkbmap -model pc105 -layout no(nodeadkeys),us -variant ,, -option grp:shifts_toggle, compose:rctrl"
+exec_always --no-startup-id "setxkbmap 'no(nodeadkeys),us' -option 'grp:shifts_toggle' -option 'compose:rctrl'"
 #exec_always --no-startup-id "setxkbmap -model pc105 -layout no,us -variant ,, -option grp:shifts_toggle, compose:rctrl"
 # reset xkb: setxkbmap -option
 #exec --no-startup-id setxkbmap "no(nodeadkeys),us" -option 'grp:shifts_toggle' -option 'compose:rctrl'

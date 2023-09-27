@@ -1,0 +1,38 @@
+#!/bin/bash
+
+shopt -s nullglob globstar
+
+# get all the saved password files
+prefix=${PASSWORD_STORE_DIR-~/Sync/Password-Store}
+password_files=( "$prefix"/**/*.gpg )
+password_files=( "${password_files[@]#"$prefix"/}" )
+password_files=( "${password_files[@]%.gpg}" )
+
+
+# get url/domain from browser
+xdotool key --delay 20 --clearmodifiers ctrl+l ctrl+c
+url=$( xsel -ob )
+dom=$(echo ${url} | cut -d'/' -f3 | cut -d'@' -f2 | cut -d':' -f1)
+dom=$(echo ${dom} | awk -F'.' '{print $(NF-1) "." $NF'})
+xdotool key --delay 20 --clearmodifiers F6
+
+# shows a list of all password files and saved the selected one in a variable
+#password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu "$@" -theme ~/.local/share/rofi/themes/nord/nord.rasi)
+password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu -filter ${dom} -p '' "$@" -theme ~/.local/share/rofi/themes/cq-xps17/cq.rasi)
+[[ -n $password ]] || exit
+
+# get last part (username) from password path
+# username=$(echo ${password} | rev | cut -d'/' -f1 | rev)
+username=$(echo ${password} | awk -F'/' '{print $NF}')
+# xdotool type "$username"
+# xdotool key Tab
+
+# copy username into primary selection (middle mouse button)
+echo ${username} | xclip -selection primary
+
+passw=$(pass show $password | head -n1 )
+# xdotool type "$passw"
+# xdotool key Tab
+
+# copy password into clipboard (ctrl-c/v)
+echo ${passw} | xclip -selection clip

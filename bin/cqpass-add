@@ -1,0 +1,43 @@
+#!/bin/bash
+
+shopt -s nullglob globstar
+
+function pexit() {
+    echo "$1"
+    exit
+}
+
+
+FOLDER=$(find ${PASSWORD_STORE_DIR-~/Sync/Password-Store} -type d -not -path '*/\.*' -printf "%d %P\n" |sort -n | cut -d ' ' -f2| rofi -dmenu -i -p Folder)
+# [[ -n ${FOLDER} ]] || exit
+[[ -n $FOLDER ]] || pexit "no folder"
+echo $FOLDER
+DOMAIN=$(rofi -dmenu -p Domain)
+[[ -n $FOLDER ]] || pexit "no domain"
+echo $DOMAIN
+USER=$(rofi -dmenu -p User/email)
+[[ -n $FOLDER ]] || pexit "no user"
+PPASS=${FOLDER}/${DOMAIN}/${USER}
+OK=$(echo "yes|no" | rofi -dmenu -sep '|' -p "Create ${PPASS} ?")
+
+if [[ $OK = "yes" ]]; then
+    echo "insert $PPASS"
+    alacritty -e gopass insert $PPASS
+else
+    echo "no insert"
+fi
+
+# # get all the saved password files
+# prefix=${PASSWORD_STORE_DIR-~/Sync/Password-Store}
+# password_files=( "$prefix"/**/*.gpg )
+# password_files=( "${password_files[@]#"$prefix"/}" )
+# password_files=( "${password_files[@]%.gpg}" )
+#
+# # shows a list of all password files and saved the selected one in a variable
+# #password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu "$@" -theme ~/.local/share/rofi/themes/nord/nord.rasi)
+# password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu "$@" -theme ~/.local/share/rofi/themes/cq-xps17/cq.rasi)
+# [[ -n $password ]] || exit
+#
+# passw=$(pass show $password | head -n1 )
+# xdotool type "$passw"
+# xdotool key Tab

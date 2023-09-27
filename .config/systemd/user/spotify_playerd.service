@@ -1,0 +1,16 @@
+[Unit]
+Description=spotify_player daemon
+Documentation=https://github.com/Spotifyd/spotifyd
+Wants=sound.target
+After=sound.target
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/spotify_player --daemon
+Restart=always
+RestartSec=12
+
+[Install]
+WantedBy=default.target
+

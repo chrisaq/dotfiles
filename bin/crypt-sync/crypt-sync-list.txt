@@ -10,3 +10,5 @@ notmuchrc.gpg:.config/notmuch/notmuchrc
 kubeconfig.gpg:.config/kube/config
 k3s_home_config.gpg:.config/kube/k3s-home.yaml
 ruter-gl-token.gpg:.config/gitlab/ruter.token
+spotify_player_app.gpg:.config/spotify-player/app.toml
+spotify_tui.gpg:.config/spotify-tui/client.yml
