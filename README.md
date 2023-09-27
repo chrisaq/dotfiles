@@ -1,8 +1,10 @@
 # dotfiles README/HOWTO
 
-I prefer this dotfiles in bare repository approach as it uses standards tools,
+There are multiple ways of keeping dotfiles in git.
+
+I prefer the bare repository approach as it uses standards tools,
 lets me edit config files in their original place with any editor,
-and doesn't place symlinks all over my homedir.
+and doesn't place symlinks all over my $HOME.
 
 Basically all you need is a git alias, or two if you want some files to be specific to machines.
 
@@ -20,7 +22,7 @@ alias dotfiles="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles.git
 
 ```
 cat <<EOF
-# ignore all by default to avoid tracking the entire homedir.
+# ignore all by default to avoid tracking the entire $HOME.
 # requires -f when adding files
 *
 EOF > $HOME/.gitignore
@@ -29,10 +31,11 @@ EOF > $HOME/.gitignore
 ### init repo:
 
 ```
+GITHUBUSER=yourusername
 dotfiles init
 dotfiles add -f $HOME/.bash_profile $HOME/.bashrc $HOME/.bash_aliases
 dotfiles commit -m 'Initial commit'
-dotfiles remote add origin git@github.com:chrisaq/dotfiles.git
+dotfiles remote add origin git@github.com:${GITHUBUSER}/dotfiles.git
 dotfiles push origin master
 ```
 
@@ -40,11 +43,11 @@ dotfiles push origin master
 ### WARNING: Will overwrite your files of the same name
 ```sh
 alias dotfiles="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles.git"
-git clone --bare https://github.com/chrisaq/dotfiles.git ~/.dotfiles.git
+git clone --bare https://github.com/${GITHUBUSER}/dotfiles.git ~/.dotfiles.git
 dotfiles status -s -uno
 dotfiles reset HEAD
 dotfiles checkout ~
-dotfiles remote set-url origin ssh://git@github.com/chrisaq/dotfiles.git
+dotfiles remote set-url origin ssh://git@github.com/${GITHUBUSER}/dotfiles.git
 dotfiles push --set-upstream origin master
 # TODO: Figure out a better way to gitignore
 #git config --global core.excludesfile $HOME/.gitignore_global # this file was created on the initial setup
@@ -65,7 +68,7 @@ mkdir $HOME/.dotfiles-$(hostname).git
 # add the below to your .zshrc or .bashrc
 alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles-$(hostname).git"
 dotlocal init
-dotlocal remote add origin git@github.com:chrisaq/dotfiles-$(hostnamectl --static).git
+dotlocal remote add origin git@github.com:${GITHUBUSER}/dotfiles-$(hostnamectl --static).git
 dotlocal add -f .gitignore
 dotlocal commit -am 'gitignore, shared'
 dotlocal push --set-upstream origin master
