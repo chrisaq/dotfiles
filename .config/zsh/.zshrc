@@ -267,12 +267,13 @@ if [[ ! -d "$HOME"/.local/share/dotfiles.git ]]; then
     mkdir -p "$HOME"/.local/share/dotfiles.git
 fi
 alias dotfiles="git --git-dir=$HOME/.local/share/dotfiles.git/ --work-tree=$HOME"
-alias dcssm='dotfiles commit --gpg-sign --signoff --message'
+alias dcassm='dotfiles commit --all --gpg-sign --signoff --message'
 compdef dotfiles=git # use same completion for dotfiles as git
 if [[ ! -d "$HOME"/.local/share/dotlocal.git ]]; then
     mkdir -p "$HOME"/.local/share/dotlocal-$(hostnamectl --static).git
 fi
 alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles-$(hostnamectl --static).git"
+alias lcassm='dotlocal commit --all --gpg-sign --signoff --message'
 compdef dotlocal=git # use same completion for dotlocal as git
 unset GREP_OPTIONS
 
