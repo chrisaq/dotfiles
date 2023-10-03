@@ -53,6 +53,7 @@ bindsym $mod+space exec --no-startup-id "rofi -combi-modi drun,window,run -show 
 # gopass rofi
 bindsym $mod+p exec --no-startup-id /home/chrisq/bin/cqpass-typeout
 bindsym $mod+shift+p exec --no-startup-id /home/chrisq/bin/cqpass-browser-clip-userpass
+bindsym $mod+p exec --no-startup-id /home/chrisq/bin/cqpass-typeout
 
 # Start polkit
 exec --no-startup-id /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
@@ -229,7 +230,7 @@ bindsym $mod+Shift+r restart
 
 # Set shut down, restart and locking features
 bindsym $mod+0 mode "$mode_system"
-set $mode_system (l)ock, (e)xit, (k)eyboard_reload, switch_(u)ser, (s)uspend, (h)ibernate, (r)eboot, (Shift+s)hutdown
+set $mode_system (l)ock, (e)xit, (k)eyboard_reload, switch_(u)ser, (s)uspend, (h)ibernate, (r)eboot, (Shift+s)hutdown (d)ebug
 mode "$mode_system" {
     bindsym l exec --no-startup-id i3exit lock, mode "default"
     bindsym s exec --no-startup-id i3exit suspend, mode "default"
@@ -239,6 +240,7 @@ mode "$mode_system" {
     bindsym r exec --no-startup-id i3exit reboot, mode "default"
     bindsym k exec --no-startup-id "setxkbmap 'no(nodeadkeys),us' -option 'grp:shifts_toggle' -option 'compose:rctrl'"; mode "default"
     bindsym Shift+s exec --no-startup-id i3exit shutdown, mode "default"
+    bindsym d exec --no-startup-id "FH=$(mktemp); env >>$FH; zenity --text-info --title='ENV' --filename=$FH"; mode "default"
 
     # exit system mode: "Enter" or "Escape"
     bindsym Return mode "default"
