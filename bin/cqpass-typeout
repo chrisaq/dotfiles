@@ -2,19 +2,40 @@
 
 shopt -s nullglob globstar
 
+# Testing
+LOGFILE=$HOME/.cache/cqpass
+#echo -e "\t" >>$LOGFILE
+#echo -e "cqpass-typeout -- $(date)" >>$LOGFILE
+#echo -e "\t$(gpgconf --list-dirs agent-socket)" >>$LOGFILE
+#echo -e "\tPASSWORD_STORE_DIR: $PASSWORD_STORE_DIR" >>$LOGFILE
+#echo -e "\tGNUPGHOME: $GNUPGHOME" >>$LOGFILE
+
 # get all the saved password files
 prefix=${PASSWORD_STORE_DIR-~/Sync/Password-Store}
+PASSWORD_STORE_DIR=$prefix
 password_files=( "$prefix"/**/*.gpg )
 password_files=( "${password_files[@]#"$prefix"/}" )
 password_files=( "${password_files[@]%.gpg}" )
+
+# Testing
+#echo -e "\tprefix: $prefix" >>$LOGFILE
 
 # shows a list of all password files and saved the selected one in a variable
 #password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu "$@" -theme ~/.local/share/rofi/themes/nord/nord.rasi)
 password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu -p '' "$@" -theme ~/.local/share/rofi/themes/cq-xps17/cq.rasi)
 [[ -n $password ]] || exit
 
+
+# Testing
+#echo -e "\tfile: $password" >>$LOGFILE
+
 # xdotool type ${password}
 
-passw=$(pass show $password | head -n1 )
+passw=$(PASSWORD_STORE_DIR=$PASSWORD_STORE_DIR pass show $password | head -n1 )
+#echo -e "\texit code: $?" >>$LOGFILE
 xdotool type "$passw"
 xdotool key Tab
+
+# Testing
+#echo -e "\tpass: $passw" >>$LOGFILE
+#echo -e "exiting" >>$LOGFILE
