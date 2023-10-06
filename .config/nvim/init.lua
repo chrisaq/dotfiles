@@ -1,5 +1,5 @@
 -- neovim lua config
-require('impatient') -- cuts about 50% startuptime from well behaved stuff
+-- require('impatient') -- cuts about 50% startuptime from well behaved stuff
 require("user/core")
 require("user/core_maps")
 require("user/plugins")

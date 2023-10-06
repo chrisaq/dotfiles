@@ -1,32 +1,43 @@
 local fn = vim.fn
 local letg = vim.g
 local keymap = vim.keymap.set
--- vim.o.runtimepath = vim.fn.stdpath('data') .. '/site/pack/*/start/*,' .. vim.o.runtimepath
-vim.o.runtimepath = vim.fn.stdpath("data") .. "/site/packer/*/start/*," .. vim.o.runtimepath
-local install_path = fn.stdpath("data") .. "/site/packer/packer/start/packer.nvim"
-if fn.empty(fn.glob(install_path)) > 0 then
-	packer_bootstrap =
-		fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
-end
+--vim.o.runtimepath = vim.fn.stdpath("data") .. "/site/packer/*/start/*," .. vim.o.runtimepath
+--local install_path = fn.stdpath("data") .. "/site/packer/packer/start/packer.nvim"
+--if fn.empty(fn.glob(install_path)) > 0 then
+--	packer_bootstrap =
+--		fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
+--end
 
-return require("packer").startup(function(use)
-	use("wbthomason/packer.nvim")
-	use("lewis6991/impatient.nvim")
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not vim.loop.fs_stat(lazypath) then
+  vim.fn.system({
+    "git",
+    "clone",
+    "--filter=blob:none",
+    "https://github.com/folke/lazy.nvim.git",
+    "--branch=stable", -- latest stable release
+    lazypath,
+  })
+end
+vim.opt.rtp:prepend(lazypath)
+
+return require("lazy").setup({
+	"lewis6991/impatient.nvim",
 	-- Git
-	use("tpope/vim-git")
-	use("tpope/vim-fugitive")
-	use({
+	"tpope/vim-git",
+	"tpope/vim-fugitive",
+	{
 		"lewis6991/gitsigns.nvim",
 		config = function()
 			require("gitsigns").setup()
 		end,
-	})
+	},
 	-- Movement
 	--  use ({"unblevable/quick-scope",  -- color next match for f,F,t,T
 	--    setup = [[vim.g.qs_highlight_on_keys = {'f', 'F', 't', 'T'}]]
 	--  })
 	-- quick-scope in lua
-	use({
+	{
 		"jinh0/eyeliner.nvim",
 		config = function()
 			require("eyeliner").setup({
@@ -39,22 +50,23 @@ return require("packer").startup(function(use)
 				end,
 			})
 		end,
-	})
-	use("ap/vim-you-keep-using-that-word") -- disables cw/cW exception of not including the space(s) after word
+	},
+	"ap/vim-you-keep-using-that-word", -- disables cw/cW exception of not including the space(s, after word
 	-- Sessions
-	use("tpope/vim-obsession")
-	use({ "dhruvasagar/vim-prosession" })
-	use({ "907th/vim-auto-save" })
-	use("simnalamburt/vim-mundo")
-	use("moll/vim-bbye")
+	"tpope/vim-obsession",
+	"dhruvasagar/vim-prosession",
+	"907th/vim-auto-save",
+	"simnalamburt/vim-mundo",
+	"moll/vim-bbye",
 	-- Programming
-	use("nvim-lua/plenary.nvim")
-	use("nvim-lua/popup.nvim")
-	use("neovim/nvim-lspconfig")
-	use("onsails/lspkind.nvim")
-	use({
+	"nvim-lua/plenary.nvim",
+	"nvim-lua/popup.nvim",
+	"neovim/nvim-lspconfig",
+	"onsails/lspkind.nvim",
+	{
 		"williamboman/mason.nvim",
 		config = function()
+      require("mason").setup()
 			require("mason.settings").set({
 				ui = {
                   border = "rounded",
@@ -63,8 +75,8 @@ return require("packer").startup(function(use)
 				-- log_level = vim.log.levels.DEBUG
 			})
 		end,
-	})
-	use({
+	},
+	{
 		"williamboman/mason-lspconfig.nvim",
 		config = function()
 			require("mason-lspconfig").setup({
@@ -87,18 +99,18 @@ return require("packer").startup(function(use)
 				},
 			})
 		end,
-	})
-  use({
+	},
+  {
     "glepnir/lspsaga.nvim",
     branch = "main",
-    requires = "kyazdani42/nvim-web-devicons",
+    dependencies = "kyazdani42/nvim-web-devicons",
     config = function()
       require('lspsaga').setup({})
     end,
-  })
-	use({
+  },
+	{
 		"VonHeikemen/lsp-zero.nvim",
-		requires = {
+		dependencies = {
 			{ "neovim/nvim-lspconfig" },
 			-- {'williamboman/nvim-lsp-installer'},
 			-- autocomp
@@ -117,44 +129,44 @@ return require("packer").startup(function(use)
 			lsp.preset("recommended")
 			lsp.setup()
 		end,
-	})
-	use({"folke/trouble.nvim",
-    requires = "kyazdani42/nvim-web-devicons",
+	},
+	{"folke/trouble.nvim",
+    dependencies = "kyazdani42/nvim-web-devicons",
     config = function()
       require("trouble").setup {
         mode = "document_diagnostics",
       }
     end
-  }) -- show list of issues
-  use({
+  }, -- show list of issues
+  {
     "folke/noice.nvim",
     config = function()
       require("noice").setup()
     end,
-    requires = {
+    dependencies = {
       "MunifTanjim/nui.nvim",
       "rcarriga/nvim-notify",
     }
-  })
-	use("lukas-reineke/indent-blankline.nvim")
-	use({
+  },
+	"lukas-reineke/indent-blankline.nvim",
+	{
 		"nvim-treesitter/nvim-treesitter",
-		requires = {
+		dependencies = {
 			"nvim-treesitter/nvim-treesitter-textobjects",
 			"nvim-treesitter/nvim-treesitter-refactor",
 			"JoosepAlviste/nvim-ts-context-commentstring",
 		},
-	})
-	use({
+	},
+	{
 		"jose-elias-alvarez/null-ls.nvim", -- Null-LS Use external formatters and linters
-		requires = {
+		dependencies = {
 			"nvim-lua/plenary.nvim",
 		},
-	})
+	},
 	-- Completion
-	use({
+	{
 		"hrsh7th/nvim-cmp",
-		requires = {
+		dependencies = {
 			"hrsh7th/cmp-nvim-lsp",
 			"hrsh7th/cmp-nvim-lua",
 			"hrsh7th/cmp-buffer",
@@ -162,53 +174,53 @@ return require("packer").startup(function(use)
       "petertriho/cmp-git",
       "hrsh7th/cmp-nvim-lsp-signature-help",
 		},
-	})
+	},
 	-- Fuzzy search
-	use({
+	{
 		"nvim-telescope/telescope.nvim",
-		requires = {},
-	})
+		dependencies = {},
+	},
 	-- misc
-	use("tami5/sqlite.lua") -- required for firefox
-	use("machakann/vim-sandwich") -- replaces vim-surround below
-	use("tpope/vim-repeat")
-	use({
+	"tami5/sqlite.lua", -- required for firefox
+	"machakann/vim-sandwich", -- replaces vim-surround below
+	"tpope/vim-repeat",
+	{
     "windwp/nvim-autopairs",
     config = function()
       require("nvim-autopairs").setup {}
     end
-  }) -- auto-close parens etc, replaces delimitmate
-  use({
+  }, -- auto-close parens etc, replaces delimitmate
+  {
     "windwp/nvim-ts-autotag",
     config = function()
       require('nvim-ts-autotag').setup()
     end
-  })
-	use({
+  },
+	{
 		"numToStr/Comment.nvim", -- comments
 		config = function()
 			require("Comment").setup()
 		end,
-	})
-	use("folke/which-key.nvim") -- show mappings
-	use("AckslD/nvim-neoclip.lua")
-	use("dstein64/vim-startuptime")
-	use({ -- filesystem navigation
+	},
+	"folke/which-key.nvim", -- show mappings
+	"AckslD/nvim-neoclip.lua",
+	"dstein64/vim-startuptime",
+	{ -- filesystem navigation
 		"kyazdani42/nvim-tree.lua",
-		requires = "kyazdani42/nvim-web-devicons",        -- filesystem icons
-	})
-	use("nvim-telescope/telescope-file-browser.nvim")
+		dependencies = "kyazdani42/nvim-web-devicons",        -- filesystem icons
+	},
+	"nvim-telescope/telescope-file-browser.nvim",
 
 	-- themes, colors, etc
-	use("nvim-telescope/telescope-ui-select.nvim")
-	use({
+	"nvim-telescope/telescope-ui-select.nvim",
+	{
 		"nvim-lualine/lualine.nvim",
-		requires = { "kyazdani42/nvim-web-devicons", opt = true },
-	})
-	use("kyazdani42/nvim-web-devicons")
+		dependencies = { "kyazdani42/nvim-web-devicons", opt = true },
+	},
+	"kyazdani42/nvim-web-devicons",
 	-- use "overcache/NeoSolarized"
-	use("folke/tokyonight.nvim") -- , { "branch": "main" }
-	use("ishan9299/nvim-solarized-lua")
+	"folke/tokyonight.nvim", -- , { "branch": "main" }
+	"ishan9299/nvim-solarized-lua",
 	--[[
   use {"tjdevries/colorbuddy.nvim",
     config = function()
@@ -221,9 +233,9 @@ return require("packer").startup(function(use)
     end
   }
   --]]
-	use("projekt0n/github-nvim-theme")
-	use("joshdick/onedark.vim")
-	use({
+	"projekt0n/github-nvim-theme",
+	"joshdick/onedark.vim",
+	{
 		"catppuccin/nvim",
 		as = "catppuccin",
 		config = function()
@@ -254,8 +266,8 @@ return require("packer").startup(function(use)
 			})
 			vim.g.catppuccin_flavour = "macchiato" -- latte, frappe, macchiato, mocha
 		end,
-	})
-	use({
+	},
+	{
 		"Pocco81/true-zen.nvim",
 		config = function()
 			require("true-zen").setup({
@@ -263,11 +275,5 @@ return require("packer").startup(function(use)
 				-- or just leave it empty :)
 			})
 		end,
-	})
-
-	-- Automatically set up your configuration after cloning packer.nvim
-	-- Put this at the end after all plugins
-	if packer_bootstrap then
-		require("packer").sync()
-	end
-end)
+	},
+})
