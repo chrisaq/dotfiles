@@ -14,6 +14,9 @@ for syncfile in `ls ${HOME}/bin/crypt-sync/crypt-sync-list*.txt`; do
         # Config file on machine older than encrypted file in Password-Store.
         # Replacing config file by decrypting newer file.
         if [ "${locfile}" -ot "${cryptfile}" ]; then
+            if [ ! -d "$(dirname $locfile)" ]; then
+                mkdir -p "$(dirname $locfile)"
+            fi
             #echo "$locfile -ot $cryptfile"
             echo "Decrypting from vault to config file"
             ls -la ${locfile}

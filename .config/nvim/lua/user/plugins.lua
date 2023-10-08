@@ -148,7 +148,7 @@ return require("lazy").setup({
       "rcarriga/nvim-notify",
     }
   },
-	"lukas-reineke/indent-blankline.nvim",
+  {"lukas-reineke/indent-blankline.nvim", main = "ibl", opts = {}},
 	{
 		"nvim-treesitter/nvim-treesitter",
 		dependencies = {

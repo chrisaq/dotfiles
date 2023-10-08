@@ -44,10 +44,21 @@ letg.prosession_on_startup = 1
 letg.auto_save = 0
 letg.auto_save_silents = 1
 
-require("indent_blankline").setup {
-    space_char_blankline = " ",
-    show_current_context = true,
-    show_current_context_start = true,
+-- Indent Blankline
+local highlight = {
+    "CursorColumn",
+    "Whitespace",
+}
+require("ibl").setup {
+    indent = { highlight = highlight, char = "" },
+    whitespace = {
+        highlight = highlight,
+        remove_blankline_trail = false,
+    },
+    scope = { enabled = true },
+    --  space_char_blankline = " ",
+    -- show_current_context = true,
+    -- show_current_context_start = true,
 }
 
 -- vim-sandwich
