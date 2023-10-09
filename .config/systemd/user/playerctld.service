@@ -1,0 +1,10 @@
+[Unit]
+Description=Latest media player activity for playerctl
+
+[Service]
+Type=dbus
+BusName=org.mpris.MediaPlayer2.playerctld
+ExecStart=/usr/bin/playerctld
+
+[Install]
+WantedBy=multi-user.target
