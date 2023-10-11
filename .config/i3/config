@@ -1,13 +1,6 @@
-#  ____ _____
-# |  _ \_   _|  Derek Taylor (DistroTube)
-# | | | || |    http://www.youtube.com/c/DistroTube
-# | |_| || |    http://www.gitlab.com/dwt1/
-# |____/ |_|
-#
-# A customized config for i3-gaps window manager (http://www.i3wm.org)
-# Based off of the config for Manjaro's i3 Community Distro.
-# Modified by Derek Taylor (http://www.gitlab.com/dwt1/ )
-# Please see http://i3wm.org/docs/userguide.html for a complete reference!
+# Docs
+# http://i3wm.org/docs/userguide.html
+# bindsym/bindcode - "xmodmap -pke" and xev
 
 # Set mod key (Mod1=<Alt>, Mod4=<Super>)
 set $mod Mod4
