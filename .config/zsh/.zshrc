@@ -262,6 +262,9 @@ fi
 bindkey -e
 export EDITOR=nvim
 
+# git
+alias gcassm='git commit --gpg-sign --signoff -a --message'
+
 # Dotfiles in git
 if [[ ! -d "$HOME"/.local/share/dotfiles.git ]]; then
     mkdir -p "$HOME"/.local/share/dotfiles.git

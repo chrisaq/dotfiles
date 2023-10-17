@@ -54,7 +54,10 @@ return require("lazy").setup({
 	"ap/vim-you-keep-using-that-word", -- disables cw/cW exception of not including the space(s, after word
 	-- Sessions
 	"tpope/vim-obsession",
-	"dhruvasagar/vim-prosession",
+  {
+    "dhruvasagar/vim-prosession",
+    dependencies = "tpope/vim-obsession",
+  },
 	"907th/vim-auto-save",
 	"simnalamburt/vim-mundo",
 	"moll/vim-bbye",
@@ -140,8 +143,34 @@ return require("lazy").setup({
   }, -- show list of issues
   {
     "folke/noice.nvim",
+    event = "VeryLazy",
     config = function()
-      require("noice").setup()
+      require("noice").setup({
+        lsp = {
+          override = {
+            ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
+            ["vim.lsp.util.stylize_markdown"] = true,
+            ["cmp.entry.get_documentation"] = true,
+          },
+        },
+        presets = {
+          bottom_search = true, -- use a classic bottom cmdline for search
+          command_palette = true, -- position the cmdline and popupmenu together
+          long_message_to_split = true, -- long messages will be sent to a split
+          inc_rename = false, -- enables an input dialog for inc-rename.nvim
+          lsp_doc_border = false, -- add a border to hover docs and signature help  
+        },
+        routes = {
+          {
+            filter = {
+              event = "mini",
+              kind = "",
+              find = "null-ls",
+            },
+            opts = { skip = true },
+          }
+        },
+      })
     end,
     dependencies = {
       "MunifTanjim/nui.nvim",
@@ -158,7 +187,7 @@ return require("lazy").setup({
 		},
 	},
 	{
-		"jose-elias-alvarez/null-ls.nvim", -- Null-LS Use external formatters and linters
+		"nvimtools/none-ls.nvim", -- none-ls Use external formatters and linters
 		dependencies = {
 			"nvim-lua/plenary.nvim",
 		},

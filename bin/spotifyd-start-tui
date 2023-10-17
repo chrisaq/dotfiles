@@ -5,5 +5,7 @@ shopt -s nullglob globstar
 # echo args: $@
 
 systemctl --user restart spotifyd
-echo -en "\033]0;Spotify-Tui\a"
-spt
+pkill playerctld
+systemctl --user restart playerctld
+echo -en "\033]0;Spotify-Player\a"
+spotify_player
