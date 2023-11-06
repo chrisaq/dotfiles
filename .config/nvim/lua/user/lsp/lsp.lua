@@ -18,12 +18,12 @@ require("mason-lspconfig").setup_handlers {
 -- Set Default Prefix.
 -- Note: You can set a prefix per lsp server in the lv-globals.lua file
 vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(vim.lsp.diagnostic.on_publish_diagnostics, {
-	virtual_text = {
-		prefix = "",
-		spacing = 0,
-	},
-	signs = true,
-	underline = true,
+  virtual_text = {
+    prefix = "",
+    spacing = 0,
+  },
+  signs = true,
+  underline = true,
 })
 
 -- Only show diagnostics virtual text for current line
@@ -87,48 +87,48 @@ key_map("n", "<C-k>", [[<Cmd>lua vim.lsp.buf.signature_help()<CR>]],
 -- lspkind
 ---
 require("lspkind").init({
-	-- defines how annotations are shown
-	-- default: symbol
-	-- options: 'text', 'text_symbol', 'symbol_text', 'symbol'
-	mode = "symbol_text",
+  -- defines how annotations are shown
+  -- default: symbol
+  -- options: 'text', 'text_symbol', 'symbol_text', 'symbol'
+  mode = "symbol_text",
 
-	-- default symbol map
-	-- can be either 'default' (requires nerd-fonts font) or
-	-- 'codicons' for codicon preset (requires vscode-codicons font)
-	--
-	-- default: 'default'
-	preset = "default",
+  -- default symbol map
+  -- can be either 'default' (requires nerd-fonts font) or
+  -- 'codicons' for codicon preset (requires vscode-codicons font)
+  --
+  -- default: 'default'
+  preset = "default",
 
-	-- override preset symbols
-	--
-	-- default: {}
-	symbol_map = {
-		Text = "",
-		Method = "",
-		Function = "",
-		Constructor = "",
-		Field = "ﰠ",
-		Variable = "",
-		Class = "ﴯ",
-		Interface = "",
-		Module = "",
-		Property = "ﰠ",
-		Unit = "塞",
-		Value = "",
-		Enum = "",
-		Keyword = "",
-		Snippet = "",
-		Color = "",
-		File = "",
-		Reference = "",
-		Folder = "",
-		EnumMember = "",
-		Constant = "",
-		Struct = "פּ",
-		Event = "",
-		Operator = "",
-		TypeParameter = "",
-	},
+  -- override preset symbols
+  --
+  -- default: {}
+  symbol_map = {
+    Text = "",
+    Method = "",
+    Function = "",
+    Constructor = "",
+    Field = "ﰠ",
+    Variable = "",
+    Class = "ﴯ",
+    Interface = "",
+    Module = "",
+    Property = "ﰠ",
+    Unit = "塞",
+    Value = "",
+    Enum = "",
+    Keyword = "",
+    Snippet = "",
+    Color = "",
+    File = "",
+    Reference = "",
+    Folder = "",
+    EnumMember = "",
+    Constant = "",
+    Struct = "פּ",
+    Event = "",
+    Operator = "",
+    TypeParameter = "",
+  },
 })
 -- MOVING TO MASON
 --

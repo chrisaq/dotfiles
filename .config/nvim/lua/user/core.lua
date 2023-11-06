@@ -26,8 +26,8 @@ opt.wildignorecase = true
 opt.ignorecase = true                   -- ignore case when tab completing
 opt.signcolumn = "yes:2"
 opt.showcmd = true
-opt.belloff = "all" 	                -- don't bell
-opt.vb = false	                        -- or blink
+opt.belloff = "all"                   -- don't bell
+opt.vb = false                          -- or blink
 opt.wildignore = "*.o,*.obj,.git,*.pyc" -- Ignore these files when completing
 opt.list = true
 -- opt.listchars:append("space:⋅")
