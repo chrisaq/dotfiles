@@ -4,8 +4,8 @@ local keymap = vim.keymap.set
 --vim.o.runtimepath = vim.fn.stdpath("data") .. "/site/packer/*/start/*," .. vim.o.runtimepath
 --local install_path = fn.stdpath("data") .. "/site/packer/packer/start/packer.nvim"
 --if fn.empty(fn.glob(install_path)) > 0 then
---	packer_bootstrap =
---		fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
+--  packer_bootstrap =
+--    fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
 --end
 
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
@@ -22,118 +22,129 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 return require("lazy").setup({
-	"lewis6991/impatient.nvim",
-	-- Git
-	"tpope/vim-git",
-	"tpope/vim-fugitive",
-	{
-		"lewis6991/gitsigns.nvim",
-		config = function()
-			require("gitsigns").setup()
-		end,
-	},
-	-- Movement
-	--  use ({"unblevable/quick-scope",  -- color next match for f,F,t,T
-	--    setup = [[vim.g.qs_highlight_on_keys = {'f', 'F', 't', 'T'}]]
-	--  })
-	-- quick-scope in lua
-	{
-		"jinh0/eyeliner.nvim",
-		config = function()
-			require("eyeliner").setup({
-				highlight_on_key = true,
-			})
-			vim.api.nvim_create_autocmd("ColorScheme", {
-				pattern = "*",
-				callback = function()
-					vim.api.nvim_set_hl(0, "EyelinerPrimary", { bold = true, underline = true })
-				end,
-			})
-		end,
-	},
-	"ap/vim-you-keep-using-that-word", -- disables cw/cW exception of not including the space(s, after word
-	-- Sessions
-	"tpope/vim-obsession",
+  "lewis6991/impatient.nvim",
+  -- Git
+  "tpope/vim-git",
+  "tpope/vim-fugitive",
+  {
+    "lewis6991/gitsigns.nvim",
+    config = function()
+      require("gitsigns").setup()
+    end,
+  },
+  -- Movement
+  --  use ({"unblevable/quick-scope",  -- color next match for f,F,t,T
+  --    setup = [[vim.g.qs_highlight_on_keys = {'f', 'F', 't', 'T'}]]
+  --  })
+  -- quick-scope in lua
+  {
+    "jinh0/eyeliner.nvim",
+    config = function()
+      require("eyeliner").setup({
+        highlight_on_key = true,
+      })
+      vim.api.nvim_create_autocmd("ColorScheme", {
+        pattern = "*",
+        callback = function()
+          vim.api.nvim_set_hl(0, "EyelinerPrimary", { bold = true, underline = true })
+        end,
+      })
+    end,
+  },
+  "ap/vim-you-keep-using-that-word", -- disables cw/cW exception of not including the space(s, after word
+  -- Sessions
+  "tpope/vim-obsession",
   {
     "dhruvasagar/vim-prosession",
     dependencies = "tpope/vim-obsession",
   },
-	"907th/vim-auto-save",
-	"simnalamburt/vim-mundo",
-	"moll/vim-bbye",
-	-- Programming
-	"nvim-lua/plenary.nvim",
-	"nvim-lua/popup.nvim",
-	"neovim/nvim-lspconfig",
-	"onsails/lspkind.nvim",
-	{
-		"williamboman/mason.nvim",
-		config = function()
+  "907th/vim-auto-save",
+  "simnalamburt/vim-mundo",
+  "moll/vim-bbye",
+  -- Programming
+  "nvim-lua/plenary.nvim",
+  "nvim-lua/popup.nvim",
+  {
+    "neovim/nvim-lspconfig",
+    event = { 'BufReadPost', 'BufNewFile' },
+    config = function()
       require("mason").setup()
-			require("mason.settings").set({
-				ui = {
+      require("mason-lspconfig").setup()
+    end,
+  },
+  "onsails/lspkind.nvim",
+  {
+    "williamboman/mason.nvim",
+    config = function()
+      require("mason").setup()
+      require("mason.settings").set({
+        ui = {
                   border = "rounded",
                   package_installed = "✓",
                 },
-				-- log_level = vim.log.levels.DEBUG
-			})
-		end,
-	},
-	{
-		"williamboman/mason-lspconfig.nvim",
-		config = function()
-			require("mason-lspconfig").setup({
-				ensure_installed = {
-					"rust_analyzer",
-					"bashls",
-					"cssls",
-					"gopls",
-					"html",
-					"jsonls", -- language servers
-					"tsserver",
-					"jsonnet_ls",
-					"zk@v0.10.1",
-					"taplo",
-					"terraformls",
-					"tflint",
-					"vuels",
-					"yamlls",
-					"eslint",
-				},
-			})
-		end,
-	},
+        -- log_level = vim.log.levels.DEBUG
+      })
+    end,
+  },
+  {
+    "williamboman/mason-lspconfig.nvim",
+    config = function()
+      require("mason-lspconfig").setup({
+        ensure_installed = {
+          "rust_analyzer",
+          "bashls",
+          "pyright",
+          "cssls",
+          "gopls",
+          "html",
+          "jsonls", -- language servers
+          "tsserver",
+          "jsonnet_ls",
+          "zk@v0.10.1",
+          "taplo",
+          "terraformls",
+          "tflint",
+          "vuels",
+          "yamlls",
+          "eslint",
+        },
+      })
+    end,
+  },
   {
     "glepnir/lspsaga.nvim",
     branch = "main",
-    dependencies = "kyazdani42/nvim-web-devicons",
+    dependencies = {
+      "kyazdani42/nvim-web-devicons",
+      "nvim-treesitter/nvim-treesitter"
+    },
     config = function()
       require('lspsaga').setup({})
     end,
   },
-	{
-		"VonHeikemen/lsp-zero.nvim",
-		dependencies = {
-			{ "neovim/nvim-lspconfig" },
-			-- {'williamboman/nvim-lsp-installer'},
-			-- autocomp
-			{ "hrsh7th/nvim-cmp" },
-			{ "hrsh7th/cmp-buffer" },
-			{ "hrsh7th/cmp-path" },
-			{ "hrsh7th/cmp-nvim-lsp" },
-			{ "hrsh7th/cmp-nvim-lua" },
-			-- snips
-			{ "saadparwaiz1/cmp_luasnip" },
-			{ "L3MON4D3/LuaSnip" },
-			{ "rafamadriz/friendly-snippets" },
-		},
-		config = function()
-			local lsp = require("lsp-zero")
-			lsp.preset("recommended")
-			lsp.setup()
-		end,
-	},
-	{"folke/trouble.nvim",
+  {
+    "VonHeikemen/lsp-zero.nvim",
+    dependencies = {
+      { "neovim/nvim-lspconfig" },
+      -- {'williamboman/nvim-lsp-installer'},
+      -- autocomp
+      { "hrsh7th/nvim-cmp" },
+      { "hrsh7th/cmp-buffer" },
+      { "hrsh7th/cmp-path" },
+      { "hrsh7th/cmp-nvim-lsp" },
+      { "hrsh7th/cmp-nvim-lua" },
+      -- snips
+      { "saadparwaiz1/cmp_luasnip" },
+      { "L3MON4D3/LuaSnip" },
+      { "rafamadriz/friendly-snippets" },
+    },
+    config = function()
+      local lsp = require("lsp-zero")
+      lsp.preset("recommended")
+      lsp.setup()
+    end,
+  },
+  {"folke/trouble.nvim",
     dependencies = "kyazdani42/nvim-web-devicons",
     config = function()
       require("trouble").setup {
@@ -178,42 +189,58 @@ return require("lazy").setup({
     }
   },
   {"lukas-reineke/indent-blankline.nvim", main = "ibl", opts = {}},
-	{
-		"nvim-treesitter/nvim-treesitter",
-		dependencies = {
-			"nvim-treesitter/nvim-treesitter-textobjects",
-			"nvim-treesitter/nvim-treesitter-refactor",
-			"JoosepAlviste/nvim-ts-context-commentstring",
-		},
-	},
-	{
-		"nvimtools/none-ls.nvim", -- none-ls Use external formatters and linters
-		dependencies = {
-			"nvim-lua/plenary.nvim",
-		},
-	},
-	-- Completion
-	{
-		"hrsh7th/nvim-cmp",
-		dependencies = {
-			"hrsh7th/cmp-nvim-lsp",
-			"hrsh7th/cmp-nvim-lua",
-			"hrsh7th/cmp-buffer",
-			"hrsh7th/cmp-path",
+  {
+    "nvim-treesitter/nvim-treesitter",
+    dependencies = {
+      "nvim-treesitter/nvim-treesitter-textobjects",
+      "nvim-treesitter/nvim-treesitter-refactor",
+      "JoosepAlviste/nvim-ts-context-commentstring",
+    },
+  },
+  -- {
+  --  "nvimtools/none-ls.nvim", -- none-ls Use external formatters and linters
+  --  dependencies = {
+  --    "nvim-lua/plenary.nvim",
+  --  },
+  -- },
+  -- Completion
+  {
+    "hrsh7th/nvim-cmp",
+    dependencies = {
+      "hrsh7th/cmp-nvim-lsp",
+      "hrsh7th/cmp-nvim-lua",
+      "hrsh7th/cmp-buffer",
+      "hrsh7th/cmp-path",
       "petertriho/cmp-git",
       "hrsh7th/cmp-nvim-lsp-signature-help",
-		},
-	},
-	-- Fuzzy search
-	{
-		"nvim-telescope/telescope.nvim",
-		dependencies = {},
-	},
-	-- misc
-	"tami5/sqlite.lua", -- required for firefox
-	"machakann/vim-sandwich", -- replaces vim-surround below
-	"tpope/vim-repeat",
-	{
+    },
+  },
+  -- Formatting
+  {
+    'stevearc/conform.nvim',
+    opts = {},
+    config = function()
+      require("conform").setup({
+        formatters_by_ft = {
+          lua = { "stylua" },
+          -- Conform will run multiple formatters sequentially
+          python = { "isort", "black" },
+          -- Use a sub-list to run only the first available formatter
+          javascript = { { "prettierd", "prettier" } },
+        },
+      })
+    end,
+  },
+  -- Fuzzy search
+  {
+    "nvim-telescope/telescope.nvim",
+    dependencies = {},
+  },
+  -- misc
+  "tami5/sqlite.lua", -- required for firefox
+  "machakann/vim-sandwich", -- replaces vim-surround below
+  "tpope/vim-repeat",
+  {
     "windwp/nvim-autopairs",
     config = function()
       require("nvim-autopairs").setup {}
@@ -225,32 +252,32 @@ return require("lazy").setup({
       require('nvim-ts-autotag').setup()
     end
   },
-	{
-		"numToStr/Comment.nvim", -- comments
-		config = function()
-			require("Comment").setup()
-		end,
-	},
-	"folke/which-key.nvim", -- show mappings
-	"AckslD/nvim-neoclip.lua",
-	"dstein64/vim-startuptime",
-	{ -- filesystem navigation
-		"kyazdani42/nvim-tree.lua",
-		dependencies = "kyazdani42/nvim-web-devicons",        -- filesystem icons
-	},
-	"nvim-telescope/telescope-file-browser.nvim",
+  {
+    "numToStr/Comment.nvim", -- comments
+    config = function()
+      require("Comment").setup()
+    end,
+  },
+  "folke/which-key.nvim", -- show mappings
+  "AckslD/nvim-neoclip.lua",
+  "dstein64/vim-startuptime",
+  { -- filesystem navigation
+    "kyazdani42/nvim-tree.lua",
+    dependencies = "kyazdani42/nvim-web-devicons",        -- filesystem icons
+  },
+  "nvim-telescope/telescope-file-browser.nvim",
 
-	-- themes, colors, etc
-	"nvim-telescope/telescope-ui-select.nvim",
-	{
-		"nvim-lualine/lualine.nvim",
-		dependencies = { "kyazdani42/nvim-web-devicons", opt = true },
-	},
-	"kyazdani42/nvim-web-devicons",
-	-- use "overcache/NeoSolarized"
-	"folke/tokyonight.nvim", -- , { "branch": "main" }
-	"ishan9299/nvim-solarized-lua",
-	--[[
+  -- themes, colors, etc
+  "nvim-telescope/telescope-ui-select.nvim",
+  {
+    "nvim-lualine/lualine.nvim",
+    dependencies = { "kyazdani42/nvim-web-devicons", opt = true },
+  },
+  "kyazdani42/nvim-web-devicons",
+  -- use "overcache/NeoSolarized"
+  "folke/tokyonight.nvim", -- , { "branch": "main" }
+  "ishan9299/nvim-solarized-lua",
+  --[[
   use {"tjdevries/colorbuddy.nvim",
     config = function()
       require('colorbuddy').setup()
@@ -262,47 +289,47 @@ return require("lazy").setup({
     end
   }
   --]]
-	"projekt0n/github-nvim-theme",
-	"joshdick/onedark.vim",
-	{
-		"catppuccin/nvim",
-		as = "catppuccin",
-		config = function()
-			require("catppuccin").setup({
-				integrations = {
-					treesitter = true,
-					native_lsp = {
-						enabled = true,
-						virtual_text = {
-							errors = { "italic" },
-							hints = { "italic" },
-							warnings = { "italic" },
-							information = { "italic" },
-						},
-						underlines = {
-							errors = { "underline" },
-							hints = { "underline" },
-							warnings = { "underline" },
-							information = { "underline" },
-						},
-					},
-					lsp_trouble = true,
-					gitsigns = true,
-					telescope = true,
-					which_key = true,
-					markdown = true,
-				},
-			})
-			vim.g.catppuccin_flavour = "macchiato" -- latte, frappe, macchiato, mocha
-		end,
-	},
-	{
-		"Pocco81/true-zen.nvim",
-		config = function()
-			require("true-zen").setup({
-				-- your config goes here
-				-- or just leave it empty :)
-			})
-		end,
-	},
+  "projekt0n/github-nvim-theme",
+  "joshdick/onedark.vim",
+  {
+    "catppuccin/nvim",
+    as = "catppuccin",
+    config = function()
+      require("catppuccin").setup({
+        integrations = {
+          treesitter = true,
+          native_lsp = {
+            enabled = true,
+            virtual_text = {
+              errors = { "italic" },
+              hints = { "italic" },
+              warnings = { "italic" },
+              information = { "italic" },
+            },
+            underlines = {
+              errors = { "underline" },
+              hints = { "underline" },
+              warnings = { "underline" },
+              information = { "underline" },
+            },
+          },
+          lsp_trouble = true,
+          gitsigns = true,
+          telescope = true,
+          which_key = true,
+          markdown = true,
+        },
+      })
+      vim.g.catppuccin_flavour = "macchiato" -- latte, frappe, macchiato, mocha
+    end,
+  },
+  {
+    "Pocco81/true-zen.nvim",
+    config = function()
+      require("true-zen").setup({
+        -- your config goes here
+        -- or just leave it empty :)
+      })
+    end,
+  },
 })

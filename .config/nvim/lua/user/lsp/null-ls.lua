@@ -9,7 +9,8 @@ null_ls.setup({
     diagnostics_format = "#{m} (#{c}) [#{s}]", -- Makes PHPCS errors more readeable
     sources = {
         -- GIT
-        null_ls.builtins.code_actions.gitsigns,
+        -- -- The below spams "code_action null-ls" every time cursor is moved
+        -- null_ls.builtins.code_actions.gitsigns,
         -- JS
         formatting.prettier.with({ extra_args = { "--no-semi", "--single-quote", "--jsx-single-quote" } }),
         -- PYTHON

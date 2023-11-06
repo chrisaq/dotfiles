@@ -1,3 +1,19 @@
+-- auto setup installed servers (mason-lspconfig)
+-- require("mason").setup()
+-- require("mason-lspconfig").setup()
+require("mason-lspconfig").setup_handlers {
+    -- The first entry (without a key) will be the default handler
+    -- and will be called for each installed server that doesn't have
+    -- a dedicated handler.
+    function (server_name) -- default handler (optional)
+        require("lspconfig")[server_name].setup {}
+    end,
+    -- Next, you can provide a dedicated handler for specific servers.
+    -- For example, a handler override for the `rust_analyzer`:
+    -- ["rust_analyzer"] = function ()
+    --    require("rust-tools").setup {}
+    -- end
+}
 -- lsp setup
 -- Set Default Prefix.
 -- Note: You can set a prefix per lsp server in the lv-globals.lua file
@@ -9,6 +25,42 @@ vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(vim.lsp.diagn
 	signs = true,
 	underline = true,
 })
+
+-- Only show diagnostics virtual text for current line
+--
+--
+-- TODO enable again, now it shows virtual_text twice when lsp is running
+-- vim.diagnostic.config( {
+--   virtual_text = false
+-- })
+--
+-- local ns = vim.api.nvim_create_namespace('CurlineDiag')
+-- vim.opt.updatetime = 100
+-- vim.api.nvim_create_autocmd('LspAttach',{
+--   callback = function(args)
+--     vim.api.nvim_create_autocmd('CursorHold', {
+--       buffer = args.buf,
+--       callback = function()
+--         pcall(vim.api.nvim_buf_clear_namespace,args.buf,ns, 0, -1)
+--         local hi = { 'Error', 'Warn','Info','Hint'}
+--         local curline = vim.api.nvim_win_get_cursor(0)[1]
+--         local diagnostics = vim.diagnostic.get(args.buf, {lnum =curline - 1})
+--         local virt_texts = { { (' '):rep(4) } }
+--         for _, diag in ipairs(diagnostics) do
+--           virt_texts[#virt_texts + 1] = {diag.message, 'Diagnostic'..hi[diag.severity]}
+--         end
+--         vim.api.nvim_buf_set_extmark(args.buf, ns, curline - 1, 0,{
+--           virt_text = virt_texts,
+--           hl_mode = 'combine'
+--         })
+--       end
+--     })
+--   end
+-- })
+--
+--
+--
+-- curline virtual text stuff ends
 
 local key_map = vim.api.nvim_set_keymap
 
