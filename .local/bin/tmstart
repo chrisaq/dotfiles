@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# tmstart
+# - starts new tmux session in selected dir
+#   if a tmux session is already created for the directory it attaches to it instead
+
 choose_directory() {
     fd --base-directory $HOME -t d | fzf
 }
@@ -29,7 +33,13 @@ fi
 
 session_name=$(shorten_path "$selected_dir")
 
-# Check if the tmux session exists
+# Check if already inside a tmux session
+if [ -n "$TMUX" ]; then
+    echo "Detaching from the current tmux session..."
+    tmux detach
+fi
+
+# Check if the tmux session exists for directory
 if tmux has-session -t "$session_name" 2>/dev/null; then
     echo "Session exists. Attaching..."
     tmux attach-session -t "$session_name"
