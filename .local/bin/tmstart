@@ -1,0 +1,41 @@
+#!/bin/bash
+
+choose_directory() {
+    fd --base-directory $HOME -t d | fzf
+}
+
+# Shorten relative path from $HOME to 3 directories to use as session name
+shorten_path() {
+    local path="$1"
+    IFS='/' read -ra path_parts <<< "$path"
+    local len=${#path_parts[@]}
+    local short_path=""
+    for (( i=len-3; i<len; i++ )); do
+        if (( i >= 0 )); then
+            [ -n "$short_path" ] && short_path+="/"
+            short_path+="${path_parts[i]}"
+        fi
+    done
+    # Replace '.' with '_' in the session name as '.' is disallowed
+    short_path="${short_path//./_}"
+    echo "$short_path"
+}
+
+selected_dir=$(choose_directory)
+if [ -z "$selected_dir" ]; then
+    echo "No directory selected"
+    exit 1
+fi
+
+session_name=$(shorten_path "$selected_dir")
+
+# Check if the tmux session exists
+if tmux has-session -t "$session_name" 2>/dev/null; then
+    echo "Session exists. Attaching..."
+    tmux attach-session -t "$session_name"
+else
+    echo "Creating new session...${session_name}"
+    # TMUX='' tmux new-session -d -s "$session_name" -c "${HOME}/${selected_dir}"
+    tmux new-session -d -s "$session_name" -c "${HOME}/${selected_dir}"
+    tmux attach-session -t "$session_name"
+fi
