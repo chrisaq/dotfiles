@@ -501,7 +501,8 @@ znap source fzf-tab-source
 znap source ohmyzsh/ohmyzsh lib/{git,theme-and-appearance,completion}
 znap source zsh-you-should-use
 znap source zsh-abbrev-alias
-znap source ohmyzsh/ohmyzsh plugins/{globalias,aws,direnv,docker-compose,fabric,git,nmap,pip,pyenv,python,sudo,systemd,taskwarrior,terraform}
+znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,git,nmap,pip,pyenv,python,sudo,systemd,taskwarrior,terraform}
+# znap source ohmyzsh/ohmyzsh plugins/{globalias} # automatically expand aliases
 if command -v kubectl >/dev/null 2>&1; then
     znap fpath _kubectl 'kubectl completion zsh'
 fi
@@ -532,7 +533,6 @@ tmstart() {
 # Then make the function a zsh widget:
 zle -N tmstart
 bindkey '^S' tmstart
-
 
 #### HASH shortcuts
 hash -d code=${HOME}/Code
