@@ -22,7 +22,7 @@ shorten_path() {
     done
     # Replace '.' with '_' in the session name as '.' is disallowed
     short_path="${short_path//./_}"
-    echo "$short_path"
+    # echo "$short_path"
 }
 
 selected_dir=$(choose_directory)
@@ -35,17 +35,30 @@ session_name=$(shorten_path "$selected_dir")
 
 # Check if already inside a tmux session
 if [ -n "$TMUX" ]; then
-    echo "Detaching from the current tmux session..."
+    # echo "Detaching from the current tmux session..."
     tmux detach
 fi
+
+# Issues when running this from a ctrl-combination from zsh:
+# https://stackoverflow.com/questions/37597191/zsh-attach-to-tmux-by-key-binding
+tmux-open() {
+    (
+        exec </dev/tty
+        exec <&1
+        tmux attach-session -t "$1"
+    )
+}
 
 # Check if the tmux session exists for directory
 if tmux has-session -t "$session_name" 2>/dev/null; then
     echo "Session exists. Attaching..."
-    tmux attach-session -t "$session_name"
+    # ( exec </dev/tty; tmux attach-session -t "${session_name}" )
+    tmux-open "${session_name}"
 else
     echo "Creating new session...${session_name}"
     # TMUX='' tmux new-session -d -s "$session_name" -c "${HOME}/${selected_dir}"
-    tmux new-session -d -s "$session_name" -c "${HOME}/${selected_dir}"
-    tmux attach-session -t "$session_name"
+    tmux new-session -d -s "${session_name}" -c "${HOME}/${selected_dir}"
+    # ( exec </dev/tty; tmux new-session -d -s "${session_name}" -c "${HOME}/${selected_dir}" )
+    # ( exec </dev/tty; tmux attach-session -t "${session_name}" )
+    tmux-open "${session_name}"
 fi

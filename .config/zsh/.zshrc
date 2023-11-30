@@ -381,6 +381,27 @@ function i3_swap() {
             rename workspace temporary to $2"
 }
 
+function cqtmux_startup() {
+    if ! tmux has-session -t "001-Main" 2>/dev/null; then
+        tmux new-session -d -s 001-Main -c ~/
+    fi
+    if ! tmux has-session -t "002-Docs" 2>/dev/null; then
+        tmux new-session -d -s 002-Docs -c ~/Sync/Wiki
+    fi
+    if ! tmux has-session -t "003-Mail" 2>/dev/null; then
+        tmux new-session -d -s 003-Mail -c ~/Sync/EmailAttachments
+    fi
+    if ! tmux has-session -t "004-Chains" 2>/dev/null; then
+        tmux new-session -d -s 004-Chains -c ~/Code/chains2
+    fi
+    if ! tmux has-session -t "100-Work" 2>/dev/null; then
+        tmux new-session -d -s 100-Work -c ~/Code/Ruter
+    fi
+    if ! tmux has-session -t "101-K8S" 2>/dev/null; then
+        tmux new-session -d -s 101-K8S -c ~/Code/Ruter/K8S-UPGRADE-REPOS
+    fi
+}
+
 alias git_get_all_branches='for abranch in $(git branch -a | grep -v HEAD | grep remotes | sed "s/remotes\/origin\///g"); do git checkout $abranch ; done'
 
 ## terraform, iac
@@ -499,6 +520,19 @@ znap source zsh-autosuggestions
 znap source zsh-completions
 znap source asdf-vm/asdf
 # ENDS: breaks when higher up for whatever reason
+
+
+#### Override keybindings from modules and tools above
+
+## TMSTART
+# binding a shell script to a ctrl sequence needs a function to work
+tmstart() {
+    $HOME/.local/bin/tmstart
+}
+# Then make the function a zsh widget:
+zle -N tmstart
+bindkey '^S' tmstart
+
 
 #### HASH shortcuts
 hash -d code=${HOME}/Code
