@@ -533,6 +533,11 @@ tmstart() {
 # Then make the function a zsh widget:
 zle -N tmstart
 bindkey '^S' tmstart
+## expand aliases using tab right after the alias:
+bindkey "^Xa" _expand_alias
+zstyle ':completion:*' completer _expand_alias _complete _ignored
+zstyle ':completion:*' regular true
+
 
 #### HASH shortcuts
 hash -d code=${HOME}/Code

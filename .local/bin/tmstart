@@ -18,20 +18,24 @@ shorten_path() {
         if (( i >= 0 )); then
             [ -n "$short_path" ] && short_path+="/"
             short_path+="${path_parts[i]}"
+            # echo "shorten: $short_path"
         fi
     done
     # Replace '.' with '_' in the session name as '.' is disallowed
     short_path="${short_path//./_}"
-    # echo "$short_path"
+    # "return" value
+    echo "$short_path"
 }
 
 selected_dir=$(choose_directory)
+echo "selected_dir: $selected_dir"
 if [ -z "$selected_dir" ]; then
     echo "No directory selected"
     exit 1
 fi
 
 session_name=$(shorten_path "$selected_dir")
+# echo "session_name: $session_name"
 
 # Check if already inside a tmux session
 if [ -n "$TMUX" ]; then
@@ -43,6 +47,7 @@ fi
 # https://stackoverflow.com/questions/37597191/zsh-attach-to-tmux-by-key-binding
 tmux-open() {
     (
+        # echo "running tmux-open $1"
         exec </dev/tty
         exec <&1
         tmux attach-session -t "$1"
@@ -51,7 +56,7 @@ tmux-open() {
 
 # Check if the tmux session exists for directory
 if tmux has-session -t "$session_name" 2>/dev/null; then
-    echo "Session exists. Attaching..."
+    echo "Session exists ($session_name). Attaching..."
     # ( exec </dev/tty; tmux attach-session -t "${session_name}" )
     tmux-open "${session_name}"
 else
