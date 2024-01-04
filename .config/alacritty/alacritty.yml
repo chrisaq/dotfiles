@@ -169,7 +169,8 @@ font:
 draw_bold_text_with_bright_colors: true
 
 import:
- - ~/.config/alacritty/themes/themes/solarized_dark.yaml
+# - ~/.config/alacritty/themes/themes/solarized_dark.yaml
+ - ~/.config/alacritty/themes/catppuccin-macchiato.yml
 
 bell:
   animation: EaseOutExpo
