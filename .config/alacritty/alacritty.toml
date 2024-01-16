@@ -1,4 +1,3 @@
-enable_experimental_conpty_backend = false
 import = ["/home/chrisq/.config/alacritty/themes/catppuccin-macchiato.toml"]
 live_config_reload = true
 working_directory = "None"
@@ -19,7 +18,7 @@ unfocused_hollow = true
 log_level = "Warn"
 persistent_logging = false
 print_events = false
-ref_test = false
+# ref_test = false
 render_timer = false
 
 [env]
@@ -567,11 +566,11 @@ hide_when_typing = false
 action = "PasteSelection"
 mouse = "Middle"
 
-[mouse.double_click]
-threshold = 300
+#[mouse.double_click]
+#threshold = 300
 
-[mouse.triple_click]
-threshold = 300
+#[mouse.triple_click]
+#threshold = 300
 
 [scrolling]
 history = 10000
