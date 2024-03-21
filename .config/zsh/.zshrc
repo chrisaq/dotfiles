@@ -130,6 +130,7 @@ export TMUX_TMPDIR="$XDG_RUNTIME_DIR"
 export WEECHAT_HOME="$XDG_CONFIG_HOME"/weechat
 export XAUTHORITY="$XDG_RUNTIME_DIR"/Xauthority
 export INPUTRC="$XDG_CONFIG_HOME"/readline/inputrc
+export GOPATH="$XDG_DATA_HOME"/go
 export TASKDATA="$XDG_DATA_HOME"/task
 export TASKRC="$XDG_CONFIG_HOME"/task/taskrc
 export MBSYNCRC="$XDG_DATA_HOME"/isync/mbsyncrc
