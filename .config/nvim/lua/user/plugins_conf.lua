@@ -34,7 +34,7 @@ require('lualine').setup {
 }
 
 -- vim-prosession
-letg.prosession_dir = "~/.config/nvim/session"
+letg.prosession_dir = "~/.config/nvim/session/"
 letg.prosession_on_startup = 1
 
 -- quick-scope

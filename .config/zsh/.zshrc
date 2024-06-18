@@ -166,6 +166,8 @@ alias weechat='weechat -d "$XDG_CONFIG_HOME"/weechat'
 ### LESS
 export LESSOPEN='| ${HOME}/.config/less/lessfilter %s'
 export LESS=' -R '
+alias noless='LESSOPEN= less'
+compdef noless=less # use same completion
 # export LESSOPEN='| ${HOME}/.config/zsh/fzf-zsh-plugin/bin/lessfilter-fzf %s'
 
 ### GPG stuff
@@ -265,6 +267,7 @@ export EDITOR=nvim
 
 # git
 alias gcassm='git commit --gpg-sign --signoff -a --message'
+alias gdf='git diff --color | diff-so-fancy'
 
 # Dotfiles in git
 if [[ ! -d "$HOME"/.local/share/dotfiles.git ]]; then
@@ -354,7 +357,8 @@ alias xkcd_pwgen="gopass pwgen -x --lang en --sep ' ' 5"
 ####### MISC ALIASES
 alias ls='ls --color=auto'
 alias mouseslow='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "libinput Accel Speed" -1'
-alias cqmouseslow='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "libinput Accel Speed" -1'
+alias cqmouseslow2='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "libinput Accel Speed" -1'
+alias cqmouseslow='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "Coordinate Transformation Matrix" 0.5 0 0 0 0.5 0 0 0 1'
 alias hiddenfiles='ls -d .*'
 alias cqhiddenfiles='ls -d .*'
 alias crypt-sync="${HOME}/bin/crypt-sync/crypt-sync.sh"
@@ -434,6 +438,28 @@ alias cqnote-init="cqnote --headless -c 'autocmd User PackerComplete quitall' -c
 ff () {
     ffile=$(fd | fzy) && $1 "${@:2}" $ffile
 }
+
+# decrypt two files and send them to diff/meld
+function cq_decrypt_diff() {
+  local program="$1"
+  local file1="$2"
+  local file2="$3"
+  shift 3
+  "$program" <(gpg --quiet --decrypt "$file1") <(gpg --quiet --decrypt "$file2") "$@"
+}
+
+_cq_decrypt_diff_completions() {
+  local curcontext="$curcontext" state line
+  typeset -A opt_args
+
+  _arguments -C \
+    '1: :_command_names' \
+    '2: :_files' \
+    '3: :_files'
+}
+
+compdef _decrypt_and_run_completions decrypt_and_run
+
 
 cq-completions-list () {
     for command completion in ${(kv)_comps:#-*(-|-,*)}

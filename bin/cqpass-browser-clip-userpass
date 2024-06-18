@@ -10,6 +10,7 @@ password_files=( "${password_files[@]%.gpg}" )
 
 
 # get url/domain from browser
+# This works by selecting the url and copying it
 xdotool key --delay 20 --clearmodifiers ctrl+l ctrl+c
 url=$( xsel -ob )
 dom=$(echo ${url} | cut -d'/' -f3 | cut -d'@' -f2 | cut -d':' -f1)

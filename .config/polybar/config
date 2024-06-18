@@ -142,11 +142,7 @@ module-margin-right = 0
 
 include-file = local-fonts.conf
 
-modules-left = i3 xwindow
-modules-center = 
-modules-right = space battery sepbar backlight sepbar memory7 sepbar cpu7 sepbar system-usb-udev sepbar arch-aur-updates sepbar powerprofile sepbar bluetooth sepbar date
-;modules-right = space battery sepbar backlight sepbar memory7 sepbar cpu7 sepbar pavolume sepbar arch-aur-updates sepbar bluetooth sepbar date
-;modules-right = arrow1 networkspeedup networkspeeddown xbacklight arrow2 memory1 arrow3 cpu2 arrow2 pavolume arrow3 arch-aur-updates arrow2 date
+include-file = local-modules.conf
 
 separator = 
 

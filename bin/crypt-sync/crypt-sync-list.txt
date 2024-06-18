@@ -13,6 +13,7 @@ ruter-gl-token.gpg:.config/gitlab/ruter.token
 spotify_player_app.gpg:.config/spotify-player/app.toml
 spotify_tui.gpg:.config/spotify-tui/client.yml
 spotifyd.gpg:.config/spotifyd/spotifyd.conf
+ruter_gitlab_token:.config/gitlab/ruter.token
 ruter_dev-cmp-1_envrc.gpg:Workspace/Ruter/dev-cmp-1/.envrc
 ruter_dev-gp-1_envrc.gpg:Workspace/Ruter/dev-gp-1/.envrc
 ruter_dev-pd-1_envrc.gpg:Workspace/Ruter/dev-pd-1/.envrc
