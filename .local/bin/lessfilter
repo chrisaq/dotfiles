@@ -93,10 +93,12 @@ elif [ "$category" = image ]; then
     if [ "$(command -v exiftool)" ]; then
         exiftool "$1" | bat --color=always -plyaml
     fi
-# elif [ "$ext" = md ]; then
-#     if [ "$(command -v glow)" ]; then
-#         glow -p "$1"
-#     fi
+elif [ "$ext" = md ]; then
+    if [ "$(command -v glow)" ]; then
+        # Since glow is called inside a pipe where term characteristics can't be queried
+        # we need to set the style ("dark") https://github.com/wofr06/lesspipe/issues/112
+        glow -s dark "$1"
+    fi
 # https://github.com/wofr06/lesspipe/pull/117
 elif [ "$category" = text ]; then
     if [ "$(command -v bat)" ]; then
