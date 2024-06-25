@@ -102,6 +102,9 @@ export DE="generic"
 
 # PAGER
 export PAGER=bat
+# ăt for manpages currently broken
+# export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+# MANROFFOPT="-c"
 
 ##### XDG apps workarounds #####
 # https://wiki.archlinux.org/index.php/XDG_Base_Directory_support
@@ -164,11 +167,18 @@ alias tmux='TERM=xterm-256color tmux -f "$XDG_CONFIG_HOME"/tmux/tmux.conf'
 alias weechat='weechat -d "$XDG_CONFIG_HOME"/weechat'
 
 ### LESS
-export LESSOPEN='| ${HOME}/.config/less/lessfilter %s'
+export LESSOPEN='| ${HOME}/.local/bin/lessfilter %s'
 export LESS=' -R '
 alias noless='LESSOPEN= less'
 compdef noless=less # use same completion
 # export LESSOPEN='| ${HOME}/.config/zsh/fzf-zsh-plugin/bin/lessfilter-fzf %s'
+lessfilter_vars() {
+  local filename="$1"
+  local ext=$(basename "${filename##*.}")
+  echo "category: ${$(file -Lbs --mime-type $1)%%/*}"
+  echo "kind: ${$(file -Lbs --mime-type README.md)##*/}"
+  echo "ext: $ext"
+}
 
 ### GPG stuff
 export GNUPGHOME="$XDG_CONFIG_HOME"/gnupg
