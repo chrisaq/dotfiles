@@ -308,6 +308,23 @@ alias copypwd="pwdcopy"
     for i in {234..255}; do printf "\e[01;$1;38;5;%sm%4s" $i  $i; done; echo
 }
 
+cq_sudo_append() {
+    local file="$1"
+    shift
+    local text="$*"
+    echo "$text" | sudo tee -a "$file" > /dev/null
+}
+
+tmux_command_to_all() {
+    for session in `tmux list-sessions -F '#S'`; do
+        for window in `tmux list-windows -t $session -F '#P' | sort`; do
+            for pane in `tmux list-panes -t $session:$window -F '#P' | sort`; do
+                tmux send-keys -t "$session:$window.$pane" "$*" C-m
+            done
+        done
+    done
+}
+
 truecolor() {
     awk 'BEGIN{
         s="/\\/\\/\\/\\/\\"; s=s s s s s s s s;

@@ -14,6 +14,7 @@ spotify_player_app.gpg:.config/spotify-player/app.toml
 spotify_tui.gpg:.config/spotify-tui/client.yml
 spotifyd.gpg:.config/spotifyd/spotifyd.conf
 ruter_gitlab_token:.config/gitlab/ruter.token
+cq_laptop_envrc.gpg:Workspace/Personal/laptop/.envrc
 ruter_dev-cmp-1_envrc.gpg:Workspace/Ruter/dev-cmp-1/.envrc
 ruter_dev-gp-1_envrc.gpg:Workspace/Ruter/dev-gp-1/.envrc
 ruter_dev-pd-1_envrc.gpg:Workspace/Ruter/dev-pd-1/.envrc
@@ -22,6 +23,7 @@ ruter_prod-gp-1_envrc.gpg:Workspace/Ruter/prod-gp-1/.envrc
 ruter_prod-pd-1_envrc.gpg:Workspace/Ruter/prod-pd-1/.envrc
 ruter_qa-gp-1_envrc.gpg:Workspace/Ruter/qa-gp-1/.envrc
 ruter_qa-pd-1_envrc.gpg:Workspace/Ruter/qa-pd-1/.envrc
+cq_laptop.yaml.gpg:.config/kube/cq_laptop.yaml
 ruter_dev-cmp-1.yaml.gpg:.config/kube/ruter_dev-cmp-1.yaml
 ruter_dev-gp-1.yaml.gpg:.config/kube/ruter_dev-gp-1.yaml
 ruter_dev-pd-1.yaml.gpg:.config/kube/ruter_dev-pd-1.yaml

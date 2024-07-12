@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/darkhttpd /srv/mkdocs/Tech --mimetypes /etc/conf.d/mimetypes --port 8000 --addr 127.0.0.1
+ExecStart=/usr/bin/darkhttpd /srv/mkdocs/Tech --mimetypes /etc/conf.d/mimetypes --port 8001 --addr 127.0.0.1
 Restart=on-failure
 
 [Install]

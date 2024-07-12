@@ -215,8 +215,19 @@ return require("lazy").setup({
       "hrsh7th/cmp-nvim-lsp-signature-help",
     },
   },
-  -- Formatting
   {
+    "Exafunction/codeium.nvim",
+    dependencies = {
+        "nvim-lua/plenary.nvim",
+        "hrsh7th/nvim-cmp",
+    },
+    config = function()
+        require("codeium").setup({
+        })
+    end
+    },
+  -- Formatting
+    {
     'stevearc/conform.nvim',
     opts = {},
     config = function()
