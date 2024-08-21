@@ -20,9 +20,9 @@ key_map("c", "W!", [[<Cmd>w !sudo tee % >/dev/null<CR>]], { noremap = true, sile
 -- for when we forget to use sudo to open/edit a file
 key_map("c", "w!!", [[<Cmd>w !sudo tee % >/dev/null<CR>]], { noremap = true, silent = true })
 
-key_map("n", "<leader>bn", ":enew<CR>", { noremap = true, silent = true })
-key_map("n", "<leader>bx", ":new<CR>", { noremap = true, silent = true })
-key_map("n", "<leader>bd", ":Bdelete<CR>", { noremap = true, silent = true })
+key_map("n", "<leader>bn", ":enew<CR>", { noremap = true, silent = true, desc = "New buffer"})
+key_map("n", "<leader>bx", ":new<CR>", { noremap = true, silent = true, desc = "Split new buffer"})
+key_map("n", "<leader>bd", ":Bdelete<CR>", { noremap = true, silent = true, desc = "Close buffer"})
 key_map("n", "<leader>l", ":bnext<CR>", { noremap = true, silent = true })
 key_map("n", "<leader>h", ":bprevious<CR>", { noremap = true, silent = true })
 

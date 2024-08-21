@@ -9,11 +9,12 @@ mbsyncrc.gpg:.config/isync/mbsyncrc
 notmuchrc.gpg:.config/notmuch/notmuchrc
 kubeconfig.gpg:.config/kube/config
 k3s_home_config.gpg:.config/kube/k3s-home.yaml
-ruter-gl-token.gpg:.config/gitlab/ruter.token
 spotify_player_app.gpg:.config/spotify-player/app.toml
 spotify_tui.gpg:.config/spotify-tui/client.yml
 spotifyd.gpg:.config/spotifyd/spotifyd.conf
-ruter_gitlab_token:.config/gitlab/ruter.token
+codeium.gpg:.cache/nvim/codeium/config.json
+claude.gpg:.config/tokens/claude.token
+ruter_gitlab_token.gpg:.config/tokens/ruter-gitlab.token
 cq_laptop_envrc.gpg:Workspace/Personal/laptop/.envrc
 ruter_dev-cmp-1_envrc.gpg:Workspace/Ruter/dev-cmp-1/.envrc
 ruter_dev-gp-1_envrc.gpg:Workspace/Ruter/dev-gp-1/.envrc

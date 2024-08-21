@@ -14,7 +14,7 @@ vim.g.do_filetype_lua = 1
 vim.o.termguicolors = true
 -- disable mouse
 opt.mouse = nil
-opt.cmdheight = 0
+opt.cmdheight = 1
 
 opt.number = true                       -- Display current line number
 opt.relativenumber = true               -- Display line numbers relative to current line
@@ -88,3 +88,24 @@ let g:python3_host_prog='/usr/bin/python3'
 
 letg.python_host_prog = '/usr/bin/python'
 letg.python3_host_prog = '/usr/bin/python3'
+
+-- jump to last position when opening a flile
+vim.api.nvim_create_autocmd("BufReadPost", {
+    callback = function()
+        local mark = vim.api.nvim_buf_get_mark(0, '"')
+        if mark[1] > 1 and mark[1] <= vim.api.nvim_buf_line_count(0) then
+            vim.api.nvim_win_set_cursor(0, mark)
+        end
+    end,
+})
+
+-- highlight yanked text for 200ms using the "Visual" highlight group
+vim.cmd[[
+augroup highlight_yank
+autocmd!
+au TextYankPost * silent! lua vim.highlight.on_yank({higroup="Visual", timeout=200})
+augroup END
+]]
+-- Move selected line/block of text in visual mode
+vim.keymap.set("v", "K", ":move '<-2<CR>gv=gv")
+vim.keymap.set("v", "J", ":move '>+1<CR>gv=gv")

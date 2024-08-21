@@ -60,6 +60,10 @@ if isinstance(data, torch.Tensor):
     print(data.shape)
 print(data)
 EOF
+elif [ "$ext" = lua ]; then
+    if [ "$(command -v bat)" ]; then
+        bat --color=always --language=lua "$1"
+    fi
 elif [ "$kind" = json ]; then
     if [ "$(command -v jupyter)" ] && [ "$(command -v bat)" ] && [ "$ext" = ipynb ]; then
         jupyter nbconvert --to python --stdout "$1" | bat --color=always -plpython

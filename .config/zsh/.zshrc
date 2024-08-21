@@ -1,19 +1,28 @@
 # $ZDOTDIR/.zshrc
-### sourced in interactive shells. It should contain commands to set up aliases, functions, options, key bindings, etc.
+### debug section
+# sourced in interactive shells. It should contain commands to set up aliases, functions, options, key bindings, etc.
 #echo sourcing $HOME/.config/zsh/.zshrc
 
+### Init zsh section
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
+export ZSHSTARTED=$(date +%Y%m%d%H%M%S)
 
+
+### zsh-snap section
 zstyle ':znap:*' default-server 'git@github.com:'
 # Download Znap, if it's not there yet.
 [[ -f ${ZDOTDIR}/zsh-snap/znap.zsh ]] ||
     git clone https://github.com/marlonrichert/zsh-snap.git ${ZDOTDIR}/zsh-snap
-
+# start zsh-snap
 source ~/.config/zsh/zsh-snap/znap.zsh
+#reload zsh config
+alias zshreload="source ${ZDOTDIR}/.zshrc"
+# alias cq_zshreload="source ${ZDOTDIR}/.zshrc"
+alias cq_zshreload="znap restart"
 
-export ZSHSTARTED=$(date +%Y%m%d%H%M%S)
-#
+
+### Powerlevel10k section
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.config/zsh/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
@@ -22,23 +31,14 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
 fi
 
 
-### History
+### History section
 # fc -W  # <- try writing history to file, used to test for errors
 HISTFILE=$XDG_CACHE_HOME/zsh-history
 SAVEHIST=10000000
 HISTSIZE=10000000
 
-# # testing Manual history search
-# up-line-or-history-beginning-search () {
-#   if [[ -n $PREBUFFER ]]; then
-#     zle up-line-or-history
-#   else
-#     zle history-beginning-search-backward
-#   fi
-# }
-# zle -N up-line-or-history-beginning-search
-#
-###################### Setopts
+
+### ZSH Options section
 setopt extended_history
 setopt inc_append_history_time # replaces sharehistory and inc_append_history
 setopt hist_ignore_dups # do not write dups if same as previous command
@@ -53,41 +53,8 @@ setopt list_types
 setopt no_beep
 setopt complete_in_word
 
-# set PATH so it includes user's private bin if it exists
-if [ -d "$HOME/bin" ] ; then
-    PATH="$HOME/bin:$PATH"
-fi
-# XDG bin as well
-if [ -d "$HOME/.local/bin" ] ; then
-    PATH="$HOME/.local/bin:$PATH"
-fi
-# flatpack
-if [ -d "/var/lib/flatpak/exports/bin" ] ; then
-    PATH="$PATH:/var/lib/flatpak/exports/bin"
-fi
 
-# snap
-if [ -d "/var/lib/snapd/snap/bin" ] ; then
-    PATH="$PATH:/var/lib/snapd/snap/bin"
-fi
-
-# perl
-if [ -d "/usr/bin/vendor_perl/" ] ; then
-    PATH="$PATH:/usr/bin/vendor_perl"
-fi
-
-
-# update shell to include recently created group(s)
-alias cq_groups_refresh="exec sudo su -l $USER"
-
-#reload zsh config
-alias zshreload="source ${ZDOTDIR}/.zshrc"
-# alias cq_zshreload="source ${ZDOTDIR}/.zshrc"
-alias cq_zshreload="znap restart"
-
-# lower mouse accel
-
-#####  XDG stuff #####
+### XDG section
 # should be set by pam, but missing in some places
 export XDG_CONFIG_HOME=${HOME}/.config
 export XDG_DATA_HOME=${HOME}/.local/share
@@ -96,20 +63,11 @@ export XDG_CACHE_HOME=${HOME}/.cache
 export XDG_RUNTIME_DIR=/run/user/`id -u`
 # Setting this breaks seahorse and perhaps others:
 # export XDG_DATA_DIRS=""
-
-# because xdg-utils are broken
+# because xdg-utils are(were?) broken:
 export DE="generic"
-
-# PAGER
-export PAGER=bat
-# ăt for manpages currently broken
-# export MANPAGER="sh -c 'col -bx | bat -l man -p'"
-# MANROFFOPT="-c"
-
 ##### XDG apps workarounds #####
 # https://wiki.archlinux.org/index.php/XDG_Base_Directory_support
 # TODO: .xinitrc, ~/.Xresources ~/.Xdefaults
-export ATOM_HOME="$XDG_DATA_HOME"/atom
 export HTTPIE_CONFIG_DIR="$XDG_CONFIG_HOME"/httpie
 if [[ ! -d "$XDG_CACHE_HOME"/httpie ]]; then
     mkdir -p "$XDG_CACHE_HOME"/httpie
@@ -138,12 +96,12 @@ export TASKDATA="$XDG_DATA_HOME"/task
 export TASKRC="$XDG_CONFIG_HOME"/task/taskrc
 export MBSYNCRC="$XDG_DATA_HOME"/isync/mbsyncrc
 export KUBECONFIG="$XDG_CONFIG_HOME"/kube/config
-if [[ -f  "$XDG_CONFIG_HOME"/k3s/k3s-home.yaml ]]; then
-    export KUBECONFIG=$KUBECONFIG:"$XDG_CONFIG_HOME"/k3s/k3s-home.yaml
-fi
-if [[ -f  "$XDG_CONFIG_HOME"/k0s/admin.conf ]]; then
-    export KUBECONFIG=$KUBECONFIG:"$XDG_CONFIG_HOME"/k0s/admin.conf
-fi
+# if [[ -f  "$XDG_CONFIG_HOME"/k3s/k3s-home.yaml ]]; then
+#     export KUBECONFIG=$KUBECONFIG:"$XDG_CONFIG_HOME"/k3s/k3s-home.yaml
+# fi
+# if [[ -f  "$XDG_CONFIG_HOME"/k0s/admin.conf ]]; then
+#     export KUBECONFIG=$KUBECONFIG:"$XDG_CONFIG_HOME"/k0s/admin.conf
+# fi
 if [[ ! -d "$XDG_CONFIG_HOME"/kube ]]; then
     mkdir -p "$XDG_CONFIG_HOME"/kube
 fi
@@ -153,34 +111,72 @@ fi
 export PYENV_ROOT="${XDG_DATA_HOME}/pyenv"
 # disable shared library build for pyenv
 export PYTHON_CONFIGURE_OPTS="--disable-shared"
-
+# asdf config location
 export ASDF_DATA_DIR="${XDG_DATA_HOME:-~./local/share}/asdf"
 export ASDF_CONFIG_FILE="${XDG_CONFIG_HOME:-~./config}/asdf/asdfrc"
 # export ASDF_DIR="${XDG_CONFIG_HOME}/asdf/"
-
-# temp disable
+# TODO: temp disable
 #export AWS_SHARED_CREDENTIALS_FILE="$XDG_CONFIG_HOME"/aws/credentials
 #export AWS_CONFIG_FILE="$XDG_CONFIG_HOME"/aws/config
-
-##### XDG using aliases as workarounds
+# XDG: using aliases as workarounds
 alias tmux='TERM=xterm-256color tmux -f "$XDG_CONFIG_HOME"/tmux/tmux.conf'
 alias weechat='weechat -d "$XDG_CONFIG_HOME"/weechat'
 
-### LESS
+
+### PATH section
+# set PATH so it includes user's private bin if it exists
+if [ -d "$HOME/bin" ] ; then
+    PATH="$HOME/bin:$PATH"
+fi
+# XDG bin as well
+if [ -d "$HOME/.local/bin" ] ; then
+    PATH="$HOME/.local/bin:$PATH"
+fi
+# flatpack
+if [ -d "/var/lib/flatpak/exports/bin" ] ; then
+    PATH="$PATH:/var/lib/flatpak/exports/bin"
+fi
+# snap
+if [ -d "/var/lib/snapd/snap/bin" ] ; then
+    PATH="$PATH:/var/lib/snapd/snap/bin"
+fi
+# perl
+if [ -d "/usr/bin/vendor_perl/" ] ; then
+    PATH="$PATH:/usr/bin/vendor_perl"
+fi
+# path to user-installed ruby gems bin
+if command -v ruby >/dev/null 2>&1 && command -v gem >/dev/null 2>&1; then
+    PATH="$(ruby -r rubygems -e 'puts Gem.user_dir')/bin:$PATH"
+fi
+# direnv
+if command -v direnv >/dev/null 2>&1; then
+    eval "$(direnv hook zsh)"
+fi
+# pyenv / pipx
+if command -v pyenv >/dev/null 2>&1; then
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init -)"
+    export PIPX_DEFAULT_PYTHON=$(which python)
+fi
+
+### LESS and lessfilter section
 export LESSOPEN='| ${HOME}/.local/bin/lessfilter %s'
-export LESS=' -R '
-alias noless='LESSOPEN= less'
-compdef noless=less # use same completion
 # export LESSOPEN='| ${HOME}/.config/zsh/fzf-zsh-plugin/bin/lessfilter-fzf %s'
+export LESS=' -R '
+alias noless='LESSOPEN= less' # less without lessfilter
+compdef noless=less # use same completion
+# Helper function to get filetype and kind from file for use in lessfilter
 lessfilter_vars() {
   local filename="$1"
   local ext=$(basename "${filename##*.}")
   echo "category: ${$(file -Lbs --mime-type $1)%%/*}"
-  echo "kind: ${$(file -Lbs --mime-type README.md)##*/}"
+  echo "kind: ${$(file -Lbs --mime-type ${filename})##*/}"
   echo "ext: $ext"
 }
+export MDCAT_PAGER='less --pattern=^┄(┄|)'
 
-### GPG stuff
+
+### GPG section
 export GNUPGHOME="$XDG_CONFIG_HOME"/gnupg
 # use gui pinentry if we have DISPLAY _AND_ not on a SSH connection, else curses
 if [[ ${DISPLAY:-}  ]] && [[ ! ${SSH_CONNECTION:-} ]]; then
@@ -193,48 +189,60 @@ fi
 # when using a custom GNUPGHOME, this must be set before SSH_AUTH_SOCK to find the correct gpg-agent.conf
 export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
 
-
-export MDCAT_PAGER='less --pattern=^┄(┄|)'
-
-# fzf - `?` for file preview, `.`, 
-export FZF_COMMON_OPTIONS="
-  --bind='?:toggle-preview'
-  --bind='ctrl-u:preview-page-up'
-  --bind='ctrl-d:preview-page-down'
-  --preview-window 'right:60%:hidden:wrap'
-  --preview '([[ -d {} ]] && tree -C {}) || ([[ -f {} ]] && bat --style=full --color=always {}) || echo {}'"
-  export FZF_EXCLUDES="--exclude .git --exclude node_modules --exclude '.mozilla' --exclude '.cache'"
-export FZF_PREVIEW_COMMAND="bat --style=numbers,changes \
-    --wrap never --color always {} || cat {} || tree -C {}"
-export FZF_DEFAULT_COMMAND="fd --type f --hidden --follow ${FZF_EXCLUDES}"
-export FZF_DEFAULT_OPTS="$FZF_COMMON_OPTIONS"
-# fzf commands
-export FZF_ALT_C_COMMAND="fd --hidden --one-file-system --type d ${FZF_EXCLUDES}"
-export FZF_ALT_C_OPTS=""
-export FZF_CTRL_T_COMMAND="fd --hidden --one-file-system --type f ${FZF_EXCLUDES}"
-export FZF_CTRL_T_OPTS=" \
-    $FZF_COMMON_OPTIONS \
-    --preview '($FZF_PREVIEW_COMMAND)' \
-    --height 60% --border sharp \
-    --layout reverse --prompt '∷ ' --pointer ▶ --marker ⇒ "
-
-export FZF_PATH=${HOME}/.config/zsh/fzf
-
-HAS_FZF=0 && command -v fzf >/dev/null 2>&1 && HAS_FZF=1
-if [[ $HAS_FZF -eq 1  ]]; then
-    fkill() {
-        pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
-
-        if [ "x$pid" != "x" ]; then
-            kill -${1:-9} $pid
-        fi
-    }
-fi
-
+### FZF section
+# # fzf - `?` for file preview, `.`, 
+# export FZF_COMMON_OPTIONS="
+#   --bind='?:toggle-preview'
+#   --bind='ctrl-u:preview-page-up'
+#   --bind='ctrl-d:preview-page-down'"
+#   # --preview-window 'right:60%:hidden:wrap'
+#   # --preview '([[ -d {} ]] && tree -C {}) || ([[ -f {} ]] && bat --style=full --color=always {}) || echo {}'"
+# export FZF_EXCLUDES="--exclude .git --exclude node_modules --exclude '.mozilla' --exclude '.cache'"
+# export FZF_PREVIEW_COMMAND="bat --style=numbers,changes \
+#     --wrap never --color always {} || cat {} || tree -C {}"
+# export FZF_DEFAULT_COMMAND="fd --type f --hidden --follow ${FZF_EXCLUDES}"
+# export FZF_DEFAULT_OPTS="$FZF_COMMON_OPTIONS"
+# # fzf commands
+# export FZF_ALT_C_COMMAND="fd --hidden --one-file-system --type d ${FZF_EXCLUDES}"
+# export FZF_ALT_C_OPTS=""
+# export FZF_CTRL_T_COMMAND="fd --hidden --one-file-system --type f ${FZF_EXCLUDES}"
+# export FZF_CTRL_T_OPTS=" \
+#     $FZF_COMMON_OPTIONS \
+#     --preview '($FZF_PREVIEW_COMMAND)' \
+#     --height 60% --border sharp \
+#     --layout reverse --prompt '∷ ' --pointer ▶ --marker ⇒ "
+#
+# export FZF_PATH=${HOME}/.config/zsh/fzf
+#
+# HAS_FZF=0 && command -v fzf >/dev/null 2>&1 && HAS_FZF=1
+# if [[ $HAS_FZF -eq 1  ]]; then
+#     fkill() {
+#         pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
+#
+#         if [ "x$pid" != "x" ]; then
+#             kill -${1:-9} $pid
+#         fi
+#     }
+# fi
+#
+# _fzf_comprun() {
+#   local command=$1
+#   shift
+#
+#   case "$command" in
+#     cd)           fzf ---preview-window 'right:60%::wrap ' --preview 'exa -1 --color=always $realpath'   "$@" ;;
+#     ls)           fzf ---preview-window 'right:60%::wrap ' --preview 'exa -1 --color=always $realpath'   "$@" ;;
+#     export|unset) fzf --preview "eval 'echo \$'{}"         "$@" ;;
+#     ssh)          fzf --preview 'dig {}'                   "$@" ;;
+#     *)            fzf --preview-window 'right:60%:hidden:wrap' --preview "bat --style=numbers,changes --wrap never --color always {} || cat {} || tree -C {}" "$@" ;;
+#   esac
+#     # *)            fzf --preview 'bat -n --color=always {}' "$@" ;;
+# }
 # zsh-autocomplete options
 zstyle ':autocomplete:*' fzf-completion yes # enable fzf **<tab>
 zstyle ':autocomplete:*' min-input 0
 
+### FZF-TAB section
 # fzf-tab recommended config
 # # disable sort when completing `git checkout`
 # zstyle ':completion:*:git-checkout:*' sort false
@@ -242,44 +250,45 @@ zstyle ':autocomplete:*' min-input 0
 # zstyle ':completion:*:descriptions' format '[%d]'
 # # set list-colors to enable filename colorizing
 # zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
-# # preview directory's content with exa when completing cd
-# zstyle ':fzf-tab:complete:cd:*' fzf-preview 'exa -1 --color=always $realpath'
 # # switch group using `,` and `.`
 zstyle ':fzf-tab:*' switch-group ',' '.'
-# zstyle ':fzf-tab:complete:cd:*' fzf-preview 'exa -1 --color=always $realpath' # remember to use single quote here!!!
-zstyle ':fzf-tab:complete:*:*' fzf-preview '${XDG_BIN_HOME}/lessfilter ${(Q)realpath}'
+# # preview directory's content with exa when completing cd
+#zstyle ':fzf-tab:complete:cd:*' fzf-preview 'exa -1 --color=always $realpath' # remember to use single quote here!!!
+# TODO:  testing
+# zstyle ':fzf-tab:complete:*:*' fzf-preview '${XDG_BIN_HOME}/lessfilter ${(Q)realpath}'
+# testing ends
 # zstyle ':fzf-tab:complete:*:*' fzf-preview 'less -e +G ${(Q)realpath}'
 # zstyle ':fzf-tab:complete:*:*' fzf-preview 'less /home/chrisq/Sync/Memes/unsorted/98-dd9492-1928-4-d93-90-c4-c3-ade727-ce53-618x447.jpg' # remember to use single quote here!!!
+# Do not show preview for options
+zstyle ':fzf-tab:complete:*:options' fzf-preview ''
+# Do not show preview for arguments (TODO: not working?)
+zstyle ':fzf-tab:complete:*:argument-1' fzf-preview ''
 
-# path to user-installed ruby gems bin
-if command -v ruby >/dev/null 2>&1 && command -v gem >/dev/null 2>&1; then
-    PATH="$(ruby -r rubygems -e 'puts Gem.user_dir')/bin:$PATH"
-fi
 
-# direnv
-if command -v direnv >/dev/null 2>&1; then
-    eval "$(direnv hook zsh)"
-fi
-
-# pyenv / pipx
-if command -v pyenv >/dev/null 2>&1; then
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    eval "$(pyenv init -)"
-    export PIPX_DEFAULT_PYTHON=$(which python)
-fi
-
-# VIM stuff
-# VI mode, breaks arrow history search
-# bindkey -v
-# emacs bindings
-bindkey -e
+### Input section
+# vi mode
+bindkey -v
+# Bind up arrow to history-beginning-search-backward in insert mode
+bindkey '^[[A' history-beginning-search-backward
+# Bind down arrow to history-beginning-search-forward in insert mode
+bindkey '^[[B' history-beginning-search-forward
+# Bind arrow keys in normal mode
+bindkey -M vicmd '^[[A' history-beginning-search-backward
+bindkey -M vicmd '^[[B' history-beginning-search-forward
+# emacs mode
+# bindkey -e
 export EDITOR=nvim
+# PAGER
+export PAGER=bat
 
-# git
+
+### git section
 alias gcassm='git commit --gpg-sign --signoff -a --message'
 alias gdf='git diff --color | diff-so-fancy'
+alias git_get_all_branches='for abranch in $(git branch -a | grep -v HEAD | grep remotes | sed "s/remotes\/origin\///g"); do git checkout $abranch ; done'
 
-# Dotfiles in git
+
+### Dotfiles section
 if [[ ! -d "$HOME"/.local/share/dotfiles.git ]]; then
     mkdir -p "$HOME"/.local/share/dotfiles.git
 fi
@@ -294,9 +303,43 @@ alias lcassm='dotlocal commit --all --gpg-sign --signoff --message'
 compdef dotlocal=git # use same completion for dotlocal as git
 unset GREP_OPTIONS
 
+
+################################################################################
+### Security section - gpg, yubikey, pass, gopass, password-store etc
+# gpg
+# restart gpg-agent on new tty
+alias gpg-tty-update="gpg-connect-agent UPDATESTARTUPTTY /bye >/dev/null"
+#
+# #if [[ -s ${ZDOTDIR:-${HOME}}/gpg-agent.plugin.zsh ]]; then
+# #  source ${ZDOTDIR:-${HOME}}/gpg-agent.plugin.zsh
+# #fi
+#
+export PASSWORD_STORE_DIR=$HOME/Sync/Password-Store
+# pass with fuzzy search
+Pass() {
+    pass=$(gopass ls -f | fzf +m) && \
+    gopass -c "$pass"
+}
+# pass edit with fuzzy search
+PassEdit() {
+    pass=$(gopass ls --flat|fzf)
+    gopass edit "$pass"
+}
+# make all pass aliases work
+alias pass='gopass'
+alias yubikey_reset_serial='rm ${GNUPGHOME}/private-keys-v1.d/{A7311DE4F14645F60A94FAB5A7864BDE48076BF4.key,C2BE7814190B272612D9E293BE85D9B670B76E50.key,F0B427412DD319186D0F26FB1E228AC93B4EA3BA.key} && gpgconf --kill gpg-agent && gpg --card-status'
+# First pipe the selected name to gopass, encrypt it and type the password with xdotool.
+alias PassMenux="gopass ls --flat | rofi -dmenu | xargs --no-run-if-empty gopass show -f | head -n 1 | xdotool type --clearmodifiers --file -"
+alias xkcd_pwgen="gopass pwgen -x --lang en --sep ' ' 5"
+### ENDS: SEC section ##########################################################
+
+
+### Aliases section
+# update shell to include recently created group(s)
+alias cq_groups_refresh="exec sudo su -l $USER"
 alias pwdcopy='pwd | tr -d "\r\n" |xclip -selection clipboard'
 alias copypwd="pwdcopy"
-
+# prints 256 color palette
 256color() {
     for k in `seq 0 1`;do
         for j in `seq $((16+k*18)) 36 $((196+k*18))`;do
@@ -307,14 +350,14 @@ alias copypwd="pwdcopy"
     done; echo
     for i in {234..255}; do printf "\e[01;$1;38;5;%sm%4s" $i  $i; done; echo
 }
-
+# redirect sudo to append to file
 cq_sudo_append() {
     local file="$1"
     shift
     local text="$*"
     echo "$text" | sudo tee -a "$file" > /dev/null
 }
-
+# send command to all tmux sessions
 tmux_command_to_all() {
     for session in `tmux list-sessions -F '#S'`; do
         for window in `tmux list-windows -t $session -F '#P' | sort`; do
@@ -324,7 +367,7 @@ tmux_command_to_all() {
         done
     done
 }
-
+# prints true color palette
 truecolor() {
     awk 'BEGIN{
         s="/\\/\\/\\/\\/\\"; s=s s s s s s s s;
@@ -340,49 +383,10 @@ truecolor() {
         printf "\n";
     }'
 }
-
+# exa aliases
 alias xl="exa --group-directories-first --classify --git"
 alias xll="xl -l"
-export SKIM_DEFAULT_COMMAND="rg --files || find ."
-alias skvi='f(){ x="$(sk --bind "ctrl-p:toggle-preview" --ansi --preview="preview.sh -v {}" --preview-window=up:50%:hidden)"; [[ $? -eq 0 ]] && nvim "$x" || true }; f'
-alias rgvi='f(){ x="$(sk --bind "ctrl-p:toggle-preview" --ansi -i -c "rg --color=always --line-number \"{}\"" --preview="preview.sh -v {}" --preview-window=up:50%:hidden)"; [[ $? -eq 0 ]] && nvim "$(echo $x|cut -d: -f1)" "+$(echo $x|cut -d: -f2)" || true }; f'
-
-################################################################################
-# SEC section - gpg, yubikey, pass, gopass, password-store etc
-
-# gpg
-# restart gpg-agent on new tty
-alias gpg-tty-update="gpg-connect-agent UPDATESTARTUPTTY /bye >/dev/null"
-#
-# #if [[ -s ${ZDOTDIR:-${HOME}}/gpg-agent.plugin.zsh ]]; then
-# #  source ${ZDOTDIR:-${HOME}}/gpg-agent.plugin.zsh
-# #fi
-#
-
-
-export PASSWORD_STORE_DIR=$HOME/Sync/Password-Store
-
-Pass() {
-    pass=$(gopass ls -f | fzf +m) && \
-    gopass -c "$pass"
-}
-
-PassEdit() {
-    pass=$(gopass ls --flat|fzf)
-    gopass edit "$pass"
-}
-
-alias pass='gopass'
-alias yubikey_reset_serial='rm ${GNUPGHOME}/private-keys-v1.d/{A7311DE4F14645F60A94FAB5A7864BDE48076BF4.key,C2BE7814190B272612D9E293BE85D9B670B76E50.key,F0B427412DD319186D0F26FB1E228AC93B4EA3BA.key} && gpgconf --kill gpg-agent && gpg --card-status'
-# First pipe the selected name to gopass, encrypt it and type the password with xdotool.
-alias PassMenux="gopass ls --flat | rofi -dmenu | xargs --no-run-if-empty gopass show -f | head -n 1 | xdotool type --clearmodifiers --file -"
-alias xkcd_pwgen="gopass pwgen -x --lang en --sep ' ' 5"
-
-### ENDS: SEC section ##########################################################
-
-
-####### MISC ALIASES
-alias ls='ls --color=auto'
+# alias ls='ls --color=auto'
 alias mouseslow='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "libinput Accel Speed" -1'
 alias cqmouseslow2='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "libinput Accel Speed" -1'
 alias cqmouseslow='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "Coordinate Transformation Matrix" 0.5 0 0 0 0.5 0 0 0 1'
@@ -406,13 +410,13 @@ alias spotify-spotube='spotube'
 alias spotify-tui='spt'
 alias spotify-psst='psst'
 alias cq_snd_restart="systemctl --user restart pipewire pipewire-pulse wireplumber"
-
+# swap workspaces 1 and 2
 function i3_swap() {
     i3-msg "rename workspace $1 to temporary;
             rename workspace $2 to $1;
             rename workspace temporary to $2"
 }
-
+# start tmux sessions
 function cqtmux_startup() {
     if ! tmux has-session -t "001-Main" 2>/dev/null; then
         tmux new-session -d -s 001-Main -c ~/
@@ -434,8 +438,8 @@ function cqtmux_startup() {
     fi
 }
 
-alias git_get_all_branches='for abranch in $(git branch -a | grep -v HEAD | grep remotes | sed "s/remotes\/origin\///g"); do git checkout $abranch ; done'
 
+# TODO: sections for rest of the file
 ## terraform, iac
 alias tfinit='terraform init -backend-config=tf-init.conf'
 
@@ -467,6 +471,7 @@ ff () {
 }
 
 # decrypt two files and send them to diff/meld
+# used for syncthing conflicts in crypt-sync files
 function cq_decrypt_diff() {
   local program="$1"
   local file1="$2"

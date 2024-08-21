@@ -1,12 +1,6 @@
 local fn = vim.fn
 local letg = vim.g
 local keymap = vim.keymap.set
---vim.o.runtimepath = vim.fn.stdpath("data") .. "/site/packer/*/start/*," .. vim.o.runtimepath
---local install_path = fn.stdpath("data") .. "/site/packer/packer/start/packer.nvim"
---if fn.empty(fn.glob(install_path)) > 0 then
---  packer_bootstrap =
---    fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
---end
 
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not vim.loop.fs_stat(lazypath) then
@@ -20,6 +14,8 @@ if not vim.loop.fs_stat(lazypath) then
   })
 end
 vim.opt.rtp:prepend(lazypath)
+
+keymap("n", "<F1>", "<CMD>Lazy<CR>", { desc = "Lazy" })
 
 return require("lazy").setup({
   "lewis6991/impatient.nvim",
@@ -38,7 +34,7 @@ return require("lazy").setup({
   --  })
   -- quick-scope in lua
   {
-    "jinh0/eyeliner.nvim",
+    "jinh0/eyeliner.nvim",          -- f/F gives indicator on line where to jump
     config = function()
       require("eyeliner").setup({
         highlight_on_key = true,
@@ -51,32 +47,33 @@ return require("lazy").setup({
       })
     end,
   },
-  "ap/vim-you-keep-using-that-word", -- disables cw/cW exception of not including the space(s, after word
+  "ap/vim-you-keep-using-that-word",    -- disables cw/cW exception of not including the space(s, after word
   -- Sessions
-  "tpope/vim-obsession",
+  "tpope/vim-obsession",                -- continuously update session file
   {
-    "dhruvasagar/vim-prosession",
+    "dhruvasagar/vim-prosession",       -- handle and switch between sessions
     dependencies = "tpope/vim-obsession",
   },
   "907th/vim-auto-save",
-  "simnalamburt/vim-mundo",
-  "moll/vim-bbye",
+  "simnalamburt/vim-mundo",     -- undo enhanced, f6
+  "moll/vim-bbye",              -- closing buffers will not remove windows
   -- Programming
-  "nvim-lua/plenary.nvim",
-  "nvim-lua/popup.nvim",
+  "nvim-lua/plenary.nvim",      -- library of common lua functions
+  "nvim-lua/popup.nvim",        -- utility package for popups
   {
-    "neovim/nvim-lspconfig",
+    "neovim/nvim-lspconfig",    -- Quickstart configs for Nvim LSP 
     event = { 'BufReadPost', 'BufNewFile' },
     config = function()
       require("mason").setup()
       require("mason-lspconfig").setup()
     end,
   },
-  "onsails/lspkind.nvim",
+  "onsails/lspkind.nvim",       -- icons/pictograms for LSP
   {
-    "williamboman/mason.nvim",
+    "williamboman/mason.nvim",  -- package manager for LSPs, DAP, linters, formatters
     config = function()
       require("mason").setup()
+      keymap("n", "<F2>", "<CMD>Mason<CR>", { desc = "Mason" })
       require("mason.settings").set({
         ui = {
                   border = "rounded",
@@ -87,7 +84,7 @@ return require("lazy").setup({
     end,
   },
   {
-    "williamboman/mason-lspconfig.nvim",
+    "williamboman/mason-lspconfig.nvim", -- bridges lspconfig + mason: sets up lsp-servers
     config = function()
       require("mason-lspconfig").setup({
         ensure_installed = {
@@ -111,17 +108,17 @@ return require("lazy").setup({
       })
     end,
   },
-  {
-    "glepnir/lspsaga.nvim",
-    branch = "main",
-    dependencies = {
-      "kyazdani42/nvim-web-devicons",
-      "nvim-treesitter/nvim-treesitter"
-    },
-    config = function()
-      require('lspsaga').setup({})
-    end,
-  },
+  -- {
+  --   "glepnir/lspsaga.nvim",
+  --   branch = "main",
+  --   dependencies = {
+  --     "kyazdani42/nvim-web-devicons",
+  --     "nvim-treesitter/nvim-treesitter"
+  --   },
+  --   config = function()
+  --     require('lspsaga').setup({})
+  --   end,
+  -- },
   {
     "VonHeikemen/lsp-zero.nvim",
     dependencies = {
@@ -152,42 +149,42 @@ return require("lazy").setup({
       }
     end
   }, -- show list of issues
-  {
-    "folke/noice.nvim",
-    event = "VeryLazy",
-    config = function()
-      require("noice").setup({
-        lsp = {
-          override = {
-            ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
-            ["vim.lsp.util.stylize_markdown"] = true,
-            ["cmp.entry.get_documentation"] = true,
-          },
-        },
-        presets = {
-          bottom_search = true, -- use a classic bottom cmdline for search
-          command_palette = true, -- position the cmdline and popupmenu together
-          long_message_to_split = true, -- long messages will be sent to a split
-          inc_rename = false, -- enables an input dialog for inc-rename.nvim
-          lsp_doc_border = false, -- add a border to hover docs and signature help  
-        },
-        routes = {
-          {
-            filter = {
-              event = "mini",
-              kind = "",
-              find = "null-ls",
-            },
-            opts = { skip = true },
-          }
-        },
-      })
-    end,
-    dependencies = {
-      "MunifTanjim/nui.nvim",
-      "rcarriga/nvim-notify",
-    }
-  },
+  -- {
+  --   "folke/noice.nvim",
+  --   event = "VeryLazy",
+  --   config = function()
+  --     require("noice").setup({
+  --       lsp = {
+  --         override = {
+  --           ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
+  --           ["vim.lsp.util.stylize_markdown"] = true,
+  --           ["cmp.entry.get_documentation"] = true,
+  --         },
+  --       },
+  --       presets = {
+  --         bottom_search = true, -- use a classic bottom cmdline for search
+  --         command_palette = true, -- position the cmdline and popupmenu together
+  --         long_message_to_split = true, -- long messages will be sent to a split
+  --         inc_rename = false, -- enables an input dialog for inc-rename.nvim
+  --         lsp_doc_border = false, -- add a border to hover docs and signature help  
+  --       },
+  --       routes = {
+  --         {
+  --           filter = {
+  --             event = "mini",
+  --             kind = "",
+  --             find = "null-ls",
+  --           },
+  --           opts = { skip = true },
+  --         }
+  --       },
+  --     })
+  --   end,
+  --   dependencies = {
+  --     "MunifTanjim/nui.nvim",
+  --     "rcarriga/nvim-notify",
+  --   }
+  -- },
   {"lukas-reineke/indent-blankline.nvim", main = "ibl", opts = {}},
   {
     "nvim-treesitter/nvim-treesitter",
@@ -206,10 +203,20 @@ return require("lazy").setup({
   -- Completion
   {
     "hrsh7th/nvim-cmp",
+    event = "InsertEnter",
     dependencies = {
       "hrsh7th/cmp-nvim-lsp",
+      "hrsh7th/cmp-path",
+      {
+        "L3MON4D3/LuaSnip",
+        version = "2.*",
+        build = "make install_jsregexp",
+      },
       "hrsh7th/cmp-nvim-lua",
+      "saadparwaiz1/cmp_luasnip",
+      "rafamadriz/friendly-snippets",
       "hrsh7th/cmp-buffer",
+      "onsails/lspkind.nvim",       -- icons/pictograms for LSP
       "hrsh7th/cmp-path",
       "petertriho/cmp-git",
       "hrsh7th/cmp-nvim-lsp-signature-help",
@@ -226,6 +233,37 @@ return require("lazy").setup({
         })
     end
     },
+    {
+      "supermaven-inc/supermaven-nvim",
+      config = function()
+        require("supermaven-nvim").setup({
+          keymaps = {
+            accept_suggestion = "<CR>",
+          --   clear_suggestion = "<C-]>",
+          --   accept_word = "<C-j>",
+          },
+          disable_inline_completion = true,
+          disable_keymaps = true,
+        })
+      end,
+    },
+    {
+      "pasky/claude.vim",
+      config = function()
+        vim.g.claude_api_key = io.open(vim.fn.expand("~/.config/tokens/claude.token"), "r"):read("*l")
+      end
+    },
+    {
+      "robitx/gp.nvim",
+      config = function()
+        local conf = {
+            -- For customization, refer to Install > Configuration in the Documentation/Readme
+        }
+        require("gp").setup(conf)
+
+        -- Setup shortcuts here (see Usage > Shortcuts in the Documentation/Readme)
+      end,
+    },
   -- Formatting
     {
     'stevearc/conform.nvim',
@@ -236,6 +274,11 @@ return require("lazy").setup({
           lua = { "stylua" },
           -- Conform will run multiple formatters sequentially
           python = { "isort", "black" },
+          html = { "prettier" },
+          markdown = { "prettier" },
+          css = { "prettier" },
+          json = { "prettier" },
+          yaml = { "prettier" },
           -- Use a sub-list to run only the first available formatter
           javascript = { { "prettierd", "prettier" } },
         },
@@ -248,6 +291,91 @@ return require("lazy").setup({
     dependencies = {},
   },
   -- misc
+  {
+    "tris203/precognition.nvim",
+    event = "VeryLazy",
+    config = function()
+      require("precognition").setup({
+        startVisible = false,
+      })
+      keymap("n", "<F3>", "<CMD>Precognition toggle<CR>", { desc = "Precognition toggle" })
+    end,
+  },
+  {
+    "echasnovski/mini.nvim",
+    config = function()
+      require('mini.ai').setup()
+      require('mini.cursorword').setup()
+      require('mini.extra').setup()
+      -- require('mini.jump2d').setup()
+      require('mini.files').setup({
+        windows = {
+          preview = true,
+          width_preview = 80,
+        }
+      })
+      require('mini.basics').setup({
+        options = {
+          extra_ui = true,
+          win_borders = 'double',
+        },
+        mappings = {
+          windows = true,
+        }
+      })
+      require('mini.clue').setup({
+        triggers = {
+          -- -- Leader triggers
+          { mode = 'n', keys = '<Leader>' },
+          { mode = 'x', keys = '<Leader>' },
+          -- -- Built-in completion
+          { mode = 'i', keys = '<C-x>' },
+          --
+          -- -- `g` key
+          { mode = 'n', keys = 'g' },
+          { mode = 'x', keys = 'g' },
+          --
+          -- -- Marks
+          { mode = 'n', keys = "'" },
+          { mode = 'n', keys = '`' },
+          { mode = 'x', keys = "'" },
+          { mode = 'x', keys = '`' },
+          --
+          -- -- Registers
+          { mode = 'n', keys = '"' },
+          { mode = 'x', keys = '"' },
+          { mode = 'i', keys = '<C-r>' },
+          { mode = 'c', keys = '<C-r>' },
+          --
+          -- -- Window commands
+          { mode = 'n', keys = '<C-w>' },
+          --
+          -- -- `z` key
+          { mode = 'n', keys = 'z' },
+          { mode = 'x', keys = 'z' },
+      },
+        clues = {
+          { mode = 'n', keys = '<Leader>f', desc = 'Find' },
+          -- { mode = 'n', keys = '<Leader>l', desc = 'LSP' },
+          -- { mode = 'n', keys = '<Leader>w', desc = 'Window' },
+          -- { mode = 'n', keys = '<Leader>s', desc = 'Session' },
+          { mode = 'n', keys = '<Leader>b', desc = 'Buffer' },
+          -- { mode = 'n', keys = '<Leader>g', desc = 'Git' },
+          -- { mode = 'n', keys = '<Leader>u', desc = 'UI' },
+          -- { mode = 'n', keys = '<Leader>q', desc = 'NVim' },
+          function() MiniClue.gen_clues.g() end,
+          function() MiniClue.gen_clues.builtin_completion() end,
+          function() MiniClue.gen_clues.marks() end,
+          function() MiniClue.gen_clues.registers() end,
+          function() MiniClue.gen_clues.windows() end,
+          function() MiniClue.gen_clues.z() end,
+      },
+        window = {
+          delay = 300
+      }
+  })
+  end,
+  },
   "tami5/sqlite.lua", -- required for firefox
   "machakann/vim-sandwich", -- replaces vim-surround below
   "tpope/vim-repeat",
@@ -263,18 +391,51 @@ return require("lazy").setup({
       require('nvim-ts-autotag').setup()
     end
   },
+  "JoosepAlviste/nvim-ts-context-commentstring",
   {
     "numToStr/Comment.nvim", -- comments
+    event = { "BufReadPre", "BufNewFile" },
+    dependencies = {
+      "JoosepAlviste/nvim-ts-context-commentstring",
+    },
+  },
+  {
+    "folke/todo-comments.nvim",
+    dependencies = "nvim-lua/plenary.nvim",
+    event = { "BufReadPre", "BufNewFile" },
+  },
+  {
+    "m4xshen/hardtime.nvim",
+    dependencies = { "MunifTanjim/nui.nvim", "nvim-lua/plenary.nvim" },
     config = function()
-      require("Comment").setup()
+      require("hardtime").setup({
+        disabled_filetypes = { "qf", "netrw", "NvimTree", "lazy", "mason", "oil" ,"Bot"},
+        hint = true,
+      })
+      keymap("n", "<F4>", "<CMD>Hardtime toggle<CR>", { desc = "Lazy" })
     end,
   },
-  "folke/which-key.nvim", -- show mappings
+--  {
+--    "folke/which-key.nvim", -- show mappings
+--    config = function()
+--      require("which-key").setup()
+--  },
   "AckslD/nvim-neoclip.lua",
   "dstein64/vim-startuptime",
-  { -- filesystem navigation
-    "kyazdani42/nvim-tree.lua",
-    dependencies = "kyazdani42/nvim-web-devicons",        -- filesystem icons
+  -- { -- filesystem navigation
+  --   "kyazdani42/nvim-tree.lua",
+  --   dependencies = "kyazdani42/nvim-web-devicons",        -- filesystem icons
+  -- },
+  {
+    'stevearc/oil.nvim',
+    opts = {},
+    -- Optional dependencies
+    dependencies = { { "echasnovski/mini.icons", opts = {} } },
+    -- dependencies = { "nvim-tree/nvim-web-devicons" }, -- use if prefer nvim-web-devicons
+    config = function()
+      require("oil").setup()
+      vim.keymap.set("n", "-", "<CMD>Oil<CR>", { desc = "Open parent directory" })
+    end,
   },
   "nvim-telescope/telescope-file-browser.nvim",
 
@@ -330,6 +491,14 @@ return require("lazy").setup({
           which_key = true,
           markdown = true,
         },
+        custom_highlights = function(colors)
+          return {
+            PmenuSel = { bg = colors.surface1, fg = colors.text },
+            Pmenu = { bg = colors.mantle, fg = colors.text },
+            CmpItemAbbrMatch = { fg = colors.text, bg = colors.surface1 },
+            CmpItemAbbrMatchFuzzy = { fg = colors.text, bg = colors.surface1 },
+          }
+        end,
       })
       vim.g.catppuccin_flavour = "macchiato" -- latte, frappe, macchiato, mocha
     end,
