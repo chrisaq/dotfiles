@@ -307,6 +307,8 @@ return require("lazy").setup({
       require('mini.ai').setup()
       require('mini.cursorword').setup()
       require('mini.extra').setup()
+      require('mini.surround').setup()
+      keymap({ 'n', 'x' }, 's', '<Nop>') -- disable subsistute key used by surround
       -- require('mini.jump2d').setup()
       require('mini.files').setup({
         windows = {
@@ -377,7 +379,7 @@ return require("lazy").setup({
   end,
   },
   "tami5/sqlite.lua", -- required for firefox
-  "machakann/vim-sandwich", -- replaces vim-surround below
+  -- "machakann/vim-sandwich", -- replaces vim-surround below
   "tpope/vim-repeat",
   {
     "windwp/nvim-autopairs",

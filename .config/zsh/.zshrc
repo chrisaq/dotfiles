@@ -3,13 +3,16 @@
 # sourced in interactive shells. It should contain commands to set up aliases, functions, options, key bindings, etc.
 #echo sourcing $HOME/.config/zsh/.zshrc
 
+################################################################################
 ### Init zsh section
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
 export ZSHSTARTED=$(date +%Y%m%d%H%M%S)
+### ENDS: zsh init #############################################################
 
 
-### zsh-snap section
+################################################################################
+### zsh-snap init section
 zstyle ':znap:*' default-server 'git@github.com:'
 # Download Znap, if it's not there yet.
 [[ -f ${ZDOTDIR}/zsh-snap/znap.zsh ]] ||
@@ -20,8 +23,10 @@ source ~/.config/zsh/zsh-snap/znap.zsh
 alias zshreload="source ${ZDOTDIR}/.zshrc"
 # alias cq_zshreload="source ${ZDOTDIR}/.zshrc"
 alias cq_zshreload="znap restart"
+### ENDS: zsh-snap init ########################################################
 
 
+################################################################################
 ### Powerlevel10k section
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.config/zsh/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
@@ -29,15 +34,19 @@ alias cq_zshreload="znap restart"
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
+### ENDS: Powerlevel10k ########################################################
 
 
+################################################################################
 ### History section
 # fc -W  # <- try writing history to file, used to test for errors
 HISTFILE=$XDG_CACHE_HOME/zsh-history
 SAVEHIST=10000000
 HISTSIZE=10000000
+### ENDS: History ##############################################################
 
 
+################################################################################
 ### ZSH Options section
 setopt extended_history
 setopt inc_append_history_time # replaces sharehistory and inc_append_history
@@ -52,8 +61,10 @@ setopt interactive_comments
 setopt list_types
 setopt no_beep
 setopt complete_in_word
+### ENDS: zsh options ##########################################################
 
 
+################################################################################
 ### XDG section
 # should be set by pam, but missing in some places
 export XDG_CONFIG_HOME=${HOME}/.config
@@ -121,8 +132,10 @@ export ASDF_CONFIG_FILE="${XDG_CONFIG_HOME:-~./config}/asdf/asdfrc"
 # XDG: using aliases as workarounds
 alias tmux='TERM=xterm-256color tmux -f "$XDG_CONFIG_HOME"/tmux/tmux.conf'
 alias weechat='weechat -d "$XDG_CONFIG_HOME"/weechat'
+### ENDS: XDG ##################################################################
 
 
+################################################################################
 ### PATH section
 # set PATH so it includes user's private bin if it exists
 if [ -d "$HOME/bin" ] ; then
@@ -158,8 +171,13 @@ if command -v pyenv >/dev/null 2>&1; then
     eval "$(pyenv init -)"
     export PIPX_DEFAULT_PYTHON=$(which python)
 fi
+# NODEJS version manager
+[[ -f /usr/share/nvm/init-nvm.sh ]] && source /usr/share/nvm/init-nvm.sh
+### ENDS: PATH #################################################################
 
-### LESS and lessfilter section
+
+################################################################################
+### less and lessfilter section
 export LESSOPEN='| ${HOME}/.local/bin/lessfilter %s'
 # export LESSOPEN='| ${HOME}/.config/zsh/fzf-zsh-plugin/bin/lessfilter-fzf %s'
 export LESS=' -R '
@@ -174,8 +192,10 @@ lessfilter_vars() {
   echo "ext: $ext"
 }
 export MDCAT_PAGER='less --pattern=^┄(┄|)'
+### ENDS: less and lessfilter ##################################################
 
 
+################################################################################
 ### GPG section
 export GNUPGHOME="$XDG_CONFIG_HOME"/gnupg
 # use gui pinentry if we have DISPLAY _AND_ not on a SSH connection, else curses
@@ -188,7 +208,10 @@ else
 fi
 # when using a custom GNUPGHOME, this must be set before SSH_AUTH_SOCK to find the correct gpg-agent.conf
 export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
+### ENDS: GPG ##################################################################
 
+
+################################################################################
 ### FZF section
 # # fzf - `?` for file preview, `.`, 
 # export FZF_COMMON_OPTIONS="
@@ -203,28 +226,26 @@ export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
 # export FZF_DEFAULT_COMMAND="fd --type f --hidden --follow ${FZF_EXCLUDES}"
 # export FZF_DEFAULT_OPTS="$FZF_COMMON_OPTIONS"
 # # fzf commands
-# export FZF_ALT_C_COMMAND="fd --hidden --one-file-system --type d ${FZF_EXCLUDES}"
+export FZF_ALT_C_COMMAND="fd --hidden --one-file-system --type d ${FZF_EXCLUDES}"
 # export FZF_ALT_C_OPTS=""
-# export FZF_CTRL_T_COMMAND="fd --hidden --one-file-system --type f ${FZF_EXCLUDES}"
+export FZF_CTRL_T_COMMAND="fd --hidden --one-file-system --type f ${FZF_EXCLUDES}"
 # export FZF_CTRL_T_OPTS=" \
 #     $FZF_COMMON_OPTIONS \
 #     --preview '($FZF_PREVIEW_COMMAND)' \
 #     --height 60% --border sharp \
 #     --layout reverse --prompt '∷ ' --pointer ▶ --marker ⇒ "
 #
-# export FZF_PATH=${HOME}/.config/zsh/fzf
+export FZF_PATH=${HOME}/.config/zsh/fzf
 #
-# HAS_FZF=0 && command -v fzf >/dev/null 2>&1 && HAS_FZF=1
-# if [[ $HAS_FZF -eq 1  ]]; then
-#     fkill() {
-#         pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
-#
-#         if [ "x$pid" != "x" ]; then
-#             kill -${1:-9} $pid
-#         fi
-#     }
-# fi
-#
+HAS_FZF=0 && command -v fzf >/dev/null 2>&1 && HAS_FZF=1
+if [[ $HAS_FZF -eq 1  ]]; then
+    fkill() {
+        pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
+        if [ "x$pid" != "x" ]; then
+            kill -${1:-9} $pid
+        fi
+    }
+fi
 # _fzf_comprun() {
 #   local command=$1
 #   shift
@@ -241,7 +262,10 @@ export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
 # zsh-autocomplete options
 zstyle ':autocomplete:*' fzf-completion yes # enable fzf **<tab>
 zstyle ':autocomplete:*' min-input 0
+### ENDS: FZF ##################################################################
 
+
+################################################################################
 ### FZF-TAB section
 # fzf-tab recommended config
 # # disable sort when completing `git checkout`
@@ -263,8 +287,10 @@ zstyle ':fzf-tab:*' switch-group ',' '.'
 zstyle ':fzf-tab:complete:*:options' fzf-preview ''
 # Do not show preview for arguments (TODO: not working?)
 zstyle ':fzf-tab:complete:*:argument-1' fzf-preview ''
+### ENDS: FZF-TAB ##############################################################
 
 
+################################################################################
 ### Input section
 # vi mode
 bindkey -v
@@ -280,14 +306,18 @@ bindkey -M vicmd '^[[B' history-beginning-search-forward
 export EDITOR=nvim
 # PAGER
 export PAGER=bat
+### ENDS: Input ################################################################
 
 
+################################################################################
 ### git section
 alias gcassm='git commit --gpg-sign --signoff -a --message'
 alias gdf='git diff --color | diff-so-fancy'
 alias git_get_all_branches='for abranch in $(git branch -a | grep -v HEAD | grep remotes | sed "s/remotes\/origin\///g"); do git checkout $abranch ; done'
+### ENDS: git ##################################################################
 
 
+################################################################################
 ### Dotfiles section
 if [[ ! -d "$HOME"/.local/share/dotfiles.git ]]; then
     mkdir -p "$HOME"/.local/share/dotfiles.git
@@ -298,10 +328,12 @@ compdef dotfiles=git # use same completion for dotfiles as git
 if [[ ! -d "$HOME"/.local/share/dotlocal.git ]]; then
     mkdir -p "$HOME"/.local/share/dotlocal-$(hostnamectl --static).git
 fi
+# dotfiles based on hostname (per-machine dotfiles)
 alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles-$(hostnamectl --static).git"
 alias lcassm='dotlocal commit --all --gpg-sign --signoff --message'
 compdef dotlocal=git # use same completion for dotlocal as git
 unset GREP_OPTIONS
+### ENDS: Dotfiles #############################################################
 
 
 ################################################################################
@@ -331,10 +363,29 @@ alias yubikey_reset_serial='rm ${GNUPGHOME}/private-keys-v1.d/{A7311DE4F14645F60
 # First pipe the selected name to gopass, encrypt it and type the password with xdotool.
 alias PassMenux="gopass ls --flat | rofi -dmenu | xargs --no-run-if-empty gopass show -f | head -n 1 | xdotool type --clearmodifiers --file -"
 alias xkcd_pwgen="gopass pwgen -x --lang en --sep ' ' 5"
-### ENDS: SEC section ##########################################################
+# decrypt two files and send them to diff/meld
+# used for syncthing conflicts in crypt-sync files
+function cq_decrypt_diff() {
+  local program="$1"
+  local file1="$2"
+  local file2="$3"
+  shift 3
+  "$program" <(gpg --quiet --decrypt "$file1") <(gpg --quiet --decrypt "$file2") "$@"
+}
+_cq_decrypt_diff_completions() {
+  local curcontext="$curcontext" state line
+  typeset -A opt_args
+  _arguments -C \
+    '1: :_command_names' \
+    '2: :_files' \
+    '3: :_files'
+}
+compdef _decrypt_and_run_completions decrypt_and_run
+### ENDS: Security #############################################################
 
 
-### Aliases section
+################################################################################
+### Aliases and functions section
 # update shell to include recently created group(s)
 alias cq_groups_refresh="exec sudo su -l $USER"
 alias pwdcopy='pwd | tr -d "\r\n" |xclip -selection clipboard'
@@ -410,7 +461,13 @@ alias spotify-spotube='spotube'
 alias spotify-tui='spt'
 alias spotify-psst='psst'
 alias cq_snd_restart="systemctl --user restart pipewire pipewire-pulse wireplumber"
+alias tfinit='terraform init -backend-config=tf-init.conf'
+alias helm-completion='source <(helm completion zsh)'
 # swap workspaces 1 and 2
+# make this a script for use in i3
+function cq_autorandr() {
+    autorandr $(autorandr | cut -d' ' -f1|rofi -dmenu)
+}
 function i3_swap() {
     i3-msg "rename workspace $1 to temporary;
             rename workspace $2 to $1;
@@ -437,88 +494,40 @@ function cqtmux_startup() {
         tmux new-session -d -s 101-K8S -c ~/Code/Ruter/K8S-UPGRADE-REPOS
     fi
 }
-
-
-# TODO: sections for rest of the file
-## terraform, iac
-alias tfinit='terraform init -backend-config=tf-init.conf'
-
-# Helm
-alias helm-completion='source <(helm completion zsh)'
-
-# NODEJS
-[[ -f /usr/share/nvm/init-nvm.sh ]] && source /usr/share/nvm/init-nvm.sh
-
-# XRANDR, autorandr etc
-# make this a script
-# alias cq-autorandr="autorandr $(autorandr | cut -d' ' -f1|rofi -dmenu)"
-
-# NeoVim / vim aliases
-# Notes in vim, persistence and such
-alias cqnote="nvim -u $XDG_CONFIG_HOME/nvim-configs/cqnote/init.lua $HOME/Sync/Wiki/Tech/docs/QuickNote.md"
-alias cqnote-init="cqnote --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'"
-# Install nvim configuration from scratch:
-# nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'
-# Separate nvim configs example:
-# alias cqnvim="nvim -u $XDG_CONFIG_HOME/cqnvim/init.lua"
-
-# Turns out the below is just an inconvenient version of fzf's ctrl-t
-# ff: fd and fzy
-# passes all args to command after ff, and then a file/dir as found by fzy at the end
-# ex: "ff ls -l -a -d" results in the command ls -l -a -d <file/dir picked by fzy>
-ff () {
-    ffile=$(fd | fzy) && $1 "${@:2}" $ffile
-}
-
-# decrypt two files and send them to diff/meld
-# used for syncthing conflicts in crypt-sync files
-function cq_decrypt_diff() {
-  local program="$1"
-  local file1="$2"
-  local file2="$3"
-  shift 3
-  "$program" <(gpg --quiet --decrypt "$file1") <(gpg --quiet --decrypt "$file2") "$@"
-}
-
-_cq_decrypt_diff_completions() {
-  local curcontext="$curcontext" state line
-  typeset -A opt_args
-
-  _arguments -C \
-    '1: :_command_names' \
-    '2: :_files' \
-    '3: :_files'
-}
-
-compdef _decrypt_and_run_completions decrypt_and_run
-
-
 cq-completions-list () {
     for command completion in ${(kv)_comps:#-*(-|-,*)}
     do
         printf "%-32s %s\n" $command $completion
     done | sort
 }
-
 # what package does a binary belong to
 function pacwhich() {pacman -Qo $(which $1 )}
-
 # Set env from KEY=value list in file
 cq_env_arg() {set -o allexport; source $@; set +o allexport}
 cq_env_select() {set -o allexport; source $(fd .conf ~/.config/env -t f|fzf); set +o allexport}
-
 # Run command with env from ./.env
 cq_with_env() {
     (set -a && . ./.env && "$@")
 }
-## terminfo
+# neovim / vim aliases
+# Notes: nvim instance - notes in vim, persistence and such
+alias cqnote="nvim -u $XDG_CONFIG_HOME/nvim-configs/cqnote/init.lua $HOME/Sync/Wiki/Tech/docs/QuickNote.md"
+alias cqnote-init="cqnote --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'"
+# Install nvim configuration from scratch:
+# nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'
+# Separate nvim configs example:
+# alias cqnvim="nvim -u $XDG_CONFIG_HOME/cqnvim/init.lua"
+#
+### ENDS: Aliases and functions ################################################
+
+################################################################################
+## terminfo section
 typeset -g -A key
 key[Home]="${terminfo[khome]}"
 key[End]="${terminfo[kend]}"
 # setup key accordingly
 [[ -n "${key[Home]}"      ]] && bindkey -- "${key[Home]}"      beginning-of-line
 [[ -n "${key[End]}"       ]] && bindkey -- "${key[End]}"       end-of-line
-
 # Needs to be below terminfo stuff above
 # arrow-up/down partial match search
 autoload -U up-line-or-beginning-search
@@ -527,14 +536,15 @@ zle -N up-line-or-beginning-search
 zle -N down-line-or-beginning-search
 bindkey "^[[A" up-line-or-beginning-search # Up
 bindkey "^[[B" down-line-or-beginning-search # Down
-
-
 # disable software flow control, ctrl-s (XOFF)/ctrl-q (XON)
 setopt noflowcontrol
 # needs to be set this way or p10k instant prompt makes it print errors
 stty -ixon <$TTY >$TTY
+### ENDS: terminfo #############################################################
 
-#znap config
+
+################################################################################
+### zsh-snap section
 znap clone \
      git@github.com:romkatv/powerlevel10k.git \
      git@github.com:zdharma-continuum/fast-syntax-highlighting \
@@ -549,7 +559,6 @@ znap clone \
 #     git@github.com:unixorn/fzf-zsh-plugin.git \
      # git@github.com:zsh-users/{zsh-autosuggestions,zsh-history-substring-search,zsh-completions}.git \
      # git@github.com:momo-lab/zsh-abbrev-alias.git \
-
 znap source powerlevel10k
 znap eval trapd00r/LS_COLORS "$( whence -a dircolors gdircolors ) -b LS_COLORS"
 znap source junegunn/fzf shell/{completion,key-bindings}.zsh
@@ -568,7 +577,6 @@ fi
 if command -v k0s >/dev/null 2>&1; then
     znap fpath _k0s 'k0s completion zsh'
 fi
-
 # breaks when higher up for whatever reason
 znap source fast-syntax-highlighting
 ZSH_AUTOSUGGEST_STRATEGY=( history )
@@ -580,10 +588,11 @@ znap source zsh-autosuggestions
 znap source zsh-completions
 znap source asdf-vm/asdf
 # ENDS: breaks when higher up for whatever reason
+### ENDS: zsh-snap #############################################################
 
 
-#### Override keybindings from modules and tools above
-
+################################################################################
+### Override section - override keybindings and such from modules and tools above
 ## TMSTART
 # binding a shell script to a ctrl sequence needs a function to work
 tmstart() {
@@ -596,22 +605,19 @@ bindkey '^S' tmstart
 bindkey "^Xa" _expand_alias
 zstyle ':completion:*' completer _expand_alias _complete _ignored
 zstyle ':completion:*' regular true
-
-
 #### HASH shortcuts
 hash -d code=${HOME}/Code
 hash -d work=${HOME}/Sync/Work
 hash -d ruter=${HOME}/Sync/Work/Ruter
 hash -d wiki=${HOME}/Sync/Wiki
 hash -d sync=${HOME}/Sync
-
 #### abbrev
 function Q() {
     qcmd=$(compgen -c | grep '^cq' | fzf)
     $qcmd
 }
 abbrev-alias -g G="| rg"
-
 # Powerlevel10k
 # To customize prompt, run `p10k configure` or edit ~/.config/zsh/.p10k.zsh.
 [[ ! -f ~/.config/zsh/.p10k.zsh ]] || source ~/.config/zsh/.p10k.zsh
+### ENDS: Override #############################################################
