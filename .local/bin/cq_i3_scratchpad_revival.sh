@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Focus the container where the scratchpad window is located
-i3-msg '[class="^.*$"] scratchpad show'
+# i3-msg '[class="^.*$"] scratchpad show'
+i3-msg 'scratchpad show'
 
 # Move all windows in the currently focused container to the current workspace
 i3-msg 'move container to workspace current'

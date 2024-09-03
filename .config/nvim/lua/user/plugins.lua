@@ -247,17 +247,27 @@ return require("lazy").setup({
         })
       end,
     },
-    {
-      "pasky/claude.vim",
-      config = function()
-        vim.g.claude_api_key = io.open(vim.fn.expand("~/.config/tokens/claude.token"), "r"):read("*l")
-      end
-    },
+    -- {
+    --   "pasky/claude.vim",
+    --   config = function()
+    --     vim.g.claude_api_key = io.open(vim.fn.expand("~/.config/tokens/claude.token"), "r"):read("*l")
+    --   end
+    -- },
     {
       "robitx/gp.nvim",
       config = function()
         local conf = {
             -- For customization, refer to Install > Configuration in the Documentation/Readme
+            providers = {
+                openai = {
+                    endpoint = "https://api.openai.com/v1/chat/completions",
+                    secret = {'bash', '-c', 'cat ~/.config/tokens/openai.token'}
+                },
+                anthropic = {
+                    endpoint = "https://api.anthropic.com/v1/messages",
+                    secret = {'bash', '-c', 'cat ~/.config/tokens/claude.token'}
+                },
+            },
         }
         require("gp").setup(conf)
 

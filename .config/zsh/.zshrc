@@ -213,18 +213,18 @@ export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
 
 ################################################################################
 ### FZF section
-# # fzf - `?` for file preview, `.`, 
-# export FZF_COMMON_OPTIONS="
-#   --bind='?:toggle-preview'
-#   --bind='ctrl-u:preview-page-up'
-#   --bind='ctrl-d:preview-page-down'"
+export FZF_COMMON_OPTIONS="
+  --bind='?:toggle-preview'
+  --bind='ctrl-u:preview-page-up'
+  --bind='ctrl-d:preview-page-down'
+  --bind='insert:toggle+down,delete:deselect+down'"
 #   # --preview-window 'right:60%:hidden:wrap'
 #   # --preview '([[ -d {} ]] && tree -C {}) || ([[ -f {} ]] && bat --style=full --color=always {}) || echo {}'"
-# export FZF_EXCLUDES="--exclude .git --exclude node_modules --exclude '.mozilla' --exclude '.cache'"
+export FZF_EXCLUDES="--exclude .git --exclude node_modules --exclude '.mozilla' --exclude '.cache'"
 # export FZF_PREVIEW_COMMAND="bat --style=numbers,changes \
 #     --wrap never --color always {} || cat {} || tree -C {}"
 # export FZF_DEFAULT_COMMAND="fd --type f --hidden --follow ${FZF_EXCLUDES}"
-# export FZF_DEFAULT_OPTS="$FZF_COMMON_OPTIONS"
+export FZF_DEFAULT_OPTS="$FZF_COMMON_OPTIONS"
 # # fzf commands
 export FZF_ALT_C_COMMAND="fd --hidden --one-file-system --type d ${FZF_EXCLUDES}"
 # export FZF_ALT_C_OPTS=""
@@ -276,13 +276,14 @@ zstyle ':autocomplete:*' min-input 0
 # zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 # # switch group using `,` and `.`
 zstyle ':fzf-tab:*' switch-group ',' '.'
+# set insert/delete to toggle/deselect multiple items
+zstyle ':fzf-tab:*' fzf-bindings 'insert:toggle+down,delete:deselect+down'
 # # preview directory's content with exa when completing cd
 #zstyle ':fzf-tab:complete:cd:*' fzf-preview 'exa -1 --color=always $realpath' # remember to use single quote here!!!
 # TODO:  testing
 # zstyle ':fzf-tab:complete:*:*' fzf-preview '${XDG_BIN_HOME}/lessfilter ${(Q)realpath}'
 # testing ends
 # zstyle ':fzf-tab:complete:*:*' fzf-preview 'less -e +G ${(Q)realpath}'
-# zstyle ':fzf-tab:complete:*:*' fzf-preview 'less /home/chrisq/Sync/Memes/unsorted/98-dd9492-1928-4-d93-90-c4-c3-ade727-ce53-618x447.jpg' # remember to use single quote here!!!
 # Do not show preview for options
 zstyle ':fzf-tab:complete:*:options' fzf-preview ''
 # Do not show preview for arguments (TODO: not working?)
@@ -435,8 +436,11 @@ truecolor() {
     }'
 }
 # exa aliases
-alias xl="exa --group-directories-first --classify --git"
+compdef eza=ls # use same completion
+alias xl="eza --group-directories-first --classify --git --icons"
 alias xll="xl -l"
+alias lx="eza --group-directories-first --classify --git --icons"
+alias lxx="xl -l"
 # alias ls='ls --color=auto'
 alias mouseslow='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "libinput Accel Speed" -1'
 alias cqmouseslow2='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "libinput Accel Speed" -1'

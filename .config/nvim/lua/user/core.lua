@@ -68,7 +68,7 @@ opt.shiftround  = true              -- rounds indent to a multiple of shiftwidth
 opt.foldmethod = "indent"           -- allow us to fold on indents
 opt.foldlevel = 99                  -- don't fold by default
 opt.hidden  = true                  -- allows buffers to be hidden when modified
-opt.timeoutlen = 300
+opt.timeoutlen = 800
 opt.nrformats = ""
 opt.encoding = "utf-8"
 -- -- visual replace

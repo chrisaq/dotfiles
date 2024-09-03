@@ -5,9 +5,14 @@ Documentation=man:tmux(1)
 [Service]
 Type=forking
 Environment=DISPLAY=:0
-ExecStart=/usr/bin/tmux new-session -d
-
-ExecStop=/home/chrisq/.local/share/tmux/plugins/tmux-resurrect/scripts/save.sh
+# Explicitly set XDG_CONFIG_HOME from the environment
+Environment=TMUX_TMPDIR=%t
+Environment=TERM=xterm-256color
+# if importing environemnt.d files, values with $ are not expanded, i.e. $HOME is not expanded
+# EnvironmentFile=%h/.config/environment.d/xdg.conf
+ExecStartPre=systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XDG_SESSION_TYPE XDG_SESSION_DESKTOP GPG_TTY XDG_CURRENT_DESKTOP
+ExecStart=/usr/bin/tmux -f "%h/.config/tmux/tmux.conf" -S /run/user/10000/tmux-10000/default new-session -d
+ExecStop=%h/.local/share/tmux/plugins/tmux-continuum/scripts/continuum_save.sh
 ExecStop=/usr/bin/tmux kill-server
 KillMode=control-group
 
@@ -15,3 +20,4 @@ RestartSec=2
 
 [Install]
 WantedBy=default.target
+

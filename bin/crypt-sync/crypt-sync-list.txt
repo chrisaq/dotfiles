@@ -14,6 +14,7 @@ spotify_tui.gpg:.config/spotify-tui/client.yml
 spotifyd.gpg:.config/spotifyd/spotifyd.conf
 codeium.gpg:.cache/nvim/codeium/config.json
 claude.gpg:.config/tokens/claude.token
+openai.gpg:.config/tokens/openai.token
 ruter_gitlab_token.gpg:.config/tokens/ruter-gitlab.token
 cq_laptop_envrc.gpg:Workspace/Personal/laptop/.envrc
 ruter_dev-cmp-1_envrc.gpg:Workspace/Ruter/dev-cmp-1/.envrc

@@ -188,105 +188,107 @@ local key_map = vim.api.nvim_set_keymap
 
 -- telescope builtins --
 
-key_map(
-  "n",
-  "<leader>ft",
-  [[<Cmd>lua require'telescope.builtin'.builtin{}<CR>]],
+key_map( "n", "<leader>ft", [[<Cmd>lua require'telescope.builtin'.builtin{}<CR>]],
   { noremap = true, silent = true, desc = "Telescope builtin" }
 )
 
-key_map(
-  "n",
-  "<leader>fb",
-  [[<Cmd>lua require'telescope.builtin'.buffers{}<CR>]],
+key_map( "n", "<leader>fb", [[<Cmd>lua require'telescope.builtin'.buffers{}<CR>]],
   { noremap = true, silent = true, desc = "Telescope buffers" }
 )
 
-key_map(
-  "n",
-  "<leader>ff",
-  [[<Cmd>lua require'telescope.builtin'.find_files({ hidden = true })<CR>]],
+key_map( "n", "<leader>ff", [[<Cmd>lua require'telescope.builtin'.find_files({ hidden = true })<CR>]],
   { noremap = true, silent = true, desc = "Telescope find_files" }
 )
 
-key_map(
-  "n",
-  "<leader>fo",
-  [[<Cmd>lua require'telescope.builtin'.oldfiles{}<CR>]],
+key_map( "n", "<leader>fo", [[<Cmd>lua require'telescope.builtin'.oldfiles{}<CR>]],
   { noremap = true, silent = true, desc = "Telescope oldfiles" }
 )
 
-key_map(
-  "n",
-  "<leader>fg",
-  [[<Cmd>lua require'telescope.builtin'.git_files{}<CR>]],
+key_map( "n", "<leader>fg", [[<Cmd>lua require'telescope.builtin'.git_files{}<CR>]],
   { noremap = true, silent = true, desc = "Telescope git_files" }
 )
 
-key_map(
-  "n",
-  "<leader>fk",
-  [[<Cmd>lua require'telescope.builtin'.keymaps{}<CR>]],
+key_map( "n", "<leader>fk", [[<Cmd>lua require'telescope.builtin'.keymaps{}<CR>]],
   { noremap = true, silent = true, desc = "Telescope keymaps" }
 )
 
-key_map(
-  "n",
-  "<leader>fr",
-  [[<Cmd>lua require'telescope.builtin'.registers{}<CR>]],
+key_map( "n", "<leader>fr", [[<Cmd>lua require'telescope.builtin'.registers{}<CR>]],
   { noremap = true, silent = true, desc = "Telescope registers" }
 )
 
-key_map(
-  "n",
-  "<leader>fm",
-  [[<Cmd>lua require'telescope.builtin'.marks{}<CR>]],
+key_map( "n", "<leader>fm", [[<Cmd>lua require'telescope.builtin'.marks{}<CR>]],
   { noremap = true, silent = true, desc = "Telescope marks" }
 )
 
-key_map(
-  "n",
-  "<leader>'",
-  [[<Cmd>lua require'telescope.builtin'.marks{}<CR>]],
+key_map( "n", "<leader>'", [[<Cmd>lua require'telescope.builtin'.marks{}<CR>]],
   { noremap = true, silent = true, desc = "Telescope marks" }
 )
 
-key_map(
-  "n",
-  "<leader>/",
-  [[<Cmd>lua require'telescope.builtin'.current_buffer_fuzzy_find{}<CR>]],
+key_map( "n", "<leader>/", [[<Cmd>lua require'telescope.builtin'.current_buffer_fuzzy_find{}<CR>]],
   { noremap = true, silent = true, desc = "Telescope current_buffer_fuzzy_find" }
 )
 
-key_map(
-  "n",
-  "<leader>rg",
-  [[<Cmd>lua require'telescope.builtin'.live_grep{}<CR>]],
+key_map( "n", "<leader>rg", [[<Cmd>lua require'telescope.builtin'.live_grep{}<CR>]],
   { noremap = true, silent = true, desc = "Telescope live_grep" }
 )
 
-key_map(
-  "n",
-  "<leader>fc",
-  [[<Cmd>lua require'telescope.builtin'.colorscheme{}<CR>]],
+key_map( "n", "<leader>fc", [[<Cmd>lua require'telescope.builtin'.colorscheme{}<CR>]],
   { noremap = true, silent = true, desc = "Telescope colorscheme" }
 )
 
 -- Extensions keymaps --
 
 -- neoclip
-key_map(
-  "n",
-  "<leader>fy",
-  [[<Cmd>lua require('telescope').extensions.neoclip.default()<CR>]],
+key_map( "n", "<leader>fy", [[<Cmd>lua require('telescope').extensions.neoclip.default()<CR>]],
   { noremap = true, silent = true, desc = "Telescope neoclip" }
 )
 
 -- file_browser
-key_map(
-  "n",
-  "<leader>fd",
-  ":Telescope file_browser<CR>",
+key_map( "n", "<leader>fd", ":Telescope file_browser<CR>",
   { noremap = true, desc = "Telescope file_browser" }
 )
 
+------------------------------------------------------------------------------
+-- gp.nvim picker for models - https://github.com/Robitx/gp.nvim/issues/187
+local pickers = require 'telescope.pickers'
+local finders = require 'telescope.finders'
+local actions = require 'telescope.actions'
+local action_state = require 'telescope.actions.state'
+local conf = require('telescope.config').values
+
+local models = function(opts)
+  local buf = vim.api.nvim_get_current_buf()
+  local file_name = vim.api.nvim_buf_get_name(buf)
+  local is_chat = require('gp').not_chat(buf, file_name) == nil
+
+  opts = opts or {}
+  pickers
+    .new(opts, {
+      prompt_title = 'Models',
+      finder = finders.new_table {
+        results = is_chat and require('gp')._chat_agents or require('gp')._command_agents,
+      },
+      sorter = conf.generic_sorter(opts),
+      attach_mappings = function(prompt_bufnr)
+        actions.select_default:replace(function()
+          local selection = action_state.get_selected_entry()
+          actions.close(prompt_bufnr)
+          require('gp').cmd.Agent { args = selection[1] }
+        end)
+        return true
+      end,
+    })
+    :find()
+end
+
+vim.keymap.set('n', '<C-g>z', function()
+  models(require('telescope.themes').get_dropdown {
+    winblend = 10,
+    previewer = false,
+  })
+end, {
+  noremap = true,
+  silent = false,
+  nowait = true,
+  desc = 'GPT prompt Choose Agent',
+})
