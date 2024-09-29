@@ -184,69 +184,30 @@ require("telescope").load_extension "ui-select"
 
 -- keymaps --
 --
-local key_map = vim.api.nvim_set_keymap
+local key_map = vim.keymap.set
 
 -- telescope builtins --
-
-key_map( "n", "<leader>ft", [[<Cmd>lua require'telescope.builtin'.builtin{}<CR>]],
-  { noremap = true, silent = true, desc = "Telescope builtin" }
-)
-
-key_map( "n", "<leader>fb", [[<Cmd>lua require'telescope.builtin'.buffers{}<CR>]],
-  { noremap = true, silent = true, desc = "Telescope buffers" }
-)
-
-key_map( "n", "<leader>ff", [[<Cmd>lua require'telescope.builtin'.find_files({ hidden = true })<CR>]],
-  { noremap = true, silent = true, desc = "Telescope find_files" }
-)
-
-key_map( "n", "<leader>fo", [[<Cmd>lua require'telescope.builtin'.oldfiles{}<CR>]],
-  { noremap = true, silent = true, desc = "Telescope oldfiles" }
-)
-
-key_map( "n", "<leader>fg", [[<Cmd>lua require'telescope.builtin'.git_files{}<CR>]],
-  { noremap = true, silent = true, desc = "Telescope git_files" }
-)
-
-key_map( "n", "<leader>fk", [[<Cmd>lua require'telescope.builtin'.keymaps{}<CR>]],
-  { noremap = true, silent = true, desc = "Telescope keymaps" }
-)
-
-key_map( "n", "<leader>fr", [[<Cmd>lua require'telescope.builtin'.registers{}<CR>]],
-  { noremap = true, silent = true, desc = "Telescope registers" }
-)
-
-key_map( "n", "<leader>fm", [[<Cmd>lua require'telescope.builtin'.marks{}<CR>]],
-  { noremap = true, silent = true, desc = "Telescope marks" }
-)
-
-key_map( "n", "<leader>'", [[<Cmd>lua require'telescope.builtin'.marks{}<CR>]],
-  { noremap = true, silent = true, desc = "Telescope marks" }
-)
-
-key_map( "n", "<leader>/", [[<Cmd>lua require'telescope.builtin'.current_buffer_fuzzy_find{}<CR>]],
-  { noremap = true, silent = true, desc = "Telescope current_buffer_fuzzy_find" }
-)
-
-key_map( "n", "<leader>rg", [[<Cmd>lua require'telescope.builtin'.live_grep{}<CR>]],
-  { noremap = true, silent = true, desc = "Telescope live_grep" }
-)
-
-key_map( "n", "<leader>fc", [[<Cmd>lua require'telescope.builtin'.colorscheme{}<CR>]],
-  { noremap = true, silent = true, desc = "Telescope colorscheme" }
-)
+local builtin = require('telescope.builtin')
+key_map("n", "<leader>ft", builtin.builtin, { noremap = true, silent = true, desc = "Telescope builtin" })
+key_map("n", "<leader>fb", builtin.buffers, { noremap = true, silent = true, desc = "Telescope buffers" })
+key_map("n", "<leader>ff", function() builtin.find_files({ hidden = true })end, { noremap = true, silent = true, desc = "Telescope find_files" })
+key_map("n", "<leader>fo", builtin.oldfiles, { noremap = true, silent = true, desc = "Telescope oldfiles" })
+key_map("n", "<leader>fg", builtin.git_files, { noremap = true, silent = true, desc = "Telescope git_files" })
+key_map("n", "<leader>fk", builtin.keymaps, { noremap = true, silent = true, desc = "Telescope keymaps" })
+key_map("n", "<leader>fr", builtin.registers, { noremap = true, silent = true, desc = "Telescope registers" })
+key_map("n", "<leader>fm", builtin.marks, { noremap = true, silent = true, desc = "Telescope marks" })
+key_map("n", "<leader>'", builtin.marks, { noremap = true, silent = true, desc = "Telescope marks" })
+key_map("n", "<leader>/", builtin.current_buffer_fuzzy_find, { noremap = true, silent = true, desc = "Telescope current_buffer_fuzzy_find" })
+key_map("n", "<leader>rg", builtin.live_grep, { noremap = true, silent = true, desc = "Telescope live_grep" })
+key_map("n", "<leader>fc", builtin.colorscheme, { noremap = true, silent = true, desc = "Telescope colorscheme" })
 
 -- Extensions keymaps --
 
 -- neoclip
-key_map( "n", "<leader>fy", [[<Cmd>lua require('telescope').extensions.neoclip.default()<CR>]],
-  { noremap = true, silent = true, desc = "Telescope neoclip" }
-)
+key_map("n", "<leader>fy", [[<Cmd>lua require('telescope').extensions.neoclip.default()<CR>]], { noremap = true, silent = true, desc = "Telescope neoclip" })
 
 -- file_browser
-key_map( "n", "<leader>fd", ":Telescope file_browser<CR>",
-  { noremap = true, desc = "Telescope file_browser" }
-)
+key_map("n", "<leader>fd", ":Telescope file_browser<CR>", { noremap = true, desc = "Telescope file_browser" })
 
 ------------------------------------------------------------------------------
 -- gp.nvim picker for models - https://github.com/Robitx/gp.nvim/issues/187

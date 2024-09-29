@@ -8,6 +8,8 @@ and doesn't place symlinks all over my $HOME.
 
 Basically all you need is a git alias, or two if you want some files to be specific to machines.
 
+Explained here: [dotfiles in bare repository](https://www.atlassian.com/git/tutorials/dotfiles)
+
 ## Setting up for the first time
 
 ### create git-dotfiles-dir and add alias

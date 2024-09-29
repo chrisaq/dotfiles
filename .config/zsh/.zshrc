@@ -122,6 +122,7 @@ fi
 export PYENV_ROOT="${XDG_DATA_HOME}/pyenv"
 # disable shared library build for pyenv
 export PYTHON_CONFIGURE_OPTS="--disable-shared"
+export PYTHONSTARTUP="$XDG_CONFIG_HOME"/python/pythonrc
 # asdf config location
 export ASDF_DATA_DIR="${XDG_DATA_HOME:-~./local/share}/asdf"
 export ASDF_CONFIG_FILE="${XDG_CONFIG_HOME:-~./config}/asdf/asdfrc"
@@ -132,6 +133,7 @@ export ASDF_CONFIG_FILE="${XDG_CONFIG_HOME:-~./config}/asdf/asdfrc"
 # XDG: using aliases as workarounds
 alias tmux='TERM=xterm-256color tmux -f "$XDG_CONFIG_HOME"/tmux/tmux.conf'
 alias weechat='weechat -d "$XDG_CONFIG_HOME"/weechat'
+export CARGO_HOME="$XDG_DATA_HOME"/cargo
 ### ENDS: XDG ##################################################################
 
 
@@ -217,7 +219,8 @@ export FZF_COMMON_OPTIONS="
   --bind='?:toggle-preview'
   --bind='ctrl-u:preview-page-up'
   --bind='ctrl-d:preview-page-down'
-  --bind='insert:toggle+down,delete:deselect+down'"
+  --bind='insert:toggle+down,delete:deselect+down'
+  --preview-window 'right:60%::wrap'"
 #   # --preview-window 'right:60%:hidden:wrap'
 #   # --preview '([[ -d {} ]] && tree -C {}) || ([[ -f {} ]] && bat --style=full --color=always {}) || echo {}'"
 export FZF_EXCLUDES="--exclude .git --exclude node_modules --exclude '.mozilla' --exclude '.cache'"
@@ -326,13 +329,17 @@ fi
 alias dotfiles="git --git-dir=$HOME/.local/share/dotfiles.git/ --work-tree=$HOME"
 alias dcassm='dotfiles commit --all --gpg-sign --signoff --message'
 compdef dotfiles=git # use same completion for dotfiles as git
+alias dtig="GIT_DIR=$XDG_DATA_HOME/dotfiles.git GIT_WORK_TREE=${HOME} tig"
+alias dlazygit="lazygit --git-dir=$XDG_DATA_HOME/dotfiles.git/ --work-tree=$HOME"
+# dotfiles based on hostname (per-machine dotfiles)
 if [[ ! -d "$HOME"/.local/share/dotlocal.git ]]; then
     mkdir -p "$HOME"/.local/share/dotlocal-$(hostnamectl --static).git
 fi
-# dotfiles based on hostname (per-machine dotfiles)
 alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles-$(hostnamectl --static).git"
 alias lcassm='dotlocal commit --all --gpg-sign --signoff --message'
 compdef dotlocal=git # use same completion for dotlocal as git
+alias ltig="GIT_DIR=${XDG_DATA_HOME}/dotfiles-$(hostnamectl --static).git GIT_WORK_TREE=${HOME} tig"
+alias llazygit="lazygit --git-dir=$XDG_DATA_HOME/dotfiles.git/ --work-tree=$HOME"
 unset GREP_OPTIONS
 ### ENDS: Dotfiles #############################################################
 
@@ -506,6 +513,16 @@ cq-completions-list () {
 }
 # what package does a binary belong to
 function pacwhich() {pacman -Qo $(which $1 )}
+# Install paru
+function cq_paru_install() {
+    if ! command -v git >/dev/null 2>&1; then
+        sudo pacman -S git
+    fi
+    mkdir -p ~/tmp/
+    git clone https://aur.archlinux.org/paru.git
+    cd ~/tmp/paru
+    makepkg -si
+}
 # Set env from KEY=value list in file
 cq_env_arg() {set -o allexport; source $@; set +o allexport}
 cq_env_select() {set -o allexport; source $(fd .conf ~/.config/env -t f|fzf); set +o allexport}
@@ -515,13 +532,88 @@ cq_with_env() {
 }
 # neovim / vim aliases
 # Notes: nvim instance - notes in vim, persistence and such
-alias cqnote="nvim -u $XDG_CONFIG_HOME/nvim-configs/cqnote/init.lua $HOME/Sync/Wiki/Tech/docs/QuickNote.md"
+alias cqnote="nvim -u $XDG_CONFIG_HOME/nvim-configs/cqnote/init.lua $HOME/Sync/Wiki/Tech/Tech/QuickNote.md"
 alias cqnote-init="cqnote --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'"
 # Install nvim configuration from scratch:
 # nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'
 # Separate nvim configs example:
 # alias cqnvim="nvim -u $XDG_CONFIG_HOME/cqnvim/init.lua"
+cq_nvim_create() {
+    local config_name=$1
+    local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nvim-configs"
+    local config_path="$config_dir/$config_name"
+    local template_file="${XDG_CONFIG_HOME:-$HOME/.config}/nvim-configs/init.lua.template"
+    if [ -z "$config_name" ]; then
+        echo "Usage: cq_nvim_create <config_name>"
+        return 1
+    fi
+    # Check if the template file exists
+    if [ ! -f "$template_file" ]; then
+        echo "Template file $template_file not found. Please create one."
+        return 1
+    fi
+    # Create the configuration directory
+    if [ -d "$config_path" ]; then
+        echo "Configuration $config_name already exists."
+        return 1
+    fi
+    mkdir -p "$config_path"/lua/user/plugins
+    echo "-- nvim options go here" >> "$config_path/lua/user/options.lua"
+    echo "-- plugins in this file or directory will be automatically loaded." >> "$config_path/lua/user/plugins/init.lua"
+    echo "return {}" >> "$config_path/lua/user/plugins/init.lua"
+    cp "$template_file" "$config_path/init.lua"
+    echo "Created Neovim configuration: $config_dir"
+    echo "Copied template to: $config_dir/init.lua"
+    # Print the zsh function to be added to .zshrc
+    echo "\nTo add this config, add the following function to your .zshrc:"
+    echo "-----------------------------------------------"
+    cat << EOF
+nvim_$config_name() {
+    NVIM_APPNAME="nvim-configs/$config_name" nvim "\$@"
+}
+EOF
+    echo "-----------------------------------------------"
+}
+
 #
+# k8s aliases and functions
+function cq_eks_drain_nodes() {
+  if [ "$#" -eq 0 ]; then
+    echo "Usage: terminate_nodes <node1> <node2> ... <nodeN>"
+    return 1
+  fi
+  for node in "$@"; do
+    echo "Processing node: $node"
+    # Cordon the node
+    echo "Cordoning node $node..."
+    kubectl cordon "$node"
+    if [ $? -ne 0 ]; then
+      echo "Failed to cordon node $node"
+      continue
+    fi
+    # Drain the node
+    echo "Draining node $node..."
+    kubectl drain "$node" --ignore-daemonsets --delete-emptydir-data --force
+    if [ $? -ne 0 ]; then
+      echo "Failed to drain node $node"
+      continue
+    fi
+    # Get the EC2 instance ID from the node's Kubernetes annotation
+    instance_id=$(kubectl get node "$node" -o jsonpath='{.spec.providerID}' | cut -d '/' -f5)
+    if [ -z "$instance_id" ]; then
+      echo "Failed to get EC2 instance ID for node $node"
+      continue
+    fi
+    # Terminate the EC2 instance
+    echo "Terminating EC2 instance $instance_id for node $node..."
+    aws ec2 terminate-instances --instance-ids "$instance_id"
+    if [ $? -ne 0 ]; then
+      echo "Failed to terminate EC2 instance $instance_id for node $node"
+      continue
+    fi
+    echo "Node $node successfully cordoned, drained, and EC2 instance $instance_id terminated."
+  done
+}
 ### ENDS: Aliases and functions ################################################
 
 ################################################################################

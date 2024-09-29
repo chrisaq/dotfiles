@@ -31,16 +31,25 @@ floating_modifier $mod
 ####
 include local.conf
 
-# start a $myTerm
-#set $myTerm tilix
-set $myTerm alacritty
-bindsym $mod+Return exec $myTerm
+set $myTerm kitty
+# bindsym $mod+Return exec $myTerm
+# no idea why "sh -c" is needed here only for kitty, not alacritty
+bindsym $mod+Return exec --no-startup-id sh -c '$myTerm'
+
 
 # kill focused window
 bindsym $mod+Shift+c kill
 
 # Screenshot
-bindsym Print exec --no-startup-id shutter -s
+#bindsym Print exec --no-startup-id shutter -s
+bindsym Print exec --no-startup-id maim "/home/$USER/Pictures/screenshot-$(date +'%Y%m%d_%H%M').png"
+bindsym $mod+Print exec --no-startup-id maim --window $(xdotool getactivewindow) "/home/$USER/Pictures/$(date)"
+bindsym Shift+Print exec --no-startup-id maim --select "/home/$USER/Pictures/$(date)"
+
+## Clipboard Screenshots
+bindsym Ctrl+Print exec --no-startup-id maim | xclip -selection clipboard -t image/png
+bindsym Ctrl+$mod+Print exec --no-startup-id maim --window $(xdotool getactivewindow) | xclip -selection clipboard -t image/png
+bindsym Ctrl+Shift+Print exec --no-startup-id maim --select | xclip -selection clipboard -t image/png
 
 # start program launcher
 #bindsym $mod+Shift+Return exec --no-startup-id "rofi -combi-modi window,drun -show combi -modi combi -matching fuzzy"
@@ -116,6 +125,7 @@ bindsym $mod+f fullscreen toggle
 
 # change container layout (stacked, tabbed, toggle split)
 bindsym $mod+s layout stacking
+bindsym $mod+t layout tabbed
 bindsym $mod+w layout tabbed
 bindsym $mod+e layout toggle split
 
@@ -141,10 +151,12 @@ bindcode $mod+Shift+61 move scratchpad
 # If there are multiple scratchpad windows, this command cycles through them.
 #bindsym $mod+minus scratchpad show
 bindcode $mod+61 scratchpad show
+# move scratchpad
+bindsym $mod+Shift+s move scratchpad
 
 # revive a disappeared scratchpad window after monitor has been disconnected
-# requires running from an empty workspace
-bindsym $mod+Home exec --no-startup-id $HOME/.local/bin/cq_i3_scratchpad_revival.sh
+bindsym $mod+Home scratchpad show, move position center
+# bindsym $mod+Home exec --no-startup-id $HOME/.local/bin/cq_i3_scratchpad_revival.sh
 
 #navigate workspaces next / previous
 bindsym $mod+Ctrl+Right workspace next
@@ -432,7 +444,7 @@ bindsym XF86AudioPrev exec playerctl previous
 ## Misc
 ##############################
 
-bindsym $mod+Shift+s   layout splitv;\
+bindsym $mod+Shift+w   layout splitv;\
                        move left;\
                        resize grow right 20 px or 20 ppt;\
                        split v;\

@@ -3,6 +3,7 @@
 -- ==========================================================
 local opt = vim.opt -- to set options
 local letg = vim.g
+local key_map = vim.keymap.set
 
 -- filetype detection using lua
 vim.g.do_filetype_lua = 1
@@ -30,8 +31,7 @@ opt.belloff = "all"                   -- don't bell
 opt.vb = false                          -- or blink
 opt.wildignore = "*.o,*.obj,.git,*.pyc" -- Ignore these files when completing
 opt.list = true
--- opt.listchars:append("space:⋅")
-opt.listchars:append("eol:↴")
+opt.listchars = { tab = '» ', trail = '·', nbsp = '␣', eol = '↴' }
 
 -- undo
 opt.undolevels=1000
@@ -52,7 +52,7 @@ opt.ruler = true                    -- show the cursor position all the time
 opt.colorcolumn = "88"              -- show a line at column 88 - match Black
 -- -- opt.nostartofline  = true           -- Avoid moving cursor to BOL when jumping around
 opt.virtualedit = "block"           -- Let cursor move past the last char in <C-v> mode
-opt.scrolloff=3                     -- Keep 3 context lines above and below the cursor
+opt.scrolloff=10                    -- Keep 10 context lines above and below the cursor
 opt.backspace = "indent,eol,start"  -- Allow backspacing over autoindent, EOL, and BOL
 opt.showmatch  = true               -- Briefly jump to a paren once it's balanced
 opt.wrap  = false                   -- don't wrap text
@@ -68,11 +68,13 @@ opt.shiftround  = true              -- rounds indent to a multiple of shiftwidth
 opt.foldmethod = "indent"           -- allow us to fold on indents
 opt.foldlevel = 99                  -- don't fold by default
 opt.hidden  = true                  -- allows buffers to be hidden when modified
-opt.timeoutlen = 800
+opt.timeoutlen = 300
 opt.nrformats = ""
 opt.encoding = "utf-8"
 -- -- visual replace
-opt.inccommand = "nosplit"
+opt.inccommand = "split" -- alternative to nosplit
+-- views can only be fully collapsed with the global statusline
+opt.laststatus = 3
 --
 -- vim.g.loaded_matchit = 1
 
@@ -107,5 +109,5 @@ au TextYankPost * silent! lua vim.highlight.on_yank({higroup="Visual", timeout=2
 augroup END
 ]]
 -- Move selected line/block of text in visual mode
-vim.keymap.set("v", "K", ":move '<-2<CR>gv=gv")
-vim.keymap.set("v", "J", ":move '>+1<CR>gv=gv")
+key_map("v", "K", ":move '<-2<CR>gv=gv", { noremap = true, silent = true, desc = 'Move up selected line/block of text in visual mode' })
+key_map("v", "J", ":move '>+1<CR>gv=gv", { noremap = true, silent = true, desc = 'Move down selected line/block of text in visual mode' })

@@ -1,5 +1,3 @@
-local key_map = vim.api.nvim_set_keymap
-
 require'nvim-treesitter.configs'.setup {
     -- ensure_installed can be "all" or a list of languages { "python", "javascript" }
     ensure_installed = {"python", "bash", "javascript", "clojure", "go"},

@@ -101,7 +101,10 @@ elif [ "$ext" = md ]; then
     if [ "$(command -v glow)" ]; then
         # Since glow is called inside a pipe where term characteristics can't be queried
         # we need to set the style ("dark") https://github.com/wofr06/lesspipe/issues/112
-        glow -s dark "$1"
+        glow -s $HOME/.config/glow/catppuccin-macchiato.json "$1"
+        # FORCE_COLOR=1 glow -p -s $HOME/.config/glow/catppuccin-macchiato.json "$1"
+        # glow -s dark "$1" --style=dark --pager=cat | less -R
+        # glow -s dark "$1"
     fi
 # https://github.com/wofr06/lesspipe/pull/117
 elif [ "$category" = text ]; then
