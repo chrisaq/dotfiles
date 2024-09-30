@@ -532,8 +532,9 @@ cq_with_env() {
 }
 # neovim / vim aliases
 # Notes: nvim instance - notes in vim, persistence and such
-alias cqnote="nvim -u $XDG_CONFIG_HOME/nvim-configs/cqnote/init.lua $HOME/Sync/Wiki/Tech/Tech/QuickNote.md"
-alias cqnote-init="cqnote --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'"
+cqnote() {
+    NVIM_APPNAME="nvim-configs/cqnote" nvim "$@" "$HOME/Sync/Wiki/Tech/Tech/QuickNote.md"
+}
 # Install nvim configuration from scratch:
 # nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'
 # Separate nvim configs example:

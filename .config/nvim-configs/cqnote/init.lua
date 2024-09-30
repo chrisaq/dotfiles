@@ -1,54 +1,46 @@
--- New nvim instance config
+local key_map = vim.api.nvim_set_keymap
 
--- only change the line below for new config
-local nv_name = 'cqnote'
-
-local nv_conf = '~/.config/nvim-configs/'
-local nv_data = '~/.local/share/nvim-configs/'
-
-vim.opt.runtimepath:remove(vim.fn.expand('~/.config/nvim'))
-vim.opt.packpath:remove(vim.fn.expand('~/.local/share/nvim/site'))
-
-vim.opt.runtimepath:append(vim.fn.expand(nv_conf..nv_name))
-vim.opt.packpath:append(vim.fn.expand(nv_data..nv_name..'/site'))
-
-local old_stdpath = vim.fn.stdpath
-vim.fn.stdpath = function(value)
-    if value == "data" then
-        -- return "your/modified/path"
-        return vim.fn.expand(nv_data..nv_name)
-    end
-    return old_stdpath(value)
-end
--- END: New nvim instance config
-
--- Auto install packer on new machines
-local ensure_packer = function()
-  local fn = vim.fn
-  -- local install_path = fn.stdpath('data')..'/site/pack/packer/start/packer.nvim'
-  local install_path = fn.expand(nv_data..nv_name..'/site/pack/packer/start/packer.nvim')
-  if fn.empty(fn.glob(install_path)) > 0 then
-    fn.system({'git', 'clone', '--depth', '1', 'https://github.com/wbthomason/packer.nvim', install_path})
-    vim.cmd [[packadd packer.nvim]]
-    return true
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not (vim.uv or vim.loop).fs_stat(lazypath) then
+  local lazyrepo = "https://github.com/folke/lazy.nvim.git"
+  local out = vim.fn.system({ "git", "clone", "--filter=blob:none", "--branch=stable", lazyrepo, lazypath })
+  if vim.v.shell_error ~= 0 then
+    vim.api.nvim_echo({
+      { "Failed to clone lazy.nvim:\n", "ErrorMsg" },
+      { out, "WarningMsg" },
+      { "\nPress any key to exit..." },
+    }, true, {})
+    vim.fn.getchar()
+    os.exit(1)
   end
-  return false
 end
+vim.opt.rtp:prepend(lazypath)
 
-local packer_bootstrap = ensure_packer()
+key_map("n", "<F1>", "<CMD>Lazy<CR>", { desc = "Lazy TUI" })
 
-return require('packer').startup(function(use)
-  use 'wbthomason/packer.nvim'
-  -- My plugins here
-  -- use 'foo1/bar1.nvim'
-  -- use 'foo2/bar2.nvim'
+require("user/options") -- 10ms
 
-  -- Automatically set up your configuration after cloning packer.nvim
-  -- Put this at the end after all plugins
-  if packer_bootstrap then
-    require('packer').sync()
-  end
-end)
-
--- require("core")
--- require("plugins")
+require('lazy').setup({
+--  'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
+  { import = 'user.plugins' },
+}, {
+  ui = {
+    -- If you are using a Nerd Font: set icons to an empty table which will use the
+    -- default lazy.nvim defined Nerd Font icons, otherwise define a unicode icons table
+    icons = vim.g.have_nerd_font and {} or {
+      cmd = '⌘',
+      config = '🛠',
+      event = '📅',
+      ft = '📂',
+      init = '⚙',
+      keys = '🗝',
+      plugin = '🔌',
+      runtime = '💻',
+      require = '🌙',
+      source = '📄',
+      start = '🚀',
+      task = '📌',
+      lazy = '💤 ',
+    },
+  },
+})

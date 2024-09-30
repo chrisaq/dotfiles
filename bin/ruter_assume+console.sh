@@ -1,1 +1,0 @@
-yaast/assume+console.sh
