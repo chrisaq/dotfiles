@@ -308,7 +308,7 @@ mode "resize" {
 # Autostart applications
 exec_always --no-startup-id $HOME/.config/polybar/launch.sh
 exec_always --no-startup-id dunst -config ~/.config/dunst/dunstrc
-exec --no-startup-id nm-applet
+# exec --no-startup-id nm-applet
 
 # Color palette used for the terminal ( ~/.Xresources file )
 # Colors are gathered based on the documentation:
