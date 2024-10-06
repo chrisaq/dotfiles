@@ -396,8 +396,11 @@ compdef _decrypt_and_run_completions decrypt_and_run
 ### Aliases and functions section
 # update shell to include recently created group(s)
 alias cq_groups_refresh="exec sudo su -l $USER"
-alias pwdcopy='pwd | tr -d "\r\n" |xclip -selection clipboard'
-alias copypwd="pwdcopy"
+# Watch clipboard status
+alias cq_clip_watch="watch -n 1 'echo \"PRIMARY (middle_mouse):\" && sselp && echo && \
+    echo \"Clipboard (ctrl-c/p):\" && cb && echo && echo && \
+    echo \"tmux-buffer:\" && tmux show-buffer && echo'"
+alias watchclip="xsel -o | xclip -selection clipboard -i"
 # prints 256 color palette
 256color() {
     for k in `seq 0 1`;do

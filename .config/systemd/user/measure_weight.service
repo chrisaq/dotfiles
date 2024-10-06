@@ -1,0 +1,14 @@
+[Unit]
+Description=Measure Weight Application
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Code/xiaomi-scale
+ExecStart=/bin/bash -c 'eval "$(direnv export bash)" && python3 MeasureWeight.py'
+Restart=on-failure
+Environment=PYTHONUNBUFFERED=1
+Environment=VIRTUAL_ENV_DISABLE_PROMPT=1
+
+[Install]
+WantedBy=default.target
