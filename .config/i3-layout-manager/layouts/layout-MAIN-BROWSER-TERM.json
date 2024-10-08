@@ -58,12 +58,12 @@
 							"y": 0
 						},
 						"marks": [],
-						"name": "Alacritty",
+						"name": "Kitty",
 						"percent": 1,
 						"swallows": [
 							{
-								"instance": "^Alacritty$",
-								"class": "^Alacritty$"
+								"instance": "^kitty$",
+								"class": "^kitty$"
 							}
 						],
 						"type": "con"
