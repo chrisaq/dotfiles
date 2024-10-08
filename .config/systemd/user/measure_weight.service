@@ -4,6 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
 WorkingDirectory=%h/Code/xiaomi-scale
 ExecStart=/bin/bash -c 'eval "$(direnv export bash)" && python3 MeasureWeight.py'
 Restart=on-failure
