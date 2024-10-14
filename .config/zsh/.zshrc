@@ -134,6 +134,10 @@ export ASDF_CONFIG_FILE="${XDG_CONFIG_HOME:-~./config}/asdf/asdfrc"
 alias tmux='TERM=xterm-256color tmux -f "$XDG_CONFIG_HOME"/tmux/tmux.conf'
 alias weechat='weechat -d "$XDG_CONFIG_HOME"/weechat'
 export CARGO_HOME="$XDG_DATA_HOME"/cargo
+# ansible almost-xdg
+export ANSIBLE_HOME="${XDG_CONFIG_HOME}/ansible"
+export ANSIBLE_CONFIG="${XDG_CONFIG_HOME}/ansible/ansible.cfg"
+export ANSIBLE_GALAXY_CACHE_DIR="${XDG_CACHE_HOME}/ansible/galaxy_cache"
 ### ENDS: XDG ##################################################################
 
 
@@ -535,14 +539,14 @@ cq_with_env() {
 }
 # neovim / vim aliases
 # Notes: nvim instance - notes in vim, persistence and such
-cqnote() {
+function cqnote() {
     NVIM_APPNAME="nvim-configs/cqnote" nvim "$@" "$HOME/Sync/Wiki/Tech/Tech/QuickNote.md"
 }
 # Install nvim configuration from scratch:
 # nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'
 # Separate nvim configs example:
 # alias cqnvim="nvim -u $XDG_CONFIG_HOME/cqnvim/init.lua"
-cq_nvim_create() {
+function cq_nvim_create() {
     local config_name=$1
     local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nvim-configs"
     local config_path="$config_dir/$config_name"
