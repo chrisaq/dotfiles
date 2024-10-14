@@ -2,8 +2,8 @@
 Description=Timer for DuckDNS domain updater for %i
 
 [Timer]
-OnBootSec=1min         # Start 1 minute after boot
-OnUnitActiveSec=5min   # Run every 5 minutes
+OnBootSec=1min
+OnUnitActiveSec=5min
 
 [Install]
 WantedBy=timers.target
