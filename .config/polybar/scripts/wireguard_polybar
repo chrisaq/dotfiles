@@ -6,11 +6,11 @@
 # https://github.com/polybar/polybar/wiki/Formatting#format-tags-inside-polybar-config
 green=#55aa55
 
-configs_path="/PATH/TO/CONF/FILES"
+configs_path="/etc/wireguard/"
 connected_interface=$(networkctl | grep -P "\d+ .* wireguard routable" -o | cut -d" " -f2)
 
 connect() {
-    selected_config=$(ls $configs_path/*.conf | xargs basename -a -s .conf | dmenu)
+    selected_config=$(sudo ls $configs_path/ | grep "conf$" | xargs basename -a -s .conf | rofi -dmenu)
     [[ $selected_config ]] && sudo wg-quick up "$configs_path"/"$selected_config".conf
 }
 

@@ -5,7 +5,10 @@
 #   if a tmux session is already created for the directory it attaches to it instead
 
 choose_directory() {
-    fd --base-directory $HOME -t d | fzf
+    # fd --base-directory $HOME -t d | fzf
+    # fd --base-directory $HOME --type d --exclude '.*' --search-path ~ --search-path ~/.config --search-path ~/.local -d 5 | fzf
+    # Not straight forward getting relative path and not hide a few select directories
+    fd --type d --exclude '.*' -d 5 --search-path $HOME --search-path $HOME/.config --search-path $HOME/.local | sed "s|^$HOME/||" | fzf
 }
 
 # Shorten relative path from $HOME to 3 directories to use as session name
@@ -67,3 +70,4 @@ else
     # ( exec </dev/tty; tmux attach-session -t "${session_name}" )
     tmux-open "${session_name}"
 fi
+
