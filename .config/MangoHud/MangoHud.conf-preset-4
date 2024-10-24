@@ -1,0 +1,19 @@
+# steam deck preset 4 (full)
+control=mangohud
+fsr_steam_sharpness=5
+nis_steam_sharpness=10
+full
+cpu_temp
+gpu_temp
+ram
+vram
+io_read
+io_write
+arch
+gpu_name
+cpu_power
+gpu_power
+wine
+frametime
+battery
+
