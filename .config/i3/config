@@ -341,23 +341,92 @@ set_from_resource $term_color13    color13
 set_from_resource $term_color14    color14
 set_from_resource $term_color15    color15
 
-# Theme colors
-# class                   border  backgr. text    indic.   child_border
-  client.focused          #556064 #556064 #80FFF9 #FDF6E3
-  client.focused_inactive #2F3D44 #2F3D44 #AD69AF #454948
-  client.unfocused        #2F3D44 #2F3D44 #AD69AF #454948
-  client.urgent           #CB4B16 #FDF6E3 #AD69AF #268BD2
-  client.placeholder      #000000 #0c0c0c #ffffff #000000
+# Theme colors macchiato from catppuccin (https://github.com/catppuccin/i3/)
+set $rosewater #f4dbd6
+set $flamingo #f0c6c6
+set $pink #f5bde6
+set $mauve #c6a0f6
+set $red #ed8796
+set $maroon #ee99a0
+set $peach #f5a97f
+set $yellow #eed49f
+set $green #a6da95
+set $teal #8bd5ca
+set $sky #91d7e3
+set $sapphire #7dc4e4
+set $blue #8aadf4
+set $lavender #b7bdf8
+set $text #cad3f5
+set $subtext1 #b8c0e0
+set $subtext0 #a5adcb
+set $overlay2 #939ab7
+set $overlay1 #8087a2
+set $overlay0 #6e738d
+set $surface2 #5b6078
+set $surface1 #494d64
+set $surface0 #363a4f
+set $base #24273a
+set $mantle #1e2030
+set $crust #181926
 
-  client.background       #2B2C2B
+#
+# # catppuccin mocchiato
+# # target                 title     bg    text   indicator  border
+# client.focused           $lavender $base $text  $rosewater $lavender
+# client.focused_inactive  $overlay0 $base $text  $rosewater $overlay0
+# client.unfocused         $overlay0 $base $text  $rosewater $overlay0
+# client.urgent            $peach    $base $peach $overlay0  $peach
+# client.placeholder       $overlay0 $base $text  $overlay0  $overlay0
+# client.background        $base
+#
+# bar (unused)
+# bar {
+#   colors {
+#     background         $base
+#     statusline         $text
+#     focused_statusline $text
+#     focused_separator  $base
+#
+#     # target           border bg        text
+#     focused_workspace  $base  $mauve    $crust
+#     active_workspace   $base  $surface2 $text
+#     inactive_workspace $base  $base     $text
+#     urgent_workspace   $base  $red      $crust
+#   }
+# }
+#
+
+### OLD, catppuccin'ing this gradually
+# class                   border  backgr. text    indic.   child_border
+ client.focused          $lavender #556064 #80FFF9 #FDF6E3 $lavender
+ # client.focused          #556064 #556064 #80FFF9 #FDF6E3
+ client.focused_inactive #2F3D44 #2F3D44 #AD69AF #454948
+ client.unfocused        #2F3D44 #2F3D44 #AD69AF #454948
+ client.urgent           #CB4B16 #FDF6E3 #AD69AF #268BD2
+ client.placeholder      #000000 #0c0c0c #ffffff #000000
+
+ client.background       #2B2C2B
+
+
+# i3 defaults
+# class                 border  backgr. text    indicator child_border
+# client.focused          #4c7899 #285577 #ffffff #2e9ef4   #285577
+# client.focused_inactive #333333 #5f676a #ffffff #484e50   #5f676a
+# client.unfocused        #333333 #222222 #888888 #292d2e   #222222
+# client.urgent           #2f343a #900000 #ffffff #900000   #900000
+# client.placeholder      #000000 #0c0c0c #ffffff #000000   #0c0c0c
+
+# client.background       #ffffff
+
+
 
 #############################
 ### settings for i3-gaps: ###
 #############################
 
 # Set inner/outer gaps
-gaps inner 10
-gaps outer -4
+gaps inner 5
+gaps outer -5
 
 # Additionally, you can issue commands with the following syntax. This is useful to bind keys to changing the gap size.
 # gaps inner|outer current|all set|plus|minus <px>
