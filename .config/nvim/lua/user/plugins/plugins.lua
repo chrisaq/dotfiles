@@ -292,6 +292,7 @@ return {
     "echasnovski/mini.nvim",
     config = function()
       require("mini.ai").setup()
+      require("mini.align").setup()
       require("mini.cursorword").setup()
       require("mini.extra").setup()
       require("mini.trailspace").setup({ only_in_normal_buffers = true })

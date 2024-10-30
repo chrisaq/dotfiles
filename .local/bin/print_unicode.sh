@@ -4,7 +4,7 @@
 
 pdir="$HOME/Sync/EmailAttachments/Emails" 
 open_pdf=evince 
-scriptloc="python3 $HOME/bin/txt2pdf.py"
+scriptloc="python3 $HOME/.local/bin/txt2pdf.py"
 date_str=`date +"%Y-%m-%d_T%H-%M-%S%Z"`
 
 # check to make sure that we're looking for txt2pdf in the right place 

@@ -144,9 +144,10 @@ export ANSIBLE_GALAXY_CACHE_DIR="${XDG_CACHE_HOME}/ansible/galaxy_cache"
 ################################################################################
 ### PATH section
 # set PATH so it includes user's private bin if it exists
-if [ -d "$HOME/bin" ] ; then
-    PATH="$HOME/bin:$PATH"
-fi
+# moved to .local/bin
+# if [ -d "$HOME/bin" ] ; then
+#     PATH="$HOME/bin:$PATH"
+# fi
 # XDG bin as well
 if [ -d "$HOME/.local/bin" ] ; then
     PATH="$HOME/.local/bin:$PATH"
@@ -461,7 +462,7 @@ alias cqmouseslow2='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" 
 alias cqmouseslow='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "Coordinate Transformation Matrix" 0.5 0 0 0 0.5 0 0 0 1'
 alias hiddenfiles='ls -d .*'
 alias cqhiddenfiles='ls -d .*'
-alias crypt-sync="${HOME}/bin/crypt-sync/crypt-sync.sh"
+alias crypt-sync="${HOME}/.local/bin/crypt-sync/crypt-sync.sh"
 alias pysu='sudo $(printenv VIRTUAL_ENV)/bin/python'
 alias pyvenvsu='sudo $(printenv VIRTUAL_ENV)/bin/python'
 alias pysu2='sudo $(printenv VIRTUAL_ENV)/bin/python2'
@@ -472,12 +473,9 @@ alias sysu='systemctl --user'
 alias josu='journalctl --user'
 alias t="task"
 # the () launches the command  in a subshell, not affecting CWD of shell running the alias.
-alias skraper='(cd ~/bin/Skraper && mono SkraperUI.exe)'
+alias skraper='(cd ~/.local/bin/Skraper && mono SkraperUI.exe)'
 alias i3_swap_1and2='i3-msg "rename workspace 1 to temporary; rename workspace 2 to 1; rename workspace temporary to 2"'
-alias spotify-ncspot='ncspot'
-alias spotify-spotube='spotube'
-alias spotify-tui='spt'
-alias spotify-psst='psst'
+alias spotify-tui='spotify_player'
 alias cq_snd_restart="systemctl --user restart pipewire pipewire-pulse wireplumber"
 alias tfinit='terraform init -backend-config=tf-init.conf'
 alias helm-completion='source <(helm completion zsh)'
@@ -697,6 +695,12 @@ znap source asdf-vm/asdf
 
 ################################################################################
 ### Override section - override keybindings and such from modules and tools above
+## Aliases
+alias ls="eza --group-directories-first --classify --git --icons"
+alias ll="ls -l"
+alias lsl="ls -l"
+alias lla="ls -la"
+alias lsla="ls -la"
 ## TMSTART
 # binding a shell script to a ctrl sequence needs a function to work
 tmstart() {

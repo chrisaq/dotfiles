@@ -18,7 +18,7 @@ while inotifywait --event modify --recursive ${DOCPATH} ; do
         echo "No pre script exists, continuing."
     fi
     ## MKDOCS BUILD
-    $HOME/bin/mkdocs-venv/bin/mkdocs build
+    $HOME/.local/bin/mkdocs-venv/bin/mkdocs build
     # execute script after mkdocs build if it exists
     if [[ -f "build-post.sh" ]]; then
         echo "Running post script."

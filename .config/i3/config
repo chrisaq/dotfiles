@@ -56,8 +56,8 @@ bindsym Ctrl+Shift+Print exec --no-startup-id maim --select | xclip -selection c
 bindsym $mod+space exec --no-startup-id "rofi -combi-modi drun,window,run -show combi -modi combi -matching fuzzy -display-combi ''"
 
 # gopass rofi
-bindsym $mod+p exec --no-startup-id /home/chrisq/bin/cqpass-typeout
-bindsym $mod+shift+p exec --no-startup-id /home/chrisq/bin/cqpass-browser-clip-userpass
+bindsym $mod+p exec --no-startup-id /home/chrisq/.local/bin/cqpass-typeout
+bindsym $mod+shift+p exec --no-startup-id /home/chrisq/.local/bin/cqpass-browser-clip-userpass
 
 # Start polkit
 exec --no-startup-id /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
