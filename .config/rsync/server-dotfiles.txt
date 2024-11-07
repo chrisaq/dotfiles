@@ -1,0 +1,17 @@
+# my user dotfiles that are used on the servers
+.ssh/
+.zshenv
+.config/bat/
+.config/env/
+.config/environment.d/
+.config/git/
+.config/gnupg/
+.config/nvim/
+.config/nvim-configs/
+.config/systemd/
+.config/tmux/
+.config/yazi/
+.config/zsh/
+.local/bin/
+.local/share/nvim-configs/
+

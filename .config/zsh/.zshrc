@@ -620,6 +620,26 @@ function cq_eks_drain_nodes() {
     echo "Node $node successfully cordoned, drained, and EC2 instance $instance_id terminated."
   done
 }
+cq_sync_dotfiles_to_server() {
+    local server=$1
+    local source_dir="$HOME"
+    local dest_user="chrisq"
+    local dest_path="/home/chrisq"
+    # Check if the server name is provided
+    if [[ -z "$server" ]]; then
+        echo "Usage: sync_dotfiles_to_server <server-name>"
+        return 1
+    fi
+    # Check if rsync-files.txt exists
+    local files_list="$HOME/.config/rsync/server-dotfiles.txt"
+    if [[ ! -f "$files_list" ]]; then
+        echo "Error: $files_list not found. Please create this file with the list of files to sync."
+        return 1
+    fi
+    # Run rsync using the files list
+    rsync -avz --delete --files-from=<(grep -v '^\s*#' "$files_list") "$source_dir/" "$dest_user@$server:$dest_path"
+    echo "Dotfiles synchronized successfully to $server"
+}
 ### ENDS: Aliases and functions ################################################
 
 ################################################################################
