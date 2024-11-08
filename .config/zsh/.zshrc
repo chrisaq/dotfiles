@@ -629,7 +629,34 @@ cq_sync_dotfiles_to_server() {
     local files_list_name="server-dotfiles.txt"
     # Check if the server name is provided
     if [[ -z "$server" ]]; then
-        echo "Usage: sync_dotfiles_to_server <server-name>"
+        echo "Usage: cq_sync_dotfiles_to_server <server-name>"
+        return 1
+    fi
+    # Check if rsync-files.txt exists
+    local files_path="$rsync_dir/$files_list_name"
+    if [[ ! -f "$files_path" ]]; then
+        echo "Error: $files_path not found. Please create this file with the list of files to sync."
+        return 1
+    fi
+    # Check if the exclusion file exists, same name as files list but with .exclude extension
+    local exclude_path="$files_path.exclude"
+    if [[ -f "$exclude_path" ]]; then
+        rsync -avz -r --delete --files-from=<(grep -v '^\s*#' "$files_path") --exclude-from="$exclude_path" "$source_dir/" "$dest_user@$server:$dest_path"
+    else
+        rsync -avz -r --delete --files-from=<(grep -v '^\s*#' "$files_path") "$source_dir/" "$dest_user@$server:$dest_path"
+    fi
+    echo "Dotfiles synchronized successfully to $server"
+}
+cq_sync_gpgssh() {
+    local server=$1
+    local source_dir="$HOME"
+    local dest_user="chrisq"
+    local dest_path="/home/chrisq"
+    local rsync_dir="$HOME/.config/rsync"
+    local files_list_name="gpgssh.txt"
+    # Check if the server name is provided
+    if [[ -z "$server" ]]; then
+        echo "Usage: cq_sync_gpgssh <server-name>"
         return 1
     fi
     # Check if rsync-files.txt exists
