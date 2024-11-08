@@ -1,0 +1,19 @@
+# Define the Python versions required by pyenv
+pyenv_python_versions:
+  - 3.12.7
+  - 3.13.0
+
+# Define directories and the specific Python version for each virtual environment
+python_projects:
+  - path: "/path/to/project1"
+    python_version: "3.8.12"
+    requirements: "/path/to/project1/requirements.txt"
+
+  - path: "/path/to/project2"
+    python_version: "3.9.7"
+    requirements: "/path/to/project2/requirements.txt"
+
+  - path: "/path/to/project3"
+    python_version: "3.10.4"
+    requirements: "/path/to/project3/requirements.txt"
+
