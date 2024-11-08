@@ -1,0 +1,47 @@
+---
+- name: Setup environment for mkdocs
+  hosts: localhost
+  vars:
+    python_version: "3.13.0"
+    project_path: "{{ lookup('env', 'HOME') }}/.local/bin/mkdocs-venv"
+    requirements: "{{ lookup('env', 'HOME') }}/.local/bin/requirements.txt"
+    pyenv_root: "{{ lookup('env', 'HOME') }}/.local/share/pyenv"
+
+  environment:
+    PYENV_ROOT: "{{ pyenv_root }}"
+    PATH: "{{ pyenv_root }}/bin:{{ ansible_env.PATH }}"
+
+  tasks:
+    - name: Install pyenv if not already installed
+      become: true
+      package:
+        name: pyenv
+        state: present
+
+    - name: Install direnv if not already installed
+      become: true
+      package:
+        name: direnv
+        state: present
+
+    - name: Ensure required Python version is installed with pyenv
+      shell: pyenv install -s {{ python_version }}
+      args:
+        executable: /bin/bash
+
+    - name: Enable direnv for the project path
+      command: direnv allow {{ project_path }}
+
+    - name: Activate .envrc environment in project directory
+      shell: |
+        direnv exec {{ project_path }} echo "Environment activated in {{ project_path }}"
+      args:
+        executable: /bin/bash
+
+    - name: Install dependencies for mkdocs
+      shell: |
+        pyenv activate $(basename {{ project_path }})_env
+        pip install -r {{ requirements }}
+      args:
+        executable: /bin/bash
+

@@ -1,0 +1,72 @@
+---
+- hosts: localhost
+  become: true
+  tasks:
+    - name: Install necessary packages (systemd-networkd, iwd, and systemd-resolved)
+      pacman:
+        name:
+          - systemd
+          - iwd
+        state: present
+
+    - name: Create network configuration for Wi-Fi interface (wlp* or wlan*)
+      ini_file:
+        path: /etc/systemd/network/25-wifi.network
+        section: "{{ item.section }}"
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      loop:
+        - { section: 'Match', option: 'Name', value: 'wl*' }
+        - { section: 'Network', option: 'DHCP', value: 'yes' }
+        - { section: 'Network', option: 'Metric', value: '200' }
+
+    - name: Enable and start systemd-networkd
+      systemd:
+        name: systemd-networkd
+        enabled: true
+        state: started
+
+    - name: Enable and start systemd-resolved
+      systemd:
+        name: systemd-resolved
+        enabled: true
+        state: started
+
+    - name: Symlink /etc/resolv.conf to systemd-resolved's stub resolver
+      file:
+        src: /run/systemd/resolve/stub-resolv.conf
+        dest: /etc/resolv.conf
+        state: link
+
+    - name: Configure systemd-resolved with custom DNS settings
+      ini_file:
+        path: /etc/systemd/resolved.conf
+        section: 'Resolve'
+        option: 'DNS'
+        value: '8.8.8.8'
+
+    - name: Configure fallback DNS
+      ini_file:
+        path: /etc/systemd/resolved.conf
+        section: 'Resolve'
+        option: 'FallbackDNS'
+        value: '1.1.1.1'
+
+    - name: Enable and start iwd (Wi-Fi daemon)
+      systemd:
+        name: iwd
+        enabled: true
+        state: started
+
+    - name: Configure iwd to NOT manage Wi-Fi, it lacks integration with systemd-resolved for dns per link etc.
+      ini_file:
+        path: /etc/iwd/main.conf
+        section: 'General'
+        option: 'EnableNetworkConfiguration'
+        value: 'false'
+
+    - name: Restart systemd-resolved to apply custom configuration
+      systemd:
+        name: systemd-resolved
+        state: restarted
+

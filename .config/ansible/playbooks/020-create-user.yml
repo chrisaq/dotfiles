@@ -1,0 +1,32 @@
+---
+- hosts: localhost
+  become: true
+  tasks:
+    - name: Ensure group 'chrisq' exists with GID 10000
+      group:
+        name: chrisq
+        gid: 10000
+        state: present
+
+    - name: Create user 'chrisq' with UID 10000, Zsh shell, and add to groups
+      user:
+        name: chrisq
+        uid: 10000
+        group: chrisq
+        groups: adm,rfkill,uucp,wheel,tty,usbmux,video,storage,input,disk,audio,chrisq,tfenv,vboxusers,vboxsf
+        append: yes
+        shell: /bin/zsh
+        state: present
+
+    - name: Set home directory permissions for user 'chrisq'
+      file:
+        path: /home/chrisq
+        owner: chrisq
+        group: chrisq
+        mode: '0755'
+        state: directory
+
+    - name: Set Zsh as the default shell for user 'chrisq'
+      shell: chsh -s /bin/zsh chrisq
+      when: ansible_user_id == 'root'
+

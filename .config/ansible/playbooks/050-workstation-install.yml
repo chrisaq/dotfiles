@@ -1,0 +1,21 @@
+---
+- hosts: localhost
+  become: true
+  tasks:
+    - name: Install essential cli software
+      pacman:
+        name:
+          - iwd
+          - dnsutils
+          - pipewire-pulse
+          - pipewire-alsa
+          - lib32-pipewire
+          - interception-tools
+          - interception-caps2esc
+          - lib32-mesa-utils
+          - wireplumber
+          - virtualbox
+          - virtualbox-host-dkms
+          - virtualbox-guest-iso
+          - virtualbox-guest-utils
+        state: present
