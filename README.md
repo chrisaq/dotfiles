@@ -30,11 +30,12 @@ cat <<EOF
 EOF > $HOME/.gitignore
 ```
 
-### init repo:
+### Initialize new dotfiles repo
 
 ```
 GITHUBUSER=yourusername
 dotfiles init
+# add some files, change those below to something you like to add
 dotfiles add -f $HOME/.bash_profile $HOME/.bashrc $HOME/.bash_aliases
 dotfiles commit -m 'Initial commit'
 dotfiles remote add origin git@github.com:${GITHUBUSER}/dotfiles.git
@@ -45,7 +46,7 @@ dotfiles push origin master
 ### WARNING: Will overwrite your files of the same name
 ```sh
 alias dotfiles="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles.git"
-git clone --bare https://github.com/${GITHUBUSER}/dotfiles.git ~/.dotfiles.git
+git clone --bare https://github.com/${GITHUBUSER}/dotfiles.git ~/.local/share/dotfiles.git
 dotfiles status -s -uno
 dotfiles reset HEAD
 dotfiles checkout ~

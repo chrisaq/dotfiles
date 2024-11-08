@@ -13,5 +13,6 @@
 .config/yazi/
 .config/zsh/
 .local/bin/
+.local/share/nvim/
 .local/share/nvim-configs/
-
+.local/share/tmux/
