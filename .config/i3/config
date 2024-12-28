@@ -59,6 +59,9 @@ bindsym $mod+space exec --no-startup-id "rofi -combi-modi drun,window,run -show 
 bindsym $mod+p exec --no-startup-id /home/chrisq/.local/bin/cqpass-typeout
 bindsym $mod+shift+p exec --no-startup-id /home/chrisq/.local/bin/cqpass-browser-clip-userpass
 
+# mdsearch
+bindsym $mod+m exec --no-startup-id ~/.local/bin/kitty_mdsearch.sh
+
 # Start polkit
 exec --no-startup-id /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
 
@@ -219,6 +222,7 @@ bindsym $mod+Shift+9 move container to workspace $ws9; workspace $ws9
 # assign [class="Pcmanfm"] $ws3
 
 # Open specific applications in floating mode
+for_window [class="floating-mdsearch"] floating enable, resize set 1000 800, move absolute position 1300 50
 for_window [title="alsamixer"] floating enable border pixel 1
 for_window [title="File Transfer*"] floating enable
 for_window [class="Galculator"] floating enable border pixel 1

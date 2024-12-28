@@ -102,6 +102,9 @@ elif [ "$ext" = md ]; then
         # Since glow is called inside a pipe where term characteristics can't be queried
         # we need to set the style ("dark") https://github.com/wofr06/lesspipe/issues/112
         glow -s $HOME/.config/glow/catppuccin-macchiato.json "$1"
+        #CLI_COLOR=1 COLORTERM=truecolor glow -s dark
+        # CLI_COLOR=1 glow -s dark
+        # COLORTERM=truecolor glow -s dark
         # FORCE_COLOR=1 glow -p -s $HOME/.config/glow/catppuccin-macchiato.json "$1"
         # glow -s dark "$1" --style=dark --pager=cat | less -R
         # glow -s dark "$1"

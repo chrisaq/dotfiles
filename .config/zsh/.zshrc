@@ -406,6 +406,78 @@ alias cq_clip_watch="watch -n 1 'echo \"PRIMARY (middle_mouse):\" && sselp && ec
     echo \"Clipboard (ctrl-c/p):\" && cb && echo && echo && \
     echo \"tmux-buffer:\" && tmux show-buffer && echo'"
 alias watchclip="xsel -o | xclip -selection clipboard -i"
+cq_tmux_split_dirs() {
+  # Check if inside a Tmux session
+  if [ -z "$TMUX" ]; then
+    echo "You are not in a Tmux session. Please start a Tmux session first."
+    return 1
+  fi
+  # Get the substring to filter directories (optional)
+  local substring="${1:-}"
+  # Get a list of directories matching the substring in the current directory
+  local dirs=()
+  while IFS= read -r dir; do
+    dirs+=("$dir")
+  done < <(find . -maxdepth 1 -type d -iname "*$substring*" ! -path "." | sort)
+  # Debug: Print the directories found
+  # echo "dirs: ${dirs[@]}"
+  # If no matching directories are found, exit
+  if [ ${#dirs[@]} -eq 0 ]; then
+    echo "No directories found matching '${substring}'."
+    return 1
+  fi
+  # Use the current pane for the first directory (1-based indexing in Zsh)
+  local first_dir="${dirs[1]}"
+  first_dir="${first_dir#./}" # Remove the "./" prefix from the directory name
+  # Debug: Print the first directory as raw and cleaned
+  # echo "Raw first directory: ${dirs[1]}"
+  # echo "Cleaned first directory: $first_dir"
+  if [ -n "$first_dir" ]; then
+    tmux send-keys "cd \"$first_dir\" && exec $SHELL" C-m
+  else
+    echo "Error: First directory is empty or invalid."
+    return 1
+  fi
+  # Remove the first directory from the list (adjust for 1-based indexing)
+  dirs=("${dirs[@]:1}")
+  # For each remaining directory, create a vertical split and cd into it
+  for dir in "${dirs[@]}"; do
+    dir="${dir#./}" # Remove the "./" prefix from the directory name
+    # Debug: Print the current directory being processed
+    # echo "Splitting for directory: $dir"
+    tmux split-window -v "cd \"$dir\" && exec $SHELL"
+    tmux select-layout even-horizontal
+  done
+}
+cq_tmux_split_dirs_add() {
+  # Check if inside a Tmux session
+  if [ -z "$TMUX" ]; then
+    echo "You are not in a Tmux session. Please start a Tmux session first."
+    return 1
+  fi
+  # Get the substring to filter directories (optional)
+  local substring="${1:-}"
+  # Get a list of directories matching the substring in the current directory
+  local dirs=($(find . -maxdepth 1 -type d -iname "*$substring*" ! -path . | sort))
+  # If no matching directories are found, exit
+  if [ ${#dirs[@]} -eq 0 ]; then
+    echo "No directories found matching '${substring}'."
+    return 1
+  fi
+  # For each directory, create a vertical split and cd into it
+  for dir in "${dirs[@]}"; do
+    tmux split-window -v "cd $dir && exec $SHELL"
+    tmux select-layout even-horizontal
+  done
+}
+mdsearch() {
+    local arg="${1:-""}"
+    CWD="$(pwd)"
+    cd $HOME/Sync/Wiki/Tech/Tech
+    # ugrep -Qrl --split --context=3 -t markdown --view="glow -p" -e "$arg"
+    ugrep -Qrl -%% -Z4 --split --context=3 -t markdown --no-confirm --view="glow -p" -e "$arg"
+    cd "$CWD"
+}
 # prints 256 color palette
 256color() {
     for k in `seq 0 1`;do
@@ -425,7 +497,17 @@ cq_sudo_append() {
     echo "$text" | sudo tee -a "$file" > /dev/null
 }
 # send command to all tmux sessions
-tmux_command_to_all() {
+cq_tmux_cmd_all() {
+  # Get the current session and window
+  local current_session current_window
+  current_session=$(tmux display-message -p '#S')  # Active session
+  current_window=$(tmux display-message -p '#I')  # Active window
+  # Iterate over all panes in the current window and send the command
+  for pane in $(tmux list-panes -t "$current_session:$current_window" -F '#P' | sort); do
+    tmux send-keys -t "$current_session:$current_window.$pane" "$*" C-m
+  done
+}
+cq_tmux_cmd_globally() {
     for session in `tmux list-sessions -F '#S'`; do
         for window in `tmux list-windows -t $session -F '#P' | sort`; do
             for pane in `tmux list-panes -t $session:$window -F '#P' | sort`; do
@@ -540,6 +622,12 @@ cq_with_env() {
 function cqnote() {
     NVIM_APPNAME="nvim-configs/cqnote" nvim "$@" "$HOME/Sync/Wiki/Tech/Tech/QuickNote.md"
 }
+function vim_zen() {
+    NVIM_APPNAME="nvim-configs/zen" nvim "$@"
+}
+function vim() {
+    nvim -u NONE -i NONE "$@"
+}
 # Install nvim configuration from scratch:
 # nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'
 # Separate nvim configs example:
@@ -574,14 +662,12 @@ function cq_nvim_create() {
     echo "\nTo add this config, add the following function to your .zshrc:"
     echo "-----------------------------------------------"
     cat << EOF
-nvim_$config_name() {
+function nvim_$config_name() {
     NVIM_APPNAME="nvim-configs/$config_name" nvim "\$@"
 }
 EOF
     echo "-----------------------------------------------"
 }
-
-#
 # k8s aliases and functions
 function cq_eks_drain_nodes() {
   if [ "$#" -eq 0 ]; then
@@ -618,6 +704,19 @@ function cq_eks_drain_nodes() {
       continue
     fi
     echo "Node $node successfully cordoned, drained, and EC2 instance $instance_id terminated."
+  done
+}
+cq_label_namespaces() {
+  if [[ $# -eq 0 ]]; then
+    echo "Usage: label_namespaces <namespace1> <namespace2> ..."
+    return 1
+  fi
+  for namespace in "$@"; do
+    echo "Labeling namespace: $namespace"
+    kubectl label ns "$namespace" goldilocks.fairwinds.com/enabled=true --overwrite
+    if [[ $? -ne 0 ]]; then
+      echo "Failed to label namespace: $namespace" >&2
+    fi
   done
 }
 cq_sync_dotfiles_to_server() {
