@@ -1,0 +1,136 @@
+---
+- hosts: localhost
+  become: true
+  vars_prompt:
+    - name: "wg_address"
+      prompt: "Enter the WireGuard IP address with CIDR (e.g., 10.100.0.7/16)"
+      private: false
+
+  vars:
+    wg_interface_all: "wg-full"
+    wg_interface_home: "wg-home"
+    wg_listen_port: 51820
+    wg_peer_endpoint: "web.kotelett.no:500"
+    wg_all_traffic_allowed_ips: "0.0.0.0/0"
+    wg_home_network_allowed_ips: "10.1.0.0/16"
+    wg_persistent_keepalive: 25  # Optional, set to keep NAT mappings open
+
+  tasks:
+    - name: Generate WireGuard private key
+      command: wg genkey
+      register: wg_private_key
+      changed_when: false
+
+    - name: Generate WireGuard public key
+      shell: echo "{{ wg_private_key.stdout }}" | wg pubkey
+      register: wg_public_key
+      changed_when: false
+
+    - name: Display generated private key (for debug, remove in production)
+      debug:
+        msg: "Generated private key: {{ wg_private_key.stdout }}"
+
+    - name: Display generated public key (for debug, remove in production)
+      debug:
+        msg: "Generated public key: {{ wg_public_key.stdout }}"
+
+    - name: Ensure .netdev file for all traffic exists
+      file:
+        path: /etc/systemd/network/12-{{ wg_interface_all }}.netdev
+        state: touch
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Create WireGuard .netdev file for all traffic
+      blockinfile:
+        path: /etc/systemd/network/12-{{ wg_interface_all }}.netdev
+        block: |
+          [NetDev]
+          Name={{ wg_interface_all }}
+          Kind=wireguard
+
+          [WireGuard]
+          PrivateKey={{ wg_private_key.stdout }}
+          ListenPort={{ wg_listen_port }}
+
+          [WireGuardPeer]
+          PublicKey=<PEER_PUBLIC_KEY>  # Replace with the actual public key of the peer
+          AllowedIPs={{ wg_all_traffic_allowed_ips }}
+          Endpoint={{ wg_peer_endpoint }}
+          PersistentKeepalive={{ wg_persistent_keepalive }}
+
+    - name: Ensure .netdev file for home network traffic exists
+      file:
+        path: /etc/systemd/network/11-{{ wg_interface_home }}.netdev
+        state: touch
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Create WireGuard .netdev file for home network traffic
+      blockinfile:
+        path: /etc/systemd/network/11-{{ wg_interface_home }}.netdev
+        block: |
+          [NetDev]
+          Name={{ wg_interface_home }}
+          Kind=wireguard
+
+          [WireGuard]
+          PrivateKey={{ wg_private_key.stdout }}
+          ListenPort={{ wg_listen_port }}
+
+          [WireGuardPeer]
+          PublicKey=<PEER_PUBLIC_KEY>  # Replace with the actual public key of the peer
+          AllowedIPs={{ wg_home_network_allowed_ips }}
+          Endpoint={{ wg_peer_endpoint }}
+          PersistentKeepalive={{ wg_persistent_keepalive }}
+
+    - name: Ensure .network file for all traffic exists
+      file:
+        path: /etc/systemd/network/12-{{ wg_interface_all }}.network
+        state: touch
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Create WireGuard .network file for all traffic
+      blockinfile:
+        path: /etc/systemd/network/12-{{ wg_interface_all }}.network
+        block: |
+          [Match]
+          Name={{ wg_interface_all }}
+
+          [Network]
+          Address={{ wg_address }}
+          DNS=10.1.1.1
+
+    - name: Ensure .network file for home network traffic exists
+      file:
+        path: /etc/systemd/network/11-{{ wg_interface_home }}.network
+        state: touch
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Create WireGuard .network file for home network traffic
+      blockinfile:
+        path: /etc/systemd/network/11-{{ wg_interface_home }}.network
+        block: |
+          [Match]
+          Name={{ wg_interface_home }}
+
+          [Network]
+          Address={{ wg_address }}
+          DNS=10.1.1.1
+
+    - name: Restart systemd-networkd to apply new configuration
+      systemd:
+        name: systemd-networkd
+        state: restarted
+
+    - name: Enable systemd-networkd service
+      systemd:
+        name: systemd-networkd
+        enabled: true
+
