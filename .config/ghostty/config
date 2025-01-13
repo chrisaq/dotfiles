@@ -1,0 +1,14 @@
+scrollback-limit = 10_000
+clipboard-read = allow
+clipboard-paste-protection = false
+window-decoration = false
+shell-integration = zsh
+window-decoration = false
+gtk-tabs-location = hidden
+window-padding-x = 0,0
+window-padding-y = 0,0
+theme = catppuccin-macchiato
+font-family = Hack Nerd Font
+font-family-bold = Hack Nerd Font Bold
+font-family-italic = Hack Nerd Font Italic
+font-family-bold-italic = Hack Nerd Font Bold Italic

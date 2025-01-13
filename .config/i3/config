@@ -31,7 +31,7 @@ floating_modifier $mod
 ####
 include local.conf
 
-set $myTerm kitty
+set $myTerm ghostty
 # bindsym $mod+Return exec $myTerm
 # no idea why "sh -c" is needed here only for kitty, not alacritty
 bindsym $mod+Return exec --no-startup-id sh -c '$myTerm'

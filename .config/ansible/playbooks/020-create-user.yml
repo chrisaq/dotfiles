@@ -13,7 +13,7 @@
         name: chrisq
         uid: 10000
         group: chrisq
-        groups: adm,rfkill,uucp,wheel,tty,usbmux,video,storage,input,disk,audio,chrisq,tfenv,vboxusers,vboxsf
+        groups: adm,rfkill,uucp,wheel,tty,video,storage,input,disk,audio,chrisq
         append: yes
         shell: /bin/zsh
         state: present

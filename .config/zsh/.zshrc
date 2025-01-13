@@ -668,6 +668,18 @@ function nvim_$config_name() {
 EOF
     echo "-----------------------------------------------"
 }
+function cq_rspamd() {
+    local domain_name=$1
+    if [ -z "$domain_name" ]; then
+        echo "Usage: cq_rspamd <domain_name>"
+        return 1
+    fi
+    ssh -f -N -L 11334:localhost:11334 "$domain_name"
+    xdg-open http://localhost:11334
+}
+function cq_rspamd_stop() {
+    pkill -f "ssh -f -N -L 11334:localhost:11334"
+}
 # k8s aliases and functions
 function cq_eks_drain_nodes() {
   if [ "$#" -eq 0 ]; then
