@@ -7,7 +7,7 @@ ConditionPathExists=%f
 Type=simple
 WorkingDirectory=%f
 #ExecStart=bash -c "echo %f >>/home/chrisq/temp/testfile"
-ExecStart=/home/chrisq/bin/mkdocs-build.sh "%f"
+ExecStart=%h/.local/bin/mkdocs-build.sh "%f"
 
 [Install]
 WantedBy=default.target

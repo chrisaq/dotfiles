@@ -124,6 +124,31 @@
           Address={{ wg_address }}
           DNS=10.1.1.1
 
+    - name: Add route for all traffic
+      blockinfile:
+        path: /etc/systemd/network/12-{{ wg_interface_all }}.network
+        block: |
+          [Route]
+          Destination={{ wg_all_traffic_allowed_ips }}
+          Gateway=
+          PreferredSource={{ wg_address | regex_replace('/.*', '') }}
+
+          [Route]
+          Destination=10.1.0.0/16
+          Gateway=
+          PreferredSource=10.100.0.7
+      insertafter: '[Network]'
+
+    - name: Add route for home network traffic
+      blockinfile:
+        path: /etc/systemd/network/11-{{ wg_interface_home }}.network
+        block: |
+          [Route]
+          Destination={{ wg_home_network_allowed_ips }}
+          Gateway=
+          PreferredSource={{ wg_address | regex_replace('/.*', '') }}
+      insertafter: '[Network]'
+
     - name: Restart systemd-networkd to apply new configuration
       systemd:
         name: systemd-networkd

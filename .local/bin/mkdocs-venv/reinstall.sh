@@ -1,5 +1,5 @@
 !/bin/bash
-cd $HOME/bin/mkdocs-venv
+cd $HOME/.local/bin/mkdocs-venv
 rm -rf bin include lib lib64
 python -m venv .
 source bin/activate
