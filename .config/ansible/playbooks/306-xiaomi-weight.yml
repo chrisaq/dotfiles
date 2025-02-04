@@ -1,0 +1,53 @@
+- name: Deploy Xiaomi Scale Service
+  hosts: localhost
+  become: true
+
+  tasks:
+    - name: Ensure target directory exists
+      file:
+        path: /home/chrisq/Code/xiaomi-scale
+        state: directory
+        owner: chrisq
+        group: chrisq
+        mode: '0755'
+
+    - name: Clone Xiaomi Scale repository
+      git:
+        repo: "https://github.com/chrisaq/xiaomi-scale.git"
+        dest: /home/chrisq/Code/xiaomi-scale
+        version: main
+        update: yes
+      become_user: chrisq
+
+    - name: Copy systemd service file
+      copy:
+        dest: /etc/systemd/system/measure_weight.service
+        content: |
+          [Unit]
+          Description=Measure Weight Application
+          After=network.target bluetooth.target
+
+          [Service]
+          Type=simple
+          User=chrisq
+          Group=chrisq
+          WorkingDirectory=/home/chrisq/Code/xiaomi-scale
+          ExecStart=/home/chrisq/Code/xiaomi-scale/run_measure_weight.sh
+          Restart=on-failure
+          Environment=PYTHONUNBUFFERED=1
+          Environment=VIRTUAL_ENV_DISABLE_PROMPT=1
+          AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd to recognize new service
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start the Xiaomi Scale service
+      systemd:
+        name: measure_weight
+        enabled: yes
+        state: started
+
