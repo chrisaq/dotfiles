@@ -15,7 +15,7 @@
       git:
         repo: "https://github.com/chrisaq/xiaomi-scale.git"
         dest: /home/chrisq/Code/xiaomi-scale
-        version: main
+        version: master
         update: yes
       become_user: chrisq
 
