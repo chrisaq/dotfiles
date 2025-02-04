@@ -27,14 +27,15 @@
         group: chrisq
         mode: '0755'
 
-    - name: Copy run_measure_weight.sh to ~/.local/bin/
-      copy:
-        src: /home/chrisq/Code/xiaomi-scale/run_measure_weight.sh
-        dest: /home/chrisq/.local/bin/run_measure_weight.sh
-        owner: chrisq
-        group: chrisq
+    - name: Move run_measure_weight.sh to ~/.local/bin/
+      command: mv /home/chrisq/Code/xiaomi-scale/run_measure_weight.sh /home/chrisq/.local/bin/run_measure_weight.sh
+      args:
+        creates: /home/chrisq/.local/bin/run_measure_weight.sh
+
+    - name: Ensure run_measure_weight.sh is executable
+      file:
+        path: /home/chrisq/.local/bin/run_measure_weight.sh
         mode: '0755'
-      remote_src: yes
 
     - name: Copy systemd service file
       copy:
