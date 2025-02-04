@@ -31,5 +31,5 @@ PYTHON_BIN="$VENV_DIR/bin/python"
 
 # Run the script as root, explicitly passing the environment
 echo "🚀 Running MeasureWeight.py as root..."
-sudo env "PATH=$VENV_DIR/bin:$PATH" "$PYTHON_BIN" MeasureWeight.py
-
+# sudo env "PATH=$VENV_DIR/bin:$PATH" "$PYTHON_BIN" MeasureWeight.py
+sudo bash -c "source $VENV_DIR/bin/activate && python Xiaomi_Scale.py"
