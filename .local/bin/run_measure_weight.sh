@@ -26,10 +26,10 @@ else
     [ -f "$REQUIREMENTS_FILE" ] && pip install -r "$REQUIREMENTS_FILE"
 fi
 
-# Activate the virtual environment
-source "$VENV_DIR/bin/activate"
+# Ensure the correct Python binary is used
+PYTHON_BIN="$VENV_DIR/bin/python"
 
-# Run the script as root
+# Run the script as root, explicitly passing the environment
 echo "🚀 Running MeasureWeight.py as root..."
-sudo "$VENV_DIR/bin/python" MeasureWeight.py
+sudo env "PATH=$VENV_DIR/bin:$PATH" "$PYTHON_BIN" MeasureWeight.py
 
