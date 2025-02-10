@@ -1,0 +1,33 @@
+- name: Install and Configure Ollama
+  hosts: localhost
+  become: true
+
+  tasks:
+    - name: Ensure Ollama package is installed (Arch Linux)
+      pacman:
+        name: ollama
+        state: present
+
+    - name: Ensure systemd override directory exists
+      file:
+        path: /etc/systemd/system/ollama.service.d
+        state: directory
+        mode: '0755'
+
+    - name: Create systemd override file for ollama.service
+      copy:
+        dest: /etc/systemd/system/ollama.service.d/override.conf
+        content: |
+          [Service]
+          Environment="OLLAMA_HOST=0.0.0.0:11434"
+        mode: '0644'
+
+    - name: Reload systemd to apply changes
+      command: systemctl daemon-reload
+
+    - name: Enable and start Ollama service
+      systemd:
+        name: ollama.service
+        enabled: yes
+        state: restarted
+
