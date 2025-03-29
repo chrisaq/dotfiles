@@ -31,6 +31,14 @@ floating_modifier $mod
 ####
 include local.conf
 
+# Idle screen lock after 10 minutes (600 seconds)
+exec --no-startup-id xset s 600
+exec --no-startup-id xset s noblank
+exec --no-startup-id xset -dpms
+
+# Lock the screen using i3lock after idle timeout (black screen)
+exec --no-startup-id xss-lock -- i3lock -n -c 000000
+
 set $myTerm ghostty
 # bindsym $mod+Return exec $myTerm
 # no idea why "sh -c" is needed here only for kitty, not alacritty
@@ -247,7 +255,8 @@ bindsym $mod+Shift+r restart
 bindsym $mod+0 mode "$mode_system"
 set $mode_system (l)ock, (e)xit, (s)uspend, (r)eboot, (Shift+s)hutdown -|- (k)b_reload, screens: (w)ork-(h)dmi (n)one -|- (d)ebug
 mode "$mode_system" {
-    bindsym l exec --no-startup-id i3exit lock, mode "default"
+    # bindsym l exec --no-startup-id i3exit lock, mode "default"
+    bindsym l exec --no-startup-id i3lock -n -c 000000, mode "default"
     # bindsym s exec --no-startup-id i3exit suspend, mode "default"
     bindsym s exec --no-startup-id systemctl suspend ; mode "default"
     # bindsym u exec --no-startup-id i3exit switch_user, mode "default"

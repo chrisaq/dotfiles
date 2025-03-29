@@ -785,6 +785,7 @@ cq_sync_gpgssh() {
     fi
     echo "Dotfiles synchronized successfully to $server"
 }
+alias cq_soud_restart='systemctl --user restart pipewire-pulse pipewire wireplumber'
 ### ENDS: Aliases and functions ################################################
 
 ################################################################################

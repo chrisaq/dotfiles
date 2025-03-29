@@ -68,7 +68,6 @@
           - git-delta
           - lazygit
           - prettier
-          - pyenv
           - python-uv
           - podman
           - openbsd-netcat

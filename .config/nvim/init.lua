@@ -21,11 +21,11 @@ key_map("n", "<F1>", "<CMD>Lazy<CR>", { desc = "Lazy TUI" })
 require("user/core")
 require("user/core_maps")
 
--- require("lazy")
--- require("lazy").setup("plugins")
--- require("lazy").setup({ { import = "user.plugins" }, })
+-- vim.env.GIT_SSH_COMMAND = "ssh -i $HOME/.ssh/local_ed25519 -o IdentitiesOnly=yes"
 require("lazy").setup(
   {
+    -- yubikey: Only update one plugin at a time
+    concurrency = 1, -- doesn't seem to be working, updates hang.
     { import = "user.plugins" },
     { import = "user.plugins.lsp" },
     performance = {
@@ -43,6 +43,10 @@ require("lazy").setup(
         },
       },
     },
+  }, {
+    git = {
+      url_format = "https://github.com/%s.git",
+    }
   }
 )
 

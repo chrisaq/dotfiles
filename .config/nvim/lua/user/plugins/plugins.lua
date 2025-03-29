@@ -545,6 +545,10 @@ return {
     end,
   },
   {
+    "sphamba/smear-cursor.nvim",
+    opts = {},
+  },
+  {
     "Pocco81/true-zen.nvim",
     config = function()
       require("true-zen").setup({

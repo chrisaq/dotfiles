@@ -1,21 +1,20 @@
 ---
-- name: Setup environment for mkdocs
+- name: Setup environment for mkdocs using uv
   hosts: localhost
   vars:
-    python_version: "3.13.0"
     project_path: "{{ lookup('env', 'HOME') }}/.local/bin/mkdocs-venv"
-    requirements: "{{ lookup('env', 'HOME') }}/.local/bin/requirements.txt"
-    pyenv_root: "{{ lookup('env', 'HOME') }}/.local/share/pyenv"
-
-  environment:
-    PYENV_ROOT: "{{ pyenv_root }}"
-    PATH: "{{ pyenv_root }}/bin:{{ ansible_env.PATH }}"
 
   tasks:
-    - name: Install pyenv if not already installed
+    - name: Ensure uv is installed (via pipx)
+      become: true
+      pip:
+        name: uv
+        executable: pip3
+
+    - name: Install python-uv if not already installed
       become: true
       package:
-        name: pyenv
+        name: python-uv
         state: present
 
     - name: Install direnv if not already installed
@@ -24,24 +23,16 @@
         name: direnv
         state: present
 
-    - name: Ensure required Python version is installed with pyenv
-      shell: pyenv install -s {{ python_version }}
-      args:
-        executable: /bin/bash
+    - name: Create project directory
+      file:
+        path: "{{ project_path }}"
+        state: directory
+        mode: "0755"
 
-    - name: Enable direnv for the project path
-      command: direnv allow {{ project_path }}
-
-    - name: Activate .envrc environment in project directory
+    - name: Install mkdocs dependencies with uv
       shell: |
-        direnv exec {{ project_path }} echo "Environment activated in {{ project_path }}"
-      args:
-        executable: /bin/bash
-
-    - name: Install dependencies for mkdocs
-      shell: |
-        pyenv activate $(basename {{ project_path }})_env
-        pip install -r {{ requirements }}
+        cd {{ project_path }}
+        uv pip install .
       args:
         executable: /bin/bash
 

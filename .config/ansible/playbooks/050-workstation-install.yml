@@ -7,6 +7,7 @@
         name:
           - iwd
           - dnsutils
+          - xss-lock
           - pipewire-pulse
           - pipewire-alsa
           - lib32-pipewire

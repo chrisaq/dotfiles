@@ -2,9 +2,8 @@
 
 ```
 cd $HOME/bin/mkdocs-venv
-python -m venv .
-source bin/activate
-pip install -r requirements.txt
+uv venv
+uv pip install .
 
 # Enable repos
 sysu enable mkdocs-build@home-chrisq-Sync-Wiki-Tech.service --now
