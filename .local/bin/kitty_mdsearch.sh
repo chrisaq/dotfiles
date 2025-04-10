@@ -11,5 +11,7 @@ arg=''
 # fi
 #
 # Run Kitty in a new floating window, calling the Zsh function
-kitty --class "floating-mdsearch" -- zsh -c "$HOME/.local/bin/mdsearch.sh '$arg'"
+# kitty --class "floating-mdsearch" -- zsh -c "$HOME/.local/bin/mdsearch.sh '$arg'"
+export EDITOR=nvim
+kitty --class "floating-mdsearch" --start-as normal --detach ~/.local/bin/mdsearch.sh
 

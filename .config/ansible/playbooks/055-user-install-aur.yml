@@ -102,3 +102,4 @@
         - clipboard-bin
         - iwes-bin
         - mdtt-bin
+        - luajit-tiktoken-bin

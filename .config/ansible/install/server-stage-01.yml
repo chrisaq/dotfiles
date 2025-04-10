@@ -1,0 +1,11 @@
+---
+# install/server-stage-01.yml
+
+- name: Run common setup tasks
+  import_playbook: ../playbooks/005-install-basics.yml
+
+- name: Create user
+  import_playbook: ../playbooks/020-create-user.yml
+
+- name: Wired network configuration
+  import_playbook: ../playbooks/011-network-wired-static.yml

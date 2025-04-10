@@ -1,0 +1,12 @@
+---
+# install/workstation-stage-03.yml
+# Self hosted apps etc
+
+- name: MKDocs
+  import_playbook: ../playbooks/305-mkdocs-setup.yml
+
+- name: Xiaomi Weight
+  import_playbook: ../playbooks/306-xiaomi-weight.yml
+
+- name: Ollama
+  import_playbook: ../playbooks/307-ollama.yml

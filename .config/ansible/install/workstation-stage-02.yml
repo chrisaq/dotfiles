@@ -1,0 +1,22 @@
+---
+# install/workstation-stage-02.yml
+
+- name: Common workstation packages
+  import_playbook: ../playbooks/050-workstation-install.yml
+
+- name: AUR for workstation
+  import_playbook: ../playbooks/055-user-install-aur.yml
+
+- name: Wireguard configuration
+  import_playbook: ../playbooks/100-wireguard.yml
+
+# 050-workstation-install.yml
+# 055-user-install-aur.yml
+# 100-wireguard.yml
+# 100-wireguard.yml-old
+# 100-wireguard.yml-old2
+# 100-wireguard.yml-old3
+# 305-mkdocs-setup.yml
+# 306-xiaomi-weight.yml
+# 307-ollama.yml
+# 3

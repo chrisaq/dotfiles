@@ -25,6 +25,14 @@ return {
       local luasnip = require("luasnip")
       require("luasnip.loaders.from_vscode").lazy_load()
       cmp.setup {
+        -- enable only if characters on line, not only whitespace
+        -- enabled = function()
+        --   local line = vim.api.nvim_get_current_line()
+        --   local col = vim.fn.col('.')
+        --   local before_cursor = string.sub(line, 1, col - 1)
+        --   -- disable if only whitespace before cursor
+        --   return not before_cursor:match("^%s*$")
+        -- end,
         experimental = {
           ghost_text = true,
         },
@@ -97,6 +105,7 @@ return {
         }),
         sources = {
           { name = "nvim_lsp" },
+          { name = "copilot"},
           { name = "supermaven" },
           { name = "codeium" },
           { name = "luasnip" },

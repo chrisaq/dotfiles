@@ -1,5 +1,3 @@
-local key_map = vim.api.nvim_set_keymap
-
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not (vim.uv or vim.loop).fs_stat(lazypath) then
   local lazyrepo = "https://github.com/folke/lazy.nvim.git"
@@ -16,7 +14,7 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
-key_map("n", "<F1>", "<CMD>Lazy<CR>", { desc = "Lazy TUI" })
+vim.keymap.set("n", "<F1>", "<CMD>Lazy<CR>", { desc = "Lazy TUI" })
 
 require("user/core")
 require("user/core_maps")
@@ -25,28 +23,28 @@ require("user/core_maps")
 require("lazy").setup(
   {
     -- yubikey: Only update one plugin at a time
-    concurrency = 1, -- doesn't seem to be working, updates hang.
+    -- concurrency = 1, -- doesn't seem to be working, updates hang.
     { import = "user.plugins" },
     { import = "user.plugins.lsp" },
-    performance = {
-      rtp = {
-        -- disable some rtp plugins
-        disabled_plugins = {
-          "gzip",
-          -- "matchit",
-          -- "matchparen",
-          -- "netrwPlugin",
-          "tarPlugin",
-          "tohtml",
-          "tutor",
-          "zipPlugin",
-        },
-      },
-    },
   }, {
     git = {
       url_format = "https://github.com/%s.git",
-    }
+    },
+    -- performance = {
+    --   rtp = {
+    --     -- disable some rtp plugins
+    --     disabled_plugins = {
+    --       "gzip",
+    --       -- "matchit",
+    --       -- "matchparen",
+    --       -- "netrwPlugin",
+    --       "tarPlugin",
+    --       "tohtml",
+    --       "tutor",
+    --       "zipPlugin",
+    --     },
+    --   },
+    -- },
   }
 )
 

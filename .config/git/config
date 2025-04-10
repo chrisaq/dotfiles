@@ -176,6 +176,7 @@
 
 [diff]
 
+    external = difft
     # Detect copies as well as renames
     renames = copies
     #colorMoved = zebra
@@ -272,6 +273,18 @@
     repo = /home/chrisq/.config/zsh/zsh-history-substring-search
     repo = /home/chrisq/.config/zsh/zsh-snap
     repo = /home/chrisq/.config/zsh/zsh-you-should-use
+	repo = /home/chrisq/.config/zsh/Aloxaf/fzf-tab
+	repo = /home/chrisq/.config/zsh/asdf-vm/asdf
+	repo = /home/chrisq/.config/zsh/chrisaq/zsh-abbrev-alias
+	repo = /home/chrisq/.config/zsh/Freed-Wu/fzf-tab-source
+	repo = /home/chrisq/.config/zsh/junegunn/fzf
+	repo = /home/chrisq/.config/zsh/MichaelAquilina/zsh-you-should-use
+	repo = /home/chrisq/.config/zsh/ohmyzsh/ohmyzsh
+	repo = /home/chrisq/.config/zsh/romkatv/powerlevel10k
+	repo = /home/chrisq/.config/zsh/trapd00r/LS_COLORS
+	repo = /home/chrisq/.config/zsh/zdharma-continuum/fast-syntax-highlighting
+	repo = /home/chrisq/.config/zsh/zsh-users/zsh-autosuggestions
+	repo = /home/chrisq/.config/zsh/zsh-users/zsh-completions
 [interactive]
     diffFilter = delta --color-only
 [delta]

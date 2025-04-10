@@ -1,0 +1,27 @@
+---
+# install/workstation-stage-01.yml
+
+- name: Run common setup tasks
+  import_playbook: ../playbooks/005-install-basics.yml
+
+- name: Wired network DHCP configuration
+  import_playbook: ../playbooks/010-network-wired-dhcp.yml
+
+- name: WIFI network DHCP configuration
+  import_playbook: ../playbooks/015-network-wifi.yml
+
+# 005-install-basics.yml
+# 010-network-wired-dhcp.yml
+# 011-network-wired-static.yml
+# 015-network-wifi.yml
+# 020-create-user.yml
+# 050-workstation-install.yml
+# 055-user-install-aur.yml
+# 100-wireguard.yml
+# 100-wireguard.yml-old
+# 100-wireguard.yml-old2
+# 100-wireguard.yml-old3
+# 305-mkdocs-setup.yml
+# 306-xiaomi-weight.yml
+# 307-ollama.yml
+# 3

@@ -116,17 +116,6 @@ export KUBECONFIG="$XDG_CONFIG_HOME"/kube/config
 if [[ ! -d "$XDG_CONFIG_HOME"/kube ]]; then
     mkdir -p "$XDG_CONFIG_HOME"/kube
 fi
-if [[ ! -d "$XDG_DATA_HOME"/pyenv ]]; then
-    mkdir -p "$XDG_DATA_HOME"/pyenv
-fi
-export PYENV_ROOT="${XDG_DATA_HOME}/pyenv"
-# disable shared library build for pyenv
-export PYTHON_CONFIGURE_OPTS="--disable-shared"
-export PYTHONSTARTUP="$XDG_CONFIG_HOME"/python/pythonrc
-# asdf config location
-export ASDF_DATA_DIR="${XDG_DATA_HOME:-~./local/share}/asdf"
-export ASDF_CONFIG_FILE="${XDG_CONFIG_HOME:-~./config}/asdf/asdfrc"
-# export ASDF_DIR="${XDG_CONFIG_HOME}/asdf/"
 # TODO: temp disable
 #export AWS_SHARED_CREDENTIALS_FILE="$XDG_CONFIG_HOME"/aws/credentials
 #export AWS_CONFIG_FILE="$XDG_CONFIG_HOME"/aws/config
@@ -152,6 +141,10 @@ export ANSIBLE_GALAXY_CACHE_DIR="${XDG_CACHE_HOME}/ansible/galaxy_cache"
 if [ -d "$HOME/.local/bin" ] ; then
     PATH="$HOME/.local/bin:$PATH"
 fi
+# rust/cargo bin
+if [ -d "$HOME/.local/share/cargo/bin" ] ; then
+    PATH="$HOME/.local/share/cargo/bin:$PATH"
+fi
 # flatpack
 if [ -d "/var/lib/flatpak/exports/bin" ] ; then
     PATH="$PATH:/var/lib/flatpak/exports/bin"
@@ -171,12 +164,6 @@ fi
 # direnv
 if command -v direnv >/dev/null 2>&1; then
     eval "$(direnv hook zsh)"
-fi
-# pyenv / pipx
-if command -v pyenv >/dev/null 2>&1; then
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    eval "$(pyenv init -)"
-    export PIPX_DEFAULT_PYTHON=$(which python)
 fi
 # NODEJS version manager
 [[ -f /usr/share/nvm/init-nvm.sh ]] && source /usr/share/nvm/init-nvm.sh
@@ -310,6 +297,16 @@ bindkey '^[[B' history-beginning-search-forward
 # Bind arrow keys in normal mode
 bindkey -M vicmd '^[[A' history-beginning-search-backward
 bindkey -M vicmd '^[[B' history-beginning-search-forward
+# Fix backspace in insert mode
+# https://superuser.com/questions/476532/how-can-i-make-zshs-vi-mode-behave-more-like-bashs-vi-mode/533685
+bindkey "^?" backward-delete-char
+vi-search-fix() {
+    zle vi-cmd-mode
+    zle .vi-history-search-backward
+}
+autoload vi-search-fix
+zle -N vi-search-fix
+bindkey -M viins '\e/' vi-search-fix
 # emacs mode
 # bindkey -e
 export EDITOR=nvim
@@ -837,7 +834,7 @@ znap source fzf-tab-source
 znap source ohmyzsh/ohmyzsh lib/{git,theme-and-appearance,completion}
 znap source zsh-you-should-use
 znap source zsh-abbrev-alias
-znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,git,nmap,pip,pyenv,python,sudo,systemd,taskwarrior,terraform}
+znap source ohmyzsh/ohmyzsh plugins/{aws,direnv,docker-compose,fabric,git,nmap,pip,python,sudo,systemd,taskwarrior,terraform}
 # znap source ohmyzsh/ohmyzsh plugins/{globalias} # automatically expand aliases
 if command -v kubectl >/dev/null 2>&1; then
     znap fpath _kubectl 'kubectl completion zsh'
@@ -854,7 +851,6 @@ ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=cyan,bg=bold,underline"
 znap source zsh-autosuggestions
 # znap source zsh-history-substring-search
 znap source zsh-completions
-znap source asdf-vm/asdf
 # ENDS: breaks when higher up for whatever reason
 ### ENDS: zsh-snap #############################################################
 

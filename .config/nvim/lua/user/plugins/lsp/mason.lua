@@ -37,7 +37,7 @@ return {
         "html",
         "jsonls", -- language servers
         "jsonnet_ls",
-        "zk@v0.10.1",
+        -- "zk@v0.10.1",
         "taplo",
         "terraformls",
         "tflint",
