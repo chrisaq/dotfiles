@@ -116,6 +116,8 @@ export KUBECONFIG="$XDG_CONFIG_HOME"/kube/config
 if [[ ! -d "$XDG_CONFIG_HOME"/kube ]]; then
     mkdir -p "$XDG_CONFIG_HOME"/kube
 fi
+export KREW_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/krew"
+export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 # TODO: temp disable
 #export AWS_SHARED_CREDENTIALS_FILE="$XDG_CONFIG_HOME"/aws/credentials
 #export AWS_CONFIG_FILE="$XDG_CONFIG_HOME"/aws/config
@@ -161,6 +163,16 @@ fi
 if command -v ruby >/dev/null 2>&1 && command -v gem >/dev/null 2>&1; then
     PATH="$(ruby -r rubygems -e 'puts Gem.user_dir')/bin:$PATH"
 fi
+# initialize b-scrips when starting a shell session
+export BRING_DIR="$HOME/Code/Bring/b-scripts/bin"
+if [[ -d "$BRING_DIR" && -x $BRING_DIR/b-scripts/bin/b ]]; then
+    eval "$($BRING_DIR/b-scripts/bin/b init -)"
+fi
+export POSTEN_SLACK_USERNAME="chris.qvigstad@bring.com"
+if [ -d "$HOME/Code/Bring/b-scripts/bin" ] ; then
+    PATH="$PATH:$HOME/Code/Bring/b-scripts/bin"
+fi
+# posten path
 # direnv
 if command -v direnv >/dev/null 2>&1; then
     eval "$(direnv hook zsh)"

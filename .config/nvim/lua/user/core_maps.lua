@@ -4,7 +4,10 @@ vim.g.mapleader = " "
 -- Mappings for core nvim
 local key_map = vim.keymap.set
 local cmd = vim.cmd
---
+
+-- use system clipboard for copy/paste
+vim.opt.clipboard = "unnamedplus"
+
 -- inc/dec numbers right of cursor using -/+
 -- currently - is used by oil
 -- key_map("n", "+", "<C-a>", { noremap = true, silent = true })

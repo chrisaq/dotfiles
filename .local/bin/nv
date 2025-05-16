@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Script to simplify launching Neovim with a different configurations
+# Create a symlink to this script in your PATH and it will create a neovim config with that name
+# given that you have a template-init.lua in your XDG_CONFIG_HOME/nvim-configs directory
+exe=/usr/bin/nvim
+cmd=$(basename "$0")
+nvbase="${XDG_CONFIG_HOME}/nvim-configs" # base
+nvconfig="${nvbase}/${cmd}"
+
+if [[ ! -f "${nvconfig}/init.lua" ]]; then
+    echo "Config in '${nvconfig}' does not exist."
+    read -r -p "Do you want to create it? (y/n) " reply
+    if [[ "${reply,,}" =~ ^y(es)?$ ]]; then
+        echo "Creating config file..."
+        mkdir -p "${nvconfig}"
+        cp "${XDG_CONFIG_HOME}/nvim-configs/template-init.lua" "${nvconfig}/init.lua"
+    fi
+fi
+
+if [[ $cmd != nvim ]]; then
+  export NVIM_APPNAME="nvim-configs/${cmd}"      # e.g. "lazyvim", "kickstart"
+fi
+
+exec "$exe" "$@"
+

@@ -19,7 +19,8 @@ echo "mdsearch: Current directory: $PWD"
 # -r -- recursive search
 # -l -- list only files, not inline matches (experiment with turning off)
 # -%% -- boolean patterns across whole file: AND (or just space), OR (or a bar |), NOT (or a dash -)
-ugrep -Qrl -%% --fuzzy=1 --ignore-case --split --context=3 --file-type=markdown --no-confirm --view="glow --tui"
+ugrep -Qrl -%% --ignore-case --split --context=3 --file-type=markdown --no-confirm --view="glow --tui"
+# ugrep -Qrl -%% --fuzzy=1 --ignore-case --split --context=3 --file-type=markdown --no-confirm --view="glow --tui"
 # ugrep -Qrl -%% -Z4 --split --context=3 -t markdown --no-confirm --view="glow -p"
 # ugrep -Qrl -%% --split --context=3 -t markdown --no-confirm --view="glow -p" -e "$arg"
 # ugrep -Qrl --smart-case --theme dark --split --context=3 -t markdown --no-confirm --view="glow -p" -e "$arg"

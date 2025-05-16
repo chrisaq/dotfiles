@@ -1,4 +1,4 @@
-scrollback-limit = 10_000
+scrollback-limit = 100_000
 clipboard-read = allow
 clipboard-paste-protection = false
 window-decoration = false

@@ -37,7 +37,7 @@ exec --no-startup-id xset s noblank
 exec --no-startup-id xset -dpms
 
 # Lock the screen using i3lock after idle timeout (black screen)
-exec --no-startup-id xss-lock -- i3lock -n -c 000000
+exec --no-startup-id xss-lock -- ~/.local/bin/i3lock-wrapper.sh
 
 set $myTerm ghostty
 # bindsym $mod+Return exec $myTerm
@@ -320,6 +320,7 @@ mode "resize" {
 
 # Autostart applications
 exec_always --no-startup-id $HOME/.config/polybar/launch.sh
+exec_always --no-startup-id uv run --no-project --with i3ipc ~/.local/bin/cq_polybar_reload_on_monitor_change.py
 exec_always --no-startup-id dunst -config ~/.config/dunst/dunstrc
 # exec --no-startup-id nm-applet
 
