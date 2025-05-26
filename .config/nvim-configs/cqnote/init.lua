@@ -44,3 +44,12 @@ require('lazy').setup({
     },
   },
 })
+
+-- Automatically open cqnote file on startup if no files are supplied
+vim.api.nvim_create_autocmd("VimEnter", {
+  callback = function()
+    if vim.fn.argc() == 0 then            -- no files supplied on the CLI
+      vim.cmd("edit ~/Sync/Wiki/Tech/Tech/QuickNote.md")     -- change path as you like
+    end
+  end,
+})

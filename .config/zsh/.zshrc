@@ -626,57 +626,6 @@ cq_env_select() {set -o allexport; source $(fd .conf ~/.config/env -t f|fzf); se
 cq_with_env() {
     (set -a && . ./.env && "$@")
 }
-# neovim / vim aliases
-# Notes: nvim instance - notes in vim, persistence and such
-function cqnote() {
-    NVIM_APPNAME="nvim-configs/cqnote" nvim "$@" "$HOME/Sync/Wiki/Tech/Tech/QuickNote.md"
-}
-function vim_zen() {
-    NVIM_APPNAME="nvim-configs/zen" nvim "$@"
-}
-function vim() {
-    nvim -u NONE -i NONE "$@"
-}
-# Install nvim configuration from scratch:
-# nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'
-# Separate nvim configs example:
-# alias cqnvim="nvim -u $XDG_CONFIG_HOME/cqnvim/init.lua"
-function cq_nvim_create() {
-    local config_name=$1
-    local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nvim-configs"
-    local config_path="$config_dir/$config_name"
-    local template_file="${XDG_CONFIG_HOME:-$HOME/.config}/nvim-configs/init.lua.template"
-    if [ -z "$config_name" ]; then
-        echo "Usage: cq_nvim_create <config_name>"
-        return 1
-    fi
-    # Check if the template file exists
-    if [ ! -f "$template_file" ]; then
-        echo "Template file $template_file not found. Please create one."
-        return 1
-    fi
-    # Create the configuration directory
-    if [ -d "$config_path" ]; then
-        echo "Configuration $config_name already exists."
-        return 1
-    fi
-    mkdir -p "$config_path"/lua/user/plugins
-    echo "-- nvim options go here" >> "$config_path/lua/user/options.lua"
-    echo "-- plugins in this file or directory will be automatically loaded." >> "$config_path/lua/user/plugins/init.lua"
-    echo "return {}" >> "$config_path/lua/user/plugins/init.lua"
-    cp "$template_file" "$config_path/init.lua"
-    echo "Created Neovim configuration: $config_dir"
-    echo "Copied template to: $config_dir/init.lua"
-    # Print the zsh function to be added to .zshrc
-    echo "\nTo add this config, add the following function to your .zshrc:"
-    echo "-----------------------------------------------"
-    cat << EOF
-function nvim_$config_name() {
-    NVIM_APPNAME="nvim-configs/$config_name" nvim "\$@"
-}
-EOF
-    echo "-----------------------------------------------"
-}
 function cq_rspamd() {
     local domain_name=$1
     if [ -z "$domain_name" ]; then
