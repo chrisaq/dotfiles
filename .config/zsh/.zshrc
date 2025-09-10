@@ -359,7 +359,7 @@ unset GREP_OPTIONS
 
 
 ################################################################################
-### Security section - gpg, yubikey, pass, gopass, password-store etc
+### Security section - gpg, yubikey, pass, gopass, password-store, tokens, etc
 # gpg
 # restart gpg-agent on new tty
 alias gpg-tty-update="gpg-connect-agent UPDATESTARTUPTTY /bye >/dev/null"
@@ -387,7 +387,7 @@ alias PassMenux="gopass ls --flat | rofi -dmenu | xargs --no-run-if-empty gopass
 alias xkcd_pwgen="gopass pwgen -x --lang en --sep ' ' 5"
 # decrypt two files and send them to diff/meld
 # used for syncthing conflicts in crypt-sync files
-function cq_decrypt_diff() {
+ cq_decrypt_diff() {
   local program="$1"
   local file1="$2"
   local file2="$3"
@@ -403,18 +403,51 @@ _cq_decrypt_diff_completions() {
     '3: :_files'
 }
 compdef _decrypt_and_run_completions decrypt_and_run
+# Load secrets env if the file exists
+if [ -f "$XDG_CONFIG_HOME/zsh/secrets_env" ]; then
+  source "$XDG_CONFIG_HOME/zsh/secrets_env"
+fi
 ### ENDS: Security #############################################################
 
 
 ################################################################################
 ### Aliases and functions section
 # update shell to include recently created group(s)
+alias k=kubectl
+compdef k=kubectl
 alias cq_groups_refresh="exec sudo su -l $USER"
 # Watch clipboard status
 alias cq_clip_watch="watch -n 1 'echo \"PRIMARY (middle_mouse):\" && sselp && echo && \
     echo \"Clipboard (ctrl-c/p):\" && cb && echo && echo && \
     echo \"tmux-buffer:\" && tmux show-buffer && echo'"
 alias watchclip="xsel -o | xclip -selection clipboard -i"
+# Start a tmux session with session picker if already running, else waitfor resurrection
+cq_tmux() {
+  local -a PICKER=(choose-tree -Zs)   # or (choose-tree -s) on older tmux
+  local BOOTSTRAP="__bootstrap__"
+  if [[ -n $TMUX ]]; then
+    tmux "${PICKER[@]}"
+    return
+  fi
+  if tmux list-sessions &>/dev/null; then
+    tmux attach \; "${PICKER[@]}"
+    return
+  fi
+  tmux new-session -d -s "$BOOTSTRAP" -n bootstrap 2>/dev/null || true
+  local stop=$((SECONDS+6))
+  while (( SECONDS < stop )); do
+    if tmux list-sessions -F '#S' 2>/dev/null | grep -qxv "$BOOTSTRAP"; then
+      break
+    fi
+    sleep 0.2
+  done
+  if tmux list-sessions -F '#S' 2>/dev/null | grep -qxv "$BOOTSTRAP"; then
+    tmux kill-session -t "$BOOTSTRAP" &>/dev/null || true
+    tmux attach \; "${PICKER[@]}"
+  else
+    tmux attach -t "$BOOTSTRAP"
+  fi
+}
 cq_tmux_split_dirs() {
   # Check if inside a Tmux session
   if [ -z "$TMUX" ]; then
@@ -572,16 +605,16 @@ alias tfinit='terraform init -backend-config=tf-init.conf'
 alias helm-completion='source <(helm completion zsh)'
 # swap workspaces 1 and 2
 # make this a script for use in i3
-function cq_autorandr() {
+ cq_autorandr() {
     autorandr $(autorandr | cut -d' ' -f1|rofi -dmenu)
 }
-function i3_swap() {
+ i3_swap() {
     i3-msg "rename workspace $1 to temporary;
             rename workspace $2 to $1;
             rename workspace temporary to $2"
 }
 # start tmux sessions
-function cqtmux_startup() {
+ cqtmux_startup() {
     if ! tmux has-session -t "001-Main" 2>/dev/null; then
         tmux new-session -d -s 001-Main -c ~/
     fi
@@ -608,9 +641,9 @@ cq-completions-list () {
     done | sort
 }
 # what package does a binary belong to
-function pacwhich() {pacman -Qo $(which $1 )}
+ pacwhich() {pacman -Qo $(which $1 )}
 # Install paru
-function cq_paru_install() {
+ cq_paru_install() {
     if ! command -v git >/dev/null 2>&1; then
         sudo pacman -S git
     fi
@@ -626,7 +659,7 @@ cq_env_select() {set -o allexport; source $(fd .conf ~/.config/env -t f|fzf); se
 cq_with_env() {
     (set -a && . ./.env && "$@")
 }
-function cq_rspamd() {
+ cq_rspamd() {
     local domain_name=$1
     if [ -z "$domain_name" ]; then
         echo "Usage: cq_rspamd <domain_name>"
@@ -635,11 +668,11 @@ function cq_rspamd() {
     ssh -f -N -L 11334:localhost:11334 "$domain_name"
     xdg-open http://localhost:11334
 }
-function cq_rspamd_stop() {
+cq_rspamd_stop() {
     pkill -f "ssh -f -N -L 11334:localhost:11334"
 }
 # k8s aliases and functions
-function cq_eks_drain_nodes() {
+kq_eks_drain_nodes() {
   if [ "$#" -eq 0 ]; then
     echo "Usage: terminate_nodes <node1> <node2> ... <nodeN>"
     return 1
@@ -676,7 +709,7 @@ function cq_eks_drain_nodes() {
     echo "Node $node successfully cordoned, drained, and EC2 instance $instance_id terminated."
   done
 }
-cq_label_namespaces() {
+kq_label_namespaces() {
   if [[ $# -eq 0 ]]; then
     echo "Usage: label_namespaces <namespace1> <namespace2> ..."
     return 1
@@ -689,6 +722,125 @@ cq_label_namespaces() {
     fi
   done
 }
+kq_k8s_run_image_ns() {
+  local image=$1
+  local ns=$2
+  if [[ -z $image || -z $ns ]]; then
+    echo "Usage: cq_k8s_run_image_ns <image> <namespace>"
+    return 1
+  fi
+  local name="nettest-$(head /dev/urandom | tr -dc a-z0-9 | head -c6)"
+  kubectl run "$name" \
+    -n "$ns" \
+    --rm -i -t \
+    --image="$image" \
+    --restart=Never \
+    --overrides="
+{
+  \"spec\": {
+    \"automountServiceAccountToken\": false,
+    \"securityContext\": {
+      \"seccompProfile\": {
+        \"type\": \"RuntimeDefault\"
+      }
+    },
+    \"containers\": [{
+      \"name\": \"$name\",
+      \"image\": \"$image\",
+      \"command\": [\"sh\"],
+      \"stdin\": true,
+      \"tty\": true,
+      \"securityContext\": {
+        \"runAsUser\": 1000,
+        \"runAsGroup\": 1000,
+        \"fsGroup\": 1000,
+        \"supplementalGroups\": [1000],
+        \"runAsNonRoot\": true,
+        \"allowPrivilegeEscalation\": false
+      }
+    }]
+  }
+}"
+}
+kq_bring_aksconf_split() {
+  kubectl config view --minify --flatten --context=cf-dev-noe-applications-aks-01 > $XDG_CONFIG_HOME/kube/bring-dev.yaml
+  kubectl config view --minify --flatten --context=cf-test-noe-applications-aks-01 > $XDG_CONFIG_HOME/kube/bring-test.yaml
+  kubectl config view --minify --flatten --context=cf-qa-noe-applications-aks-01 > $XDG_CONFIG_HOME/kube/bring-qa.yaml
+  kubectl config view --minify --flatten --context=cf-prod-noe-applications-aks-01 > $XDG_CONFIG_HOME/kube/bring-prod.yaml
+}
+# Always use bring.azurecr.io/cache/wbitt/network-multitool
+kq_nettool_shell() {
+  if [ -z "$1" ]; then
+    echo "Usage: knettool <namespace>"
+    return 1
+  fi
+  local ns="$1"
+  kubectl run -n "$ns" nettool \
+    --rm -it --restart=Never \
+    --image=bring.azurecr.io/cache/wbitt/network-multitool \
+    -- bash
+}
+kq_shell_on_pod() {
+  if [ -z "$1" ]; then
+    echo "Usage: kq_shell_on_pod <namespace> [container]"
+    return 1
+  fi
+  local ns="$1"
+  local container="$2"
+  local pod
+  pod=$(kubectl get pods -n "$ns" --no-headers -o custom-columns=":metadata.name" | fzf --prompt="Pick a pod in $ns: ")
+  if [ -z "$pod" ]; then
+    echo "No pod selected"
+    return 1
+  fi
+  echo "Connecting to pod: $pod (ns: $ns)"
+  if [ -n "$container" ]; then
+    kubectl exec -n "$ns" -it "$pod" -c "$container" -- /bin/sh
+  else
+    kubectl exec -n "$ns" -it "$pod" -- /bin/sh
+  fi
+}
+kq_shell_on_deployment() {
+  # TODO: add container option in case of multiple containers in pod (-c <container-name>)
+  if [ $# -ne 2 ]; then
+    echo "Open a shell on a running pod in specified deployment and namespace"
+    echo "Usage: kq_shell_on_deployment <namespace> <deployment-name>"
+    return 1
+  fi
+  local ns="$1"
+  local deploy="$2"
+  kubectl exec -n "$ns" -it deploy/"$deploy" -- bash
+}
+kq_cilium_shell_on_pod_node() {
+  if [ -z "$1" ]; then
+    echo "Open a cilium shell on the node where a pod is running"
+    echo "Usage: kq_cilium_shell_on_pod_node <namespace> [container]"
+    return 1
+  fi
+  local ns="$1"
+  local container="$2"
+  local pod
+  pod=$(kubectl get pods -n "$ns" --no-headers -o custom-columns=":metadata.name" | fzf --prompt="Pick a pod in $ns: ")
+  # connect
+  NODE=$(kubectl -n demo3-fqdn-egress-ns get pod -l app=multitool -o jsonpath='{.items[0].spec.nodeName}')
+  CIL=$(kubectl -n kube-system get pod -l k8s-app=cilium -o jsonpath="{.items[?(@.spec.nodeName=='$NODE')].metadata.name}")
+  kubectl -n kube-system exec -it "$CIL" -- bash
+  # kubectl -n kube-system exec "$CIL" -- cilium-dbg fqdn cache list
+}
+kq_create_pod_shell() {
+  if [ $# -ne 2 ]; then
+    echo "Create a pod with specified image in specified namespace and open a shell"
+    echo "Usage: kq_create_pod_shell <namespace> <image>"
+    return 1
+  fi
+  local ns="$1"
+  local img="$2"
+  kubectl run -n "$ns" testpod \
+    --rm -it --restart=Never \
+    --image="$img" \
+    -- bash
+}
+### Self hosting functions
 cq_sync_dotfiles_to_server() {
     local server=$1
     local source_dir="$HOME"
@@ -843,7 +995,7 @@ hash -d ruter=${HOME}/Sync/Work/Ruter
 hash -d wiki=${HOME}/Sync/Wiki
 hash -d sync=${HOME}/Sync
 #### abbrev
-function Q() {
+ Q() {
     qcmd=$(compgen -c | grep '^cq' | fzf)
     $qcmd
 }

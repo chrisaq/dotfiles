@@ -94,6 +94,7 @@ return {
       letg.auto_save_silents = 1
     end,
   },
+  { "chrisbra/Recover.vim" }, -- recover crashed files
   {
     "simnalamburt/vim-mundo", -- undo enhanced, f6
     config = function()

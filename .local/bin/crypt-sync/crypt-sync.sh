@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for syncfile in `ls ${HOME}/bin/crypt-sync/crypt-sync-list*.txt`; do
+for syncfile in `ls ${XDG_BIN_HOME}/crypt-sync/crypt-sync-list*.txt`; do
 
     while IFS="" read -r line || [ -n "$line" ]; do
         echo "${line}"

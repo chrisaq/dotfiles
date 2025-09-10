@@ -34,3 +34,4 @@ ruter_prod-gp-1.yaml.gpg:.config/kube/ruter_prod-gp-1.yaml
 ruter_prod-pd-1.yaml.gpg:.config/kube/ruter_prod-pd-1.yaml
 ruter_stage-gp-1.yaml.gpg:.config/kube/ruter_stage-gp-1.yaml
 ruter_stage-pd-1.yaml.gpg:.config/kube/ruter_stage-pd-1.yaml
+secrets_env.gpg:.config/zsh/secrets_env
