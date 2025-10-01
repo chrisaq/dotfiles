@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Firefox (Wayland cursor fix)
 Comment=Browse the Web
-Exec=env MOZ_DISABLE_HW_CURSOR=1 firefox %u
+Exec=env MOZ_ENABLE_WAYLAND=1 MOZ_DISABLE_HW_CURSOR=1 firefox %u
 Terminal=false
 Type=Application
 Icon=firefox
