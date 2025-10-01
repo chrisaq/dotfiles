@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+# netdiag.sh v2 — Arch + iwd + systemd-networkd/resolved
+set -u
+
+IFACE=""
+DO_PCAP=0
+TIME_WINDOW_MIN=10
+PING_TRIES=3
+CURL_TIMEOUT=6
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -i|--iface) IFACE="${2:-}"; shift 2;;
+    --pcap) DO_PCAP=1; shift;;
+    -h|--help)
+      cat <<EOF
+Usage: $0 [-i IFACE] [--pcap]
+EOF
+      exit 0;;
+    *) echo "Unknown arg: $1" >&2; exit 1;;
+  esac
+done
+
+# Colors
+if command -v tput >/dev/null 2>&1; then
+  C_BOLD="$(tput bold)"; C_DIM="$(tput dim)"; C_RED="$(tput setaf 1)"; C_GRN="$(tput setaf 2)"
+  C_YEL="$(tput setaf 3)"; C_BLU="$(tput setaf 4)"; C_RST="$(tput sgr0)"
+else C_BOLD=""; C_DIM=""; C_RED=""; C_GRN=""; C_YEL=""; C_BLU=""; C_RST=""; fi
+
+say(){ printf "%s\n" "$*"; }
+hr(){ printf "%s\n" "────────────────────────────────────────────────────────"; }
+
+declare -a SUMMARY
+record(){ SUMMARY+=("$1"); }        # “OK/WARN/FAIL - …”
+
+# Global outputs from last run()
+LAST_OUT=""; LAST_RC=0
+run() {
+  local title="$1"; shift
+  local why="$1"; shift
+  local cmd=("$@")
+  hr
+  say "${C_BOLD}» $title${C_RST}"
+  say "${C_DIM}$why${C_RST}"
+  say "${C_BLU}\$ ${cmd[*]}${C_RST}"
+  # Capture
+  LAST_OUT="$("${cmd[@]}" 2>&1)"; LAST_RC=$?
+  printf "%s\n" "$LAST_OUT"
+  return $LAST_RC
+}
+
+ok(){   say "${C_GRN}✓ $*${C_RST}"; record "OK   - $*"; }
+warn(){ say "${C_YEL}⚠ $*${C_RST}"; record "WARN - $*"; }
+fail(){ say "${C_RED}✗ $*${C_RST}"; record "FAIL - $*"; }
+
+# Detect interface
+if [[ -z "$IFACE" ]]; then
+  IFACE="$(ip route show default 2>/dev/null | awk '/default/ {print $5; exit}')"
+fi
+[[ -z "$IFACE" ]] && { echo "Could not determine interface. Use -i IFACE."; exit 2; }
+
+say "${C_BOLD}NetDiag starting on interface:${C_RST} $IFACE"; hr
+
+# 0. Environment snapshot
+run "Environment snapshot" "Kernel/systemd and tools present" \
+  bash -c 'uname -sr ; printf "systemd: "; systemctl --version | head -1 ; \
+           printf "iwd:     "; (iwd --version 2>/dev/null || echo n/a) ; \
+           printf "iw:      "; (iw --version 2>/dev/null || echo n/a) ; \
+           printf "resolved:"; (resolvectl --version 2>/dev/null || echo n/a)'
+[[ $LAST_RC -eq 0 ]] && ok "Environment snapshot collected"
+
+# 1. Link state
+run "Link state" "Verify interface exists and is up" ip -br link show "$IFACE"
+if [[ $LAST_RC -ne 0 ]]; then fail "Interface $IFACE not found"; exit 3
+elif awk '{print $2}' <<<"$LAST_OUT" | grep -q "UP"; then ok "Interface $IFACE is UP"
+else fail "Interface $IFACE is DOWN"; fi
+
+# 2. Wi-Fi association (if wireless)
+if iw dev 2>/dev/null | grep -q "Interface $IFACE"; then
+  run "Wi-Fi link info" "AP BSSID/ssid/signal" iw dev "$IFACE" link
+  if grep -qi "Connected to" <<<"$LAST_OUT"; then ok "Associated to an AP"; else warn "Not associated"; fi
+fi
+
+# 3. IP addressing
+run "IP addressing" "IPv4/IPv6 on the interface" ip -br addr show "$IFACE"
+[[ $LAST_RC -eq 0 && -n "$LAST_OUT" ]] && ok "IP address present" || fail "No IP address"
+
+# 4. Routing table
+run "Routing table" "Default route and gateway" ip route
+IP_DEF_GW="$(awk '/default/ {print $3; exit}' <<<"$LAST_OUT")"
+DEV_DEF_IF="$(awk '/default/ {print $5; exit}' <<<"$LAST_OUT")"
+if [[ -n "$IP_DEF_GW" && "$DEV_DEF_IF" == "$IFACE" ]]; then
+  ok "Default via $IP_DEF_GW on $IFACE"
+elif [[ -n "$IP_DEF_GW" ]]; then
+  warn "Default via $IP_DEF_GW on $DEV_DEF_IF (not $IFACE)"
+else
+  fail "No default route"; fi
+
+# 5. Neighbor entry
+if [[ -n "${IP_DEF_GW:-}" ]]; then
+  run "Gateway neighbor entry" "ARP/ND state for gateway" ip neigh show "$IP_DEF_GW" dev "$IFACE"
+  if grep -qiE '\breachable\b|\bpermanent\b|\bstale\b' <<<"$LAST_OUT"; then
+    ok "Neighbor entry present for $IP_DEF_GW"
+  else
+    warn "No valid neighbor entry for $IP_DEF_GW"
+  fi
+fi
+
+# 6. Route decision
+run "Route decision" "Which path to 8.8.8.8" ip route get 8.8.8.8
+grep -q "dev $IFACE" <<<"$LAST_OUT" && ok "8.8.8.8 routed via $IFACE" || warn "8.8.8.8 not via $IFACE"
+
+# 7. Ping tests
+PING_OK=0
+if [[ -n "${IP_DEF_GW:-}" ]]; then
+  run "Ping gateway" "L3 to default GW" ping -c $PING_TRIES -W 2 "$IP_DEF_GW"
+  if [[ $LAST_RC -eq 0 ]]; then
+    ok "Ping GW ok"; ((PING_OK++))
+  else
+    warn "Ping GW failed"
+  fi
+fi
+
+run "Ping 1.1.1.1" "Upstream reachability (no DNS)" ping -c $PING_TRIES -W 2 1.1.1.1
+if [[ $LAST_RC -eq 0 ]]; then
+  ok "Ping 1.1.1.1 ok"; ((PING_OK++))
+else
+  warn "Ping 1.1.1.1 failed"
+fi
+
+run "Ping 8.8.8.8" "Redundant upstream check" ping -c $PING_TRIES -W 2 8.8.8.8
+if [[ $LAST_RC -eq 0 ]]; then
+  ok "Ping 8.8.8.8 ok"; ((PING_OK++))
+else
+  warn "Ping 8.8.8.8 failed"
+fi
+# 8. resolved status + query
+run "resolved link status" "DNS servers for this link" resolvectl status "$IFACE"
+RES_PRESENT=0; grep -q "DNS Servers" <<<"$LAST_OUT" && RES_PRESENT=1
+run "DNS lookup (A) example.com" "systemd-resolved query" resolvectl query example.com
+RES_QUERY_OK=0; [[ $LAST_RC -eq 0 ]] && RES_QUERY_OK=1
+if (( RES_QUERY_OK==1 )); then ok "DNS resolve ok"; else warn "DNS resolve failed"; fi
+
+# 9. Captive portal probes (robust)
+# Signals:
+#  - gstatic generate_204 should return HTTP 204 with empty body when open Internet.
+#  - neverssl.com should not redirect off-domain unless intercepted.
+#  - http.badssl.com stays on HTTP and returns 200 (no HTTPS upgrade).
+#  - NXDOMAIN test must fail; if it resolves, DNS is being hijacked.
+
+# A) Android-style probe
+run "Captive probe (gstatic 204)" "Open Internet returns 204 No Content" \
+    curl -sS -o /dev/null -w "%{http_code} %{size_download}\n" --max-time $CURL_TIMEOUT --interface "$IFACE" \
+    http://connectivitycheck.gstatic.com/generate_204
+read -r GST_CODE GST_SIZE <<<"$LAST_OUT"
+
+# B) neverssl (HTTP, no upgrade)
+run "Captive probe (neverssl headers)" "Redirect off neverssl.com implies interception" \
+    curl -sSI --max-time $CURL_TIMEOUT --interface "$IFACE" http://neverssl.com
+NEVER_HCODE="$(awk '/^HTTP/{print $2; exit}' <<<"$LAST_OUT")"
+NEVER_LOC="$(awk -F': ' 'tolower($1)=="location"{print $2; exit}' <<<"$LAST_OUT" | tr -d '\r')"
+
+# C) http.badssl.com (stays HTTP)
+run "Captive probe (http.badssl.com)" "Should be HTTP 200 without redirect off-domain" \
+    curl -sSI --max-time $CURL_TIMEOUT --interface "$IFACE" http://http.badssl.com
+BADSSL_HCODE="$(awk '/^HTTP/{print $2; exit}' <<<"$LAST_OUT")"
+BADSSL_LOC="$(awk -F': ' 'tolower($1)=="location"{print $2; exit}' <<<"$LAST_OUT" | tr -d '\r')"
+
+# D) NXDOMAIN check (DNS hijack)
+run "DNS NXDOMAIN check" "A query for a *.invalid name must fail; success implies DNS interception" \
+    resolvectl query does-not-exist-$(date +%s).invalid
+NX_OK=1; [[ $LAST_RC -ne 0 ]] || NX_OK=0  # nonzero RC == NXDOMAIN (expected)
+
+CAPTIVE_HINT="no"
+# Heuristics:
+# 1) gstatic returns 204 and zero bytes -> likely open Internet
+if [[ "$GST_CODE" == "204" && "${GST_SIZE:-0}" == "0" ]]; then
+  CAPTIVE_HINT="no"
+else
+  # 2) any off-domain redirect from neverssl OR badssl implies portal
+  if [[ "$NEVER_HCODE" =~ ^30[12378]$ && -n "$NEVER_LOC" && "$NEVER_LOC" != *"neverssl.com"* ]]; then
+    CAPTIVE_HINT="yes"
+  elif [[ "$BADSSL_HCODE" =~ ^30[12378]$ && -n "$BADSSL_LOC" && "$BADSSL_LOC" != *"http.badssl.com"* ]]; then
+    CAPTIVE_HINT="yes"
+  fi
+fi
+
+# 3) DNS hijack alone is also a strong portal indicator
+if (( NX_OK == 0 )); then
+  warn "DNS NXDOMAIN unexpectedly succeeded (DNS interception)"
+  CAPTIVE_HINT="yes"
+fi
+
+[[ "$CAPTIVE_HINT" == "yes" ]] && warn "Captive portal likely (redirect/interception detected)" \
+                                || ok "No captive-portal symptoms"
+
+# 10. Firewall quick look
+if command -v nft >/dev/null 2>&1; then
+  run "nftables quick grep" "Look for drop/reject (may be normal)" \
+      bash -c 'nft list ruleset 2>/dev/null | grep -niE "\bdrop\b|\breject\b" | sed -n "1,30p"'
+  [[ -n "$LAST_OUT" ]] && warn "Drops/rejects present (context needed)"
+fi
+if command -v ufw >/dev/null 2>&1; then
+  run "UFW status" "Check if UFW is enforcing" ufw status
+fi
+
+# 11. Service states
+run "Service states" "networkd/iwd/resolved should be active" \
+    bash -c 'systemctl is-active systemd-networkd; systemctl is-active iwd; systemctl is-active systemd-resolved'
+if grep -q "inactive\|failed" <<<"$LAST_OUT"; then fail "One or more services inactive"; else ok "Core services active"; fi
+
+# 12. Recent logs (errors)
+run "Recent logs (last ${TIME_WINDOW_MIN}m)" \
+    "Errors from networkd/iwd/resolved (deduplicated by message)" \
+    bash -c "
+      journalctl -b -u systemd-networkd -u iwd -u systemd-resolved \
+        --since '-${TIME_WINDOW_MIN} min' --no-pager \
+      | grep -iE 'fail|error|timeout|denied|drop|refused' \
+      | sed -E 's/^[^]]*] //; s/^[^ ]+ [^ ]+ [^ ]+ //' \
+      | awk '{msg[\$0]++} END{for (m in msg) print msg[m] \"x \" m}' \
+      | sort -nr | head -n 20
+    "
+if [[ -n "$LAST_OUT" ]]; then
+  warn "Errors present in recent logs (top 20 types shown)"
+else
+  ok "No obvious recent errors"
+fi
+
+# 13. Optional pcap
+if (( DO_PCAP )); then
+  if [[ $EUID -ne 0 ]]; then warn "pcap requested but not root; skipping"
+  elif ! command -v tcpdump >/dev/null 2>&1; then warn "tcpdump not installed; skipping"
+  else
+    run "tcpdump ICMP (5s)" "Do pings leave/return?" bash -c "timeout 5 tcpdump -n -i $IFACE icmp"
+    run "tcpdump HTTP (5s)" "Is HTTP intercepted?"   bash -c "timeout 5 tcpdump -n -i $IFACE tcp port 80"
+  fi
+fi
+
+hr; echo "${C_BOLD}SUMMARY${C_RST}"
+for s in "${SUMMARY[@]}"; do
+  case "$s" in
+    OK*)   printf "%s\n" "${C_GRN}$s${C_RST}";;
+    WARN*) printf "%s\n" "${C_YEL}$s${C_RST}";;
+    FAIL*) printf "%s\n" "${C_RED}$s${C_RST}";;
+    *)     printf "%s\n" "$s";;
+  esac
+done
+
+# High-level verdict
+VERDICT="Unknown"
+if (( PING_OK >= 2 )) && (( RES_QUERY_OK == 1 )) && [[ "$CAPTIVE_HINT" == "no" ]]; then
+  VERDICT="Internet reachable; stack healthy"
+elif (( PING_OK == 0 )) && [[ -n "${IP_DEF_GW:-}" ]]; then
+  VERDICT="Likely upstream block/quarantine (captive portal/VLAN)"
+elif (( PING_OK >= 1 )) && (( RES_QUERY_OK == 0 )); then
+  VERDICT="Routing OK; DNS problem"
+fi
+hr; echo "${C_BOLD}VERDICT:${C_RST} $VERDICT"
+

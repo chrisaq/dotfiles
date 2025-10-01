@@ -2,6 +2,10 @@
 # http://i3wm.org/docs/userguide.html
 # bindsym/bindcode - "xmodmap -pke" and xev
 
+# Load systemd env variables for user services and dbus
+exec --no-startup-id systemctl --user import-environment
+exec --no-startup-id dbus-update-activation-environment --systemd DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE SSH_AUTH_SOCK PINENTRY_PROGRAM PASSWORD_STORE_DIR
+
 # Set mod key (Mod1=<Alt>, Mod4=<Super>)
 set $mod Mod4
 
