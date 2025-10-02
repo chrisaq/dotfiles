@@ -23,4 +23,5 @@
           - wofi
           - hyprland
           - hyprlock
+          - difftastic
         state: present
