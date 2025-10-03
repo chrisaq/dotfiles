@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+mon=$(hyprctl -j activeworkspace | jq -r '.monitor')
+cur=$(hyprctl -j activeworkspace | jq -r '.id')
+mapfile -t ws < <(hyprctl -j workspaces | jq -r --arg m "$mon" '
+  map(select(.monitor==$m)) | map(.id) | unique | sort | .[]')
+for i in "${!ws[@]}"; do
+  if [[ "${ws[$i]}" == "$cur" ]]; then
+    nxt=${ws[$(((i+1)%${#ws[@]}))]}
+    hyprctl dispatch workspace "$nxt"
+    exit 0
+  fi
+done

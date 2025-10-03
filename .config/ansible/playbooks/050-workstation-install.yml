@@ -24,4 +24,5 @@
           - hyprland
           - hyprlock
           - difftastic
+          - wev
         state: present

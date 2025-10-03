@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# previous workspace on this monitor (wrap; ignore special/negative IDs)
+set -euo pipefail
+
+mon=$(hyprctl -j activeworkspace | jq -r '.monitor')
+cur=$(hyprctl -j activeworkspace | jq -r '.id')
+
+# Only positive (regular) workspaces on this monitor
+mapfile -t ws < <(hyprctl -j workspaces | jq -r --arg m "$mon" '
+  map(select(.monitor==$m and .id > 0)) | map(.id) | unique | sort | .[]')
+
+len=${#ws[@]}
+[[ $len -eq 0 ]] && exit 0
+
+for i in "${!ws[@]}"; do
+  if [[ "${ws[$i]}" == "$cur" ]]; then
+    idx=$(( (i - 1 + len) % len ))   # wraps 0 → len-1
+    hyprctl dispatch workspace "${ws[$idx]}"
+    exit 0
+  fi
+done
+

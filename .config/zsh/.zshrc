@@ -1004,3 +1004,95 @@ abbrev-alias -g G="| rg"
 # To customize prompt, run `p10k configure` or edit ~/.config/zsh/.p10k.zsh.
 [[ ! -f ~/.config/zsh/.p10k.zsh ]] || source ~/.config/zsh/.p10k.zsh
 ### ENDS: Override #############################################################
+
+
+###  my own functions and scripts system
+#
+# existing maps
+typeset -gA CQ_DESC CQ_USAGE CQ_NOARGS
+
+cq_setmeta() { local n="$1"; CQ_DESC[$n]="$2"; CQ_USAGE[$n]="$3"; [[ "$4" == "noargs" ]] && CQ_NOARGS[$n]=1; }
+
+_cq_desc()  { [[ -n ${CQ_DESC[$1]} ]] && print -r -- ${CQ_DESC[$1]} && return; local p; p=$(whence -p -- "$1" 2>/dev/null) || return; awk 'NR<=50&&/^#:(desc|description):/{sub(/^#:(desc|description):[[:space:]]*/,"");print;exit}' "$p"; }
+_cq_usage() { [[ -n ${CQ_USAGE[$1]} ]] && print -r -- ${CQ_USAGE[$1]} && return; local p; p=$(whence -p -- "$1" 2>/dev/null) || return; awk 'NR<=50&&/^#:usage:/{sub(/^#:usage:[[:space:]]*/,"");print;exit}' "$p"; }
+_cq_noargs(){ [[ -n ${CQ_NOARGS[$1]} ]] && return 0; local p; p=$(whence -p -- "$1" 2>/dev/null) || return 1; awk 'NR<=50&&/^#:noargs:[[:space:]]*true/{f=1;exit} END{exit !f}' "$p"; }
+
+# pretty preview (unchanged)
+_cq_preview() {
+  local c="$1" t p d u
+  t="$(whence -w -- "$c" 2>/dev/null)"; p="$(whence -p -- "$c" 2>/dev/null)"
+  d="$(_cq_desc "$c")"; u="$(_cq_usage "$c")"
+  print -r -- "Command: $c"
+  print -r -- "Type:    ${t##*: }"
+  [[ -n "$p" ]] && print -r -- "Path:    $p"
+  [[ -n "$d" ]] && { print; print -- "Description:"; print -- "  $d"; }
+  [[ -n "$u" ]] && { print; print -- "Usage:"; print -- "  $u"; }
+  if _cq_noargs "$c"; then print "\nNo-args: yes (↵ runs)"; else print "\nNo-args: no  (↵ inserts)"; fi
+}
+
+# NEW: echo a help block above the prompt/stdout
+_cq_echo_help() {
+  local c="$1" d u
+  d="$(_cq_desc "$c")"; u="$(_cq_usage "$c")"
+  [[ -z "$d$u" ]] && return 0
+  # subtle grey if your terminal supports it; otherwise plain text
+  if [[ -t 1 ]]; then
+    print -r -- $'%F{245}# '"$c"$'%f'
+    [[ -n "$d" ]] && print -r -- $'%F{245}# Desc:%f '"$d"
+    [[ -n "$u" ]] && print -r -- $'%F{245}# Usage:%f '"$u"
+  else
+    print -r -- "# $c"
+    [[ -n "$d" ]] && print -r -- "# Desc: $d"
+    [[ -n "$u" ]] && print -r -- "# Usage: $u"
+  fi
+}
+
+Q() {
+  emulate -L zsh; setopt pipefail
+  local -a all table; local cmd desc selection
+  all=("${(u)$(compgen -c 2>/dev/null | grep -E '^cq' || true)}")
+  for cmd in ${(k)functions}; do [[ $cmd == cq* ]] && all+="$cmd"; done
+  all=("${(u)all}") || return 1
+  (( ${#all} )) || { print -u2 "No cq* commands."; return 1; }
+
+  for cmd in "${all[@]}"; do
+    desc="$(_cq_desc "$cmd")"
+    table+="$cmd\t${desc:- }"
+  done
+
+  selection=$(printf '%s\n' "${table[@]}" | \
+  fzf --ansi --delimiter=$'\t' --with-nth=1,2 --nth=1,2 \
+      --preview='zsh -ic "_cq_preview {1}"' \
+      --expect=enter,alt-enter,ctrl-e \
+      --header=$'↵: run if no-args, else insert & print help • Alt-Enter: force insert • Ctrl-E: force exec')
+
+  [[ -z "$selection" ]] && return 1
+  local key line; key="${selection%%$'\n'*}"; line="${selection#*$'\n'}"
+  cmd="${line%%$'\t'*}"
+
+  # overrides
+  if [[ "$key" == "ctrl-e" ]]; then exec "$cmd"; fi
+  if [[ "$key" == "alt-enter" ]]; then
+    _cq_echo_help "$cmd"
+    if zle; then LBUFFER+="$cmd "; zle redisplay; else print -r -- "$cmd"; fi
+    return 0
+  fi
+
+  # default
+  if _cq_noargs "$cmd"; then
+    exec "$cmd"
+  else
+    _cq_echo_help "$cmd"
+    if zle; then LBUFFER+="$cmd "; zle redisplay; else print -r -- "$cmd"; fi
+  fi
+}
+
+# Example metadata for a function:
+cq_hello() { print "hi from cq_hello"; }
+cq_setmeta cq_hello "Say hello." "cq_hello" noargs
+
+# Script header example:
+# #:desc: Dump a DB to S3
+# #:usage: cq_db_dump <db_name> [--full]
+# #:noargs: true
+
