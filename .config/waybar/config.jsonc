@@ -89,7 +89,7 @@
             "mpv": "🎵"
         },
         "status-icons": {
-            "paused": "▶" 
+            "paused": "▶"
         },
         // "ignored-players": ["firefox"]
     },
@@ -137,9 +137,9 @@
         "escape": true
     },
 
-    "hyprland/window": {  
-    //"format": "{}"   // <--- these is the default value  
-    "format": "<span  weight='bold' >{class}</span>",
+    "hyprland/window": {
+    //"format": "{}"   // <--- these is the default value
+    "format": "<span  weight='bold' >{title}</span>",
     "max-length": 120,
     "icon": false,
     "icon-size": 13,
@@ -250,14 +250,14 @@
         "tooltip": true
     },
     "custom/mouse":
-    { 
+    {
         "format": "",
         "format-alt": "",
 
         "on-click": "m8mouse -dpi 1 -led 2 -speed 4",
         "on-click-right": "m8mouse -dpi 1 -led 4 -speed 4",
         "on-click-middle": "m8mouse -dpi 1 -led 7 -speed 4",
-        "tooltip": true 
+        "tooltip": true
     },
 
     "wlr/taskbar": {
@@ -339,7 +339,7 @@
         "format-plugged": "󰂄",
         // "format-alt": "<<span weight='bold' color='#c2864a'>{time} <span weight='bold' color='white'>| <span weight='bold' color='#82d457'>{capacity}%</span></span></span>",
         "format-icons": ["󰝦","󰪞","󰪟","󰪠","󰪡","󰪢","󰪣","󰪤","󰪥"],
-        //  "format-icons": ["","","","","","","",""],  
+        //  "format-icons": ["","","","","","","",""],
         //"format-icons": ["󰂎", "󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],
         "on-click-right": "pkill waybar & hyprctl dispatch exec waybar",
         //  "format-icons": [<i class='fa-solid fa-wifi-slash'></i>],

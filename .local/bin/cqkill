@@ -2,4 +2,7 @@
 
 #  $(ps --sort=-pcpu aux | \
 #kill -9 $(ps aux | rofi -dmenu | awk "{ print $1 }")
+#:noargs: true
+#:help: Kill a process by selecting it from a list of running processes sorted by CPU usage.
+#:usage: cqkill
 kill -9 $(ps -eo pid,tty,stat,pcpu,time,args --sort=-pcpu | rofi -dmenu -p '' | awk "{ print $1 }")

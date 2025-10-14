@@ -23,6 +23,7 @@
           - wofi
           - hyprland
           - hyprlock
+          - hypridle
           - difftastic
           - wev
         state: present

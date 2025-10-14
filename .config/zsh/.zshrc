@@ -641,7 +641,7 @@ cq-completions-list () {
     done | sort
 }
 # what package does a binary belong to
- pacwhich() {pacman -Qo $(which $1 )}
+pacwhich() { pacman -Qo $(which $1) }
 # Install paru
  cq_paru_install() {
     if ! command -v git >/dev/null 2>&1; then
@@ -653,8 +653,8 @@ cq-completions-list () {
     makepkg -si
 }
 # Set env from KEY=value list in file
-cq_env_arg() {set -o allexport; source $@; set +o allexport}
-cq_env_select() {set -o allexport; source $(fd .conf ~/.config/env -t f|fzf); set +o allexport}
+cq_env_arg() { set -o allexport; source $@; set +o allexport }
+cq_env_select() { set -o allexport; source $(fd .conf ~/.config/env -t f|fzf); set +o allexport }
 # Run command with env from ./.env
 cq_with_env() {
     (set -a && . ./.env && "$@")
@@ -800,16 +800,56 @@ kq_shell_on_pod() {
     kubectl exec -n "$ns" -it "$pod" -- /bin/sh
   fi
 }
+# kq_shell_on_deployment [ns] [deployment]
 kq_shell_on_deployment() {
-  # TODO: add container option in case of multiple containers in pod (-c <container-name>)
-  if [ $# -ne 2 ]; then
-    echo "Open a shell on a running pod in specified deployment and namespace"
-    echo "Usage: kq_shell_on_deployment <namespace> <deployment-name>"
-    return 1
+  command -v jq >/dev/null || { echo "requires: jq" >&2; return 1; }
+  local ns="${1:-}" dep="${2:-}" sel pod containers container num
+  # pick namespace
+  if [ -z "$ns" ]; then
+    if command -v fzf >/dev/null; then
+      ns="$(kubectl get ns -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | fzf --prompt='ns> ' --height=40%)" || return 1
+    else
+      ns="$(kubectl get ns -o jsonpath='{.items[0].metadata.name}')" || return 1
+    fi
   fi
-  local ns="$1"
-  local deploy="$2"
-  kubectl exec -n "$ns" -it deploy/"$deploy" -- bash
+  # pick deployment
+  if [ -z "$dep" ]; then
+    if command -v fzf >/dev/null; then
+      dep="$(kubectl -n "$ns" get deploy -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | fzf --prompt="deploy[$ns]> " --height=40%)" || return 1
+    else
+      dep="$(kubectl -n "$ns" get deploy -o jsonpath='{.items[0].metadata.name}')" || return 1
+    fi
+  fi
+  # selector from deployment
+  sel="$(kubectl -n "$ns" get deploy "$dep" -o json \
+        | jq -r '.spec.selector.matchLabels | to_entries | map("\(.key)=\(.value)") | join(",")')"
+  [ -n "$sel" ] || { echo "no selector on $ns/$dep" >&2; return 1; }
+  # pick a Running+Ready pod of that deployment
+  if command -v fzf >/dev/null; then
+    pod="$(kubectl -n "$ns" get pod -l "$sel" -o json \
+      | jq -r '.items[]
+               | select(.status.phase=="Running")
+               | select([.status.containerStatuses[]? | .ready] | all)
+               | .metadata.name' \
+      | fzf --prompt="pod[$dep]> " --height=40%)" || return 1
+  else
+    pod="$(kubectl -n "$ns" get pod -l "$sel" -o jsonpath='{.items[0].metadata.name}')" || return 1
+  fi
+  [ -n "$pod" ] || { echo "no pod for $ns/$dep" >&2; return 1; }
+  # list LIVE containers (includes injected sidecars)
+  containers="$(kubectl -n "$ns" get pod "$pod" -o jsonpath='{range .spec.containers[*]}{.name}{"\n"}{end}')"
+  [ -n "$containers" ] || { echo "no containers in pod $pod" >&2; return 1; }
+  # choose container (always prompt if multiple; set KQ_ALWAYS=1 to force prompt even with one)
+  num="$(printf '%s\n' "$containers" | sed '/^$/d' | wc -l | tr -d ' ')"
+  if [ "${KQ_ALWAYS:-0}" != 0 ] || { [ "$num" -gt 1 ] && command -v fzf >/dev/null; }; then
+    container="$(printf '%s\n' "$containers" | fzf --prompt="container[$pod]> " --height=40%)" || return 1
+  else
+    container="$(printf '%s\n' "$containers" | head -n1)"
+  fi
+  # exec
+  kubectl -n "$ns" exec -it "$pod" -c "$container" -- bash \
+  || kubectl -n "$ns" exec -it "$pod" -c "$container" -- sh \
+  || kubectl -n "$ns" exec -it "$pod" -c "$container" -- ash
 }
 kq_cilium_shell_on_pod_node() {
   if [ -z "$1" ]; then
@@ -822,7 +862,7 @@ kq_cilium_shell_on_pod_node() {
   local pod
   pod=$(kubectl get pods -n "$ns" --no-headers -o custom-columns=":metadata.name" | fzf --prompt="Pick a pod in $ns: ")
   # connect
-  NODE=$(kubectl -n demo3-fqdn-egress-ns get pod -l app=multitool -o jsonpath='{.items[0].spec.nodeName}')
+  NODE=$(kubectl -n fqdn-ns get pod -l app=multitool -o jsonpath='{.items[0].spec.nodeName}')
   CIL=$(kubectl -n kube-system get pod -l k8s-app=cilium -o jsonpath="{.items[?(@.spec.nodeName=='$NODE')].metadata.name}")
   kubectl -n kube-system exec -it "$CIL" -- bash
   # kubectl -n kube-system exec "$CIL" -- cilium-dbg fqdn cache list
@@ -1006,93 +1046,108 @@ abbrev-alias -g G="| rg"
 ### ENDS: Override #############################################################
 
 
-###  my own functions and scripts system
-#
-# existing maps
-typeset -gA CQ_DESC CQ_USAGE CQ_NOARGS
-
-cq_setmeta() { local n="$1"; CQ_DESC[$n]="$2"; CQ_USAGE[$n]="$3"; [[ "$4" == "noargs" ]] && CQ_NOARGS[$n]=1; }
-
-_cq_desc()  { [[ -n ${CQ_DESC[$1]} ]] && print -r -- ${CQ_DESC[$1]} && return; local p; p=$(whence -p -- "$1" 2>/dev/null) || return; awk 'NR<=50&&/^#:(desc|description):/{sub(/^#:(desc|description):[[:space:]]*/,"");print;exit}' "$p"; }
-_cq_usage() { [[ -n ${CQ_USAGE[$1]} ]] && print -r -- ${CQ_USAGE[$1]} && return; local p; p=$(whence -p -- "$1" 2>/dev/null) || return; awk 'NR<=50&&/^#:usage:/{sub(/^#:usage:[[:space:]]*/,"");print;exit}' "$p"; }
-_cq_noargs(){ [[ -n ${CQ_NOARGS[$1]} ]] && return 0; local p; p=$(whence -p -- "$1" 2>/dev/null) || return 1; awk 'NR<=50&&/^#:noargs:[[:space:]]*true/{f=1;exit} END{exit !f}' "$p"; }
-
-# pretty preview (unchanged)
-_cq_preview() {
-  local c="$1" t p d u
-  t="$(whence -w -- "$c" 2>/dev/null)"; p="$(whence -p -- "$c" 2>/dev/null)"
-  d="$(_cq_desc "$c")"; u="$(_cq_usage "$c")"
-  print -r -- "Command: $c"
-  print -r -- "Type:    ${t##*: }"
-  [[ -n "$p" ]] && print -r -- "Path:    $p"
-  [[ -n "$d" ]] && { print; print -- "Description:"; print -- "  $d"; }
-  [[ -n "$u" ]] && { print; print -- "Usage:"; print -- "  $u"; }
-  if _cq_noargs "$c"; then print "\nNo-args: yes (↵ runs)"; else print "\nNo-args: no  (↵ inserts)"; fi
-}
-
-# NEW: echo a help block above the prompt/stdout
-_cq_echo_help() {
-  local c="$1" d u
-  d="$(_cq_desc "$c")"; u="$(_cq_usage "$c")"
-  [[ -z "$d$u" ]] && return 0
-  # subtle grey if your terminal supports it; otherwise plain text
-  if [[ -t 1 ]]; then
-    print -r -- $'%F{245}# '"$c"$'%f'
-    [[ -n "$d" ]] && print -r -- $'%F{245}# Desc:%f '"$d"
-    [[ -n "$u" ]] && print -r -- $'%F{245}# Usage:%f '"$u"
-  else
-    print -r -- "# $c"
-    [[ -n "$d" ]] && print -r -- "# Desc: $d"
-    [[ -n "$u" ]] && print -r -- "# Usage: $u"
-  fi
-}
-
-Q() {
-  emulate -L zsh; setopt pipefail
-  local -a all table; local cmd desc selection
-  all=("${(u)$(compgen -c 2>/dev/null | grep -E '^cq' || true)}")
-  for cmd in ${(k)functions}; do [[ $cmd == cq* ]] && all+="$cmd"; done
-  all=("${(u)all}") || return 1
-  (( ${#all} )) || { print -u2 "No cq* commands."; return 1; }
-
-  for cmd in "${all[@]}"; do
-    desc="$(_cq_desc "$cmd")"
-    table+="$cmd\t${desc:- }"
-  done
-
-  selection=$(printf '%s\n' "${table[@]}" | \
-  fzf --ansi --delimiter=$'\t' --with-nth=1,2 --nth=1,2 \
-      --preview='zsh -ic "_cq_preview {1}"' \
-      --expect=enter,alt-enter,ctrl-e \
-      --header=$'↵: run if no-args, else insert & print help • Alt-Enter: force insert • Ctrl-E: force exec')
-
-  [[ -z "$selection" ]] && return 1
-  local key line; key="${selection%%$'\n'*}"; line="${selection#*$'\n'}"
-  cmd="${line%%$'\t'*}"
-
-  # overrides
-  if [[ "$key" == "ctrl-e" ]]; then exec "$cmd"; fi
-  if [[ "$key" == "alt-enter" ]]; then
-    _cq_echo_help "$cmd"
-    if zle; then LBUFFER+="$cmd "; zle redisplay; else print -r -- "$cmd"; fi
-    return 0
-  fi
-
-  # default
-  if _cq_noargs "$cmd"; then
-    exec "$cmd"
-  else
-    _cq_echo_help "$cmd"
-    if zle; then LBUFFER+="$cmd "; zle redisplay; else print -r -- "$cmd"; fi
-  fi
-}
-
+################################################################################
+###  Personal functions and scripts system
+## Howto add metadata to functions and scripts:
 # Example metadata for a function:
-cq_hello() { print "hi from cq_hello"; }
-cq_setmeta cq_hello "Say hello." "cq_hello" noargs
-
-# Script header example:
+# cq_hello() { print "hi from cq_hello"; }
+# cq_setmeta cq_hello "Say hello." "cq_hello" noargs
+# Script header example, must be in the first 50 lines of the script:
 # #:desc: Dump a DB to S3
 # #:usage: cq_db_dump <db_name> [--full]
 # #:noargs: true
 
+Q() {
+  emulate -L zsh
+  setopt pipefail
+
+  # helpers
+  if ! source ~/.config/zsh/cq_meta.zsh 2>/dev/null; then
+    print -u2 "Q: missing ~/.config/zsh/cq_meta.zsh"
+    return 1
+  fi
+
+  rehash  # refresh $commands
+  local -a path_cmds func_cmds all table
+  local cmd desc selection key line
+
+  # collect + dedupe
+  path_cmds=(${(M)${(k)commands}:#cq*})
+  func_cmds=(${(M)${(k)functions}:#cq*})
+  all=(${(ou)path_cmds} ${(ou)func_cmds})
+
+  if (( ${#all} == 0 )); then
+    print -u2 "Q: no cq* commands found."
+    return 1
+  fi
+
+  # rows: "name<TAB>desc"
+  table=()
+  for cmd in "${all[@]}"; do
+    desc="$(_cq_desc "$cmd")"
+    table+=("$cmd"$'\t'"${desc:- }")
+  done
+
+  # fzf (preview through wrapper; pass PATH)
+  selection=$(
+    printf '%s\n' "${table[@]}" | \
+    fzf --ansi \
+        --delimiter=$'\t' --with-nth=1,2 --nth=1,2 \
+        --no-hscroll \
+        --preview='env PATH='"$PATH"' cq-fzf-preview {1} {}' \
+        --expect=enter,alt-enter,ctrl-e \
+        --header=$'↵: run if no-args, else insert & print help • Alt-Enter: force insert • Ctrl-E: force exec'
+  ) || return 1
+
+  key="${selection%%$'\n'*}"
+  line="${selection#*$'\n'}"
+  if [[ -z "$line" || "$line" == "$key" ]]; then
+    return 1
+  fi
+  cmd="${line%%$'\t'*}"
+
+  _echo_help() {
+    local d u block
+    d="$(_cq_desc "$cmd")"
+    u="$(_cq_usage "$cmd")"
+    [[ -z "$d$u" ]] && return 0
+
+    block=$'\n# '"$cmd"$'\n'
+    [[ -n "$d" ]] && block+="# Desc: $d"$'\n'
+    [[ -n "$u" ]] && block+="# Usage: $u"$'\n'
+
+    if zle; then
+        zle -I             # finish any partial prompt line
+        print -r -- "$block"
+        zle -R             # force prompt redraw below the printed block
+    else
+        print -r -- "$block"
+    fi
+  }
+
+
+  case "$key" in
+    ctrl-e)
+      exec "$cmd"
+      ;;
+    alt-enter)
+      _echo_help
+      if zle; then LBUFFER+="$cmd "; zle redisplay; else print -r -- "$cmd"; fi
+      return 0
+      ;;
+  esac
+
+  if _cq_noargs "$cmd"; then
+    exec "$cmd"
+  else
+    _echo_help
+    if zle; then LBUFFER+="$cmd "; zle redisplay; else print -r -- "$cmd"; fi
+  fi
+}
+
+
+### ENDS: Personal functions and scripts system ################################
+
+# Example metadata for a function:
+# cq_hello() { print "hi from cq_hello"; }
+# cq_setmeta cq_hello "Say hello." "cq_hello" noargs
