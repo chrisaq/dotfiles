@@ -1,0 +1,334 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = ["rich>=13", "typer>=0.12"]
+# ///
+"""
+Hyprland binds report
+
+- Calls `hyprctl binds`, which prints blocks that start with `bind`
+  followed by static key:value lines in fixed order.
+- Parses those blocks deterministically.
+- Reports:
+  1) Used keys (with modifiers), dispatcher, arg, submap
+  2) Submaps and their commands
+  3) Free *plain* keys (no modifiers)
+  4) Free *Shift+key* combos (no other modifiers)
+
+Assumptions:
+- US ANSI keyboard + common function/nav/media keys.
+- `modmask` uses the X11-style bitmasks:
+  Shift=1, Control=4, Alt(Mod1)=8, Super(Mod4)=64, etc.
+  (So 0 => plain, 1 => Shift-only, 64 => Super, 65 => Shift+Super, ...)
+"""
+
+from __future__ import annotations
+
+import shutil
+import subprocess
+import sys
+import os
+from dataclasses import dataclass
+from typing import Dict, Iterable, List, Tuple, Set, Optional
+
+import typer
+from rich import print as rprint
+from rich.console import Console
+
+app = typer.Typer(add_completion=False)
+console = Console(stderr=True, highlight=False)
+
+# Key handling
+
+LETTERS = [chr(c) for c in range(ord("a"), ord("z") + 1)]
+DIGITS = list("1234567890")
+PUNCT = [
+    "grave", "minus", "equal",
+    "bracketleft", "bracketright", "backslash",
+    "semicolon", "apostrophe",
+    "comma", "period", "slash",
+]
+NAV_EDIT = [
+    "escape","tab","backspace","space","return",
+    "left","right","up","down",
+    "home","end","page_up","page_down","insert","delete",
+]
+FUNCTIONS = [f"f{i}" for i in range(1,25)]
+MEDIA = [
+    "print","pause","scroll_lock",
+    "xf86audiolowervolume","xf86audioraisevolume","xf86audiomute",
+    "xf86audioplay","xf86audionext","xf86audioprev","xf86audiostop",
+    "xf86monbrightnessup","xf86monbrightnessdown",
+    "xf86audiomicmute","xf86calculator","xf86sleep","xf86display",
+    "xf86wlan","xf86bluetooth","xf86tools","xf86touchpadtoggle",
+]
+
+PLAIN_KEYS: List[str] = LETTERS + DIGITS + PUNCT + NAV_EDIT + FUNCTIONS + MEDIA
+SHIFTABLE_KEYS: List[str] = LETTERS + DIGITS + PUNCT  # where Shift makes sense
+
+# Normalization for key names Hypr prints
+NORMALIZE: Dict[str, str] = {
+    # letters & digits
+    "return":"return", "enter":"return",
+    "esc":"escape", "escape":"escape",
+    "space":"space",
+    "pgup":"page_up", "page_up":"page_up",
+    "pgdn":"page_down", "page_down":"page_down",
+    "prtsc":"print", "print":"print",
+    "ins":"insert", "insert":"insert",
+    "del":"delete", "delete":"delete",
+    "bksp":"backspace", "backspace":"backspace",
+    "caps_lock":"caps_lock", "capslock":"caps_lock",
+    # arrows
+    "left":"left","right":"right","up":"up","down":"down",
+    # punctuation symbols // names
+    "`":"grave","-":"minus","=":"equal",
+    "[":"bracketleft","]":"bracketright","\\":"backslash",
+    ";":"semicolon","'":"apostrophe",",":"comma",".":"period","/":"slash",
+}
+for i in range(1,25):
+    NORMALIZE[f"f{i}"] = f"f{i}"
+for ch in LETTERS:
+    NORMALIZE[ch] = ch
+    NORMALIZE[ch.upper()] = ch
+for d in DIGITS:
+    NORMALIZE[d] = d
+
+def norm_key(k: str) -> str:
+    k = k.strip()
+    if not k:
+        return ""
+    lk = k.lower()
+    if lk.startswith("xf86"):
+        return lk
+    return NORMALIZE.get(k, NORMALIZE.get(lk, lk))
+
+# Modmask decoding (X11-style)
+
+# Common masks (not exhaustive, but enough to label)
+MASKS = [
+    (1,   "SHIFT"),
+    (2,   "LOCK"),
+    (4,   "CTRL"),
+    (8,   "ALT"),       # Mod1
+    (16,  "MOD2"),
+    (32,  "MOD3"),
+    (64,  "SUPER"),     # Mod4 / Win
+    (128, "MOD5"),
+]
+
+def mods_from_mask(mask: int) -> Tuple[str, ...]:
+    mods = [name for bit, name in MASKS if mask & bit]
+    return tuple(sorted(mods))
+
+# Data model
+
+@dataclass
+class Bind:
+    modmask: int
+    submap: str
+    key: str
+    keycode: int
+    catchall: bool
+    description: str
+    dispatcher: str
+    arg: str
+    raw: Dict[str, str]  # for --verbose
+
+# hyprctl
+
+def run_hyprctl_binds(verbose: bool) -> str:
+    if not shutil.which("hyprctl"):
+        console.print("[red]Error: `hyprctl` not found in PATH.[/red]")
+        raise typer.Exit(1)
+    try:
+        out = subprocess.check_output(["hyprctl", "binds"], text=True, stderr=subprocess.STDOUT)
+        if verbose:
+            console.rule("[dim]raw hyprctl binds[/dim]")
+            console.print(out)
+            console.rule()
+        return out
+    except subprocess.CalledProcessError as e:
+        console.print("[red]Failed to run `hyprctl binds`[/red]")
+        if e.output:
+            console.print(e.output)
+        raise typer.Exit(e.returncode or 1)
+
+# Block parser
+
+KV_KEYS_IN_ORDER = [
+    "modmask",
+    "submap",
+    "key",
+    "keycode",
+    "catchall",
+    "description",
+    "dispatcher",
+    "arg",
+]
+
+def parse_blocks(text: str, verbose: bool) -> List[Bind]:
+    lines = text.splitlines()
+    i = 0
+    binds: List[Bind] = []
+
+    def read_kv_block(start_index: int) -> Tuple[Dict[str, str], int]:
+        data: Dict[str, str] = {}
+        idx = start_index
+        for key in KV_KEYS_IN_ORDER:
+            if idx >= len(lines):
+                break
+            line = lines[idx].strip("\n")
+            # Expect "key: value" with any indentation
+            if ":" not in line:
+                # Allow empty line between blocks
+                if line.strip() == "":
+                    idx += 1
+                    continue
+                # If we hit next 'bind' prematurely, stop
+                if line.strip().startswith("bind"):
+                    break
+                # Otherwise, consume but continue (robustness)
+                idx += 1
+                continue
+            k, v = line.split(":", 1)
+            k = k.strip().lower()
+            v = v.strip()
+            if k in KV_KEYS_IN_ORDER:
+                data[k] = v
+            idx += 1
+        return data, idx
+
+    while i < len(lines):
+        line = lines[i].strip()
+        if line.startswith("bind"):
+            # Consume the "bind" line
+            i += 1
+            # Read the fixed key-value block
+            kv, i = read_kv_block(i)
+
+            if verbose:
+                console.print("[cyan]parsed block[/cyan]", kv)
+
+            # Map/normalize
+            modmask = int(kv.get("modmask", "0") or "0")
+            submap = kv.get("submap", "").strip() or "global"
+            key = norm_key(kv.get("key", ""))
+            keycode = int(kv.get("keycode", "0") or "0")
+            catchall = (kv.get("catchall", "").lower() == "true")
+            description = kv.get("description", "")
+            dispatcher = kv.get("dispatcher", "")
+            arg = kv.get("arg", "")
+
+            # only include real key (not empty)
+            binds.append(Bind(
+                modmask=modmask,
+                submap=submap,
+                key=key,
+                keycode=keycode,
+                catchall=catchall,
+                description=description,
+                dispatcher=dispatcher,
+                arg=arg,
+                raw=kv,
+            ))
+            continue
+
+        i += 1
+
+    # Filter out empty-key entries (sometimes hyprctl prints placeholders)
+    binds = [b for b in binds if b.key]
+    return binds
+
+# Free keys
+
+def compute_free_sets(binds: List[Bind]) -> Tuple[Set[str], Set[str]]:
+    used_plain: Set[str] = set()
+    used_shift_plain: Set[str] = set()
+
+    for b in binds:
+        if b.modmask == 0:
+            used_plain.add(b.key)
+        # exactly Shift only
+        if b.modmask == 1:
+            used_shift_plain.add(b.key)
+
+    free_plain = set(k for k in PLAIN_KEYS if k not in used_plain)
+    free_shift = set(k for k in SHIFTABLE_KEYS if k not in used_shift_plain)
+    return free_plain, free_shift
+
+# Markdown rendering
+
+def render_markdown(binds: List[Bind]) -> str:
+    free_plain, free_shift = compute_free_sets(binds)
+
+    def key_sort_key(k: str) -> Tuple[int, str]:
+        if k in LETTERS: return (0, k)
+        if k in DIGITS:  return (1, k)
+        return (2, k)
+
+    lines: List[str] = []
+    lines.append("# Hyprland Binds Report\n")
+
+    # Used keys table
+    lines.append("## Used keys and effects")
+    lines.append("| Submap | Modifiers | Key | Dispatcher | Arg | Description | Modmask |")
+    lines.append("|---|---|---|---|---|---:|---:|")
+    for b in sorted(binds, key=lambda x: (x.submap.lower(), mods_from_mask(x.modmask), x.key)):
+        mods = "+".join(mods_from_mask(b.modmask)) or "(none)"
+        desc = b.description or ""
+        lines.append(f"| `{b.submap}` | `{mods}` | `{b.key}` | `{b.dispatcher}` | `{b.arg}` | `{desc}` | `{b.modmask}` |")
+
+    # Submaps section
+    lines.append("\n## Submaps")
+    by_submap: Dict[str, List[Bind]] = {}
+    for b in binds:
+        by_submap.setdefault(b.submap, []).append(b)
+    for name in sorted(by_submap.keys(), key=str.lower):
+        lines.append(f"### `{name}`")
+        lines.append("| Modifiers | Key | Dispatcher | Arg | Description |")
+        lines.append("|---|---|---|---|---|")
+        for b in sorted(by_submap[name], key=lambda x: (mods_from_mask(x.modmask), x.key)):
+            mods = "+".join(mods_from_mask(b.modmask)) or "(none)"
+            desc = b.description or ""
+            lines.append(f"| `{mods}` | `{b.key}` | `{b.dispatcher}` | `{b.arg}` | `{desc}` |")
+        lines.append("")
+
+    # Free: no modifiers
+    lines.append("## Free keys (no modifiers)")
+    if free_plain:
+        lines.append(", ".join(f"`{k}`" for k in sorted(free_plain, key=key_sort_key)))
+    else:
+        lines.append("_None_")
+
+    # Free: Shift only
+    lines.append("\n## Free `Shift+key` combinations (no other modifiers)")
+    if free_shift:
+        lines.append(", ".join(f"`Shift+{k}`" for k in sorted(free_shift, key=key_sort_key)))
+    else:
+        lines.append("_None_")
+
+    lines.append("\n---\n*Generated from `hyprctl binds`")
+    lines.append(f"\nNice output: {os.path.basename(sys.argv[0])} | glow -p -w0")
+    return "\n".join(lines)
+
+@app.command()
+def main(
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show raw output and parsed blocks on stderr."),
+):
+    text = run_hyprctl_binds(verbose=verbose)
+    binds = parse_blocks(text, verbose=verbose)
+
+    if verbose:
+        console.rule("[dim]summary[/dim]")
+        console.print(f"parsed binds: {len(binds)}")
+        # show a couple of examples
+        for b in binds[:5]:
+            console.print({"submap": b.submap, "key": b.key, "modmask": b.modmask, "dispatcher": b.dispatcher, "arg": b.arg})
+
+    md = render_markdown(binds)
+    print(md)
+
+if __name__ == "__main__":
+    app()
+
