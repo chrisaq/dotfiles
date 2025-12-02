@@ -91,6 +91,7 @@ export LESSKEY="$XDG_CONFIG_HOME"/less/lesskey
 export MEDNAFEN_HOME="$XDG_CONFIG_HOME"/mednafen
 export NOTMUCH_CONFIG="$XDG_CONFIG_HOME"/notmuch/notmuchrc
 export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME"/npm/npmrc
+export GRADLE_USER_HOME="$XDG_DATA_HOME"/gradle
 export __GL_SHADER_DISK_CACHE_PATH="$XDG_CACHE_HOME"/nv
 export CUDA_CACHE_PATH="$XDG_CACHE_HOME"/nv
 export RANDFILE="$XDG_CACHE_HOME"/rnd
@@ -154,6 +155,10 @@ fi
 # snap
 if [ -d "/var/lib/snapd/snap/bin" ] ; then
     PATH="$PATH:/var/lib/snapd/snap/bin"
+fi
+# npm
+if [ -d "$XDG_DATA_HOME/npm/bin" ] ; then
+    PATH="$PATH:$XDG_DATA_HOME/npm/bin"
 fi
 # perl
 if [ -d "/usr/bin/vendor_perl/" ] ; then
@@ -1011,7 +1016,8 @@ znap source zsh-completions
 ################################################################################
 ### Override section - override keybindings and such from modules and tools above
 ## Aliases
-alias ls="eza --group-directories-first --classify --git --icons"
+eza -a1@hlo --icons --group-directories-first
+alias ls="eza -a1@hlo --group-directories-first --classify --git --icons"
 alias ll="ls -l"
 alias lsl="ls -l"
 alias lla="ls -la"

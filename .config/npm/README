@@ -1,0 +1,4 @@
+# npm config
+
+npmrc has devolved into including usernames, email addresses, tokens and other sensitive information.
+Moved to cryptsync.

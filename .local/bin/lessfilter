@@ -10,57 +10,7 @@ ext=${1##*.}
 # Use function lessfilter_vars <file> to see values above
 # echo "mime: $mime -- category: $category -- kind: $kind -- ext: $ext"
 # exit
-if [ "$kind" = octet-stream ]; then
-    if [[ $1 == *events.out.tfevents.* ]]; then
-        python <<EOF
-from contextlib import suppress
-import sys
-from time import gmtime, strftime
-
-import pandas as pd
-import plotext as plt
-from tensorboard.backend.event_processing.event_file_loader import (
-    EventFileLoader,
-)
-
-file = "$1"
-df = pd.DataFrame(columns=["Step", "Value"])
-df.index.name = "YYYY-mm-dd HH:MM:SS"
-
-for event in EventFileLoader(file).Load():
-    with suppress(IndexError):
-        df.loc[strftime("%F %H:%M:%S", gmtime(event.wall_time))] = [  # type: ignore
-            event.step,  # type: ignore
-            event.summary.value[0].tensor.float_val[0],  # type: ignore
-        ]
-df.index = pd.to_datetime(df.index)  # type: ignore
-df.Step = df.Step.astype(int)
-plt.plot(df.Step, df.Value, marker="braille")
-plt.title(event.summary.value[0].metadata.display_name)  # type: ignore
-plt.clc()
-plt.show()
-df.to_csv(sys.stdout, "\t")
-EOF
-    elif [[ $(basename "$1") == data.mdb ]]; then
-        python <<EOF
-from os.path import dirname as dirn
-import lmdb
-
-with lmdb.open(dirn("$1")) as env, env.begin() as txn:
-    for key, val in txn.cursor():
-        print(key.decode())
-EOF
-    fi
-elif [ "$kind" = zip ] && [ "$ext" = pth ]; then
-    python <<EOF
-import torch
-
-data = torch.load("$1")
-if isinstance(data, torch.Tensor):
-    print(data.shape)
-print(data)
-EOF
-elif [ "$ext" = lua ]; then
+if [ "$ext" = lua ]; then
     if [ "$(command -v bat)" ]; then
         bat --color=always --language=lua "$1"
     fi
@@ -101,7 +51,7 @@ elif [ "$ext" = md ]; then
     if [ "$(command -v glow)" ]; then
         # Since glow is called inside a pipe where term characteristics can't be queried
         # we need to set the style ("dark") https://github.com/wofr06/lesspipe/issues/112
-        glow -s $HOME/.config/glow/catppuccin-macchiato.json "$1"
+        glow -s "$HOME/.config/glow/catppuccin-macchiato.json" "$1"
         #CLI_COLOR=1 COLORTERM=truecolor glow -s dark
         # CLI_COLOR=1 glow -s dark
         # COLORTERM=truecolor glow -s dark
@@ -109,6 +59,16 @@ elif [ "$ext" = md ]; then
         # glow -s dark "$1" --style=dark --pager=cat | less -R
         # glow -s dark "$1"
     fi
+elif [ "$category" = application ] && [ "$kind" = x-sharedlib ]; then
+    if [ "$(command -v readelf)" ] && [ "$(command -v bat)" ]; then
+        readelf -a "$1" | bat --color=always -plbash
+    fi
+elif [ "$category" = application ]; then
+    echo "Binary file: $1"
+    echo
+    file -Lbs -- "$1" 2>/dev/null || true
+    echo
+    stat -- "$1" 2>/dev/null || true
 # https://github.com/wofr06/lesspipe/pull/117
 elif [ "$category" = text ]; then
     if [ "$(command -v bat)" ]; then

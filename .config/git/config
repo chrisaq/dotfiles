@@ -286,6 +286,8 @@
 	repo = /home/chrisq/.config/zsh/zdharma-continuum/fast-syntax-highlighting
 	repo = /home/chrisq/.config/zsh/zsh-users/zsh-autosuggestions
 	repo = /home/chrisq/.config/zsh/zsh-users/zsh-completions
+	prefetch = false
+	repo = /home/chrisq/Code/Bring/kconf
 [interactive]
     diffFilter = delta --color-only
 [delta]

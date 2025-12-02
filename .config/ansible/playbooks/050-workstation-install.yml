@@ -24,6 +24,15 @@
           - hyprland
           - hyprlock
           - hypridle
+          - hyprpolkitagent
           - difftastic
           - wev
+          - geeqie
+          - tuned-ppd
+          - bluettui
+          - bluez
+          - bluez-utils
+          - firefox
+          - nerd-fonts
+          - ghostty
         state: present

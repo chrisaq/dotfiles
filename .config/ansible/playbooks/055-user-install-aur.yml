@@ -52,6 +52,7 @@
         - icaclient
         - inxi
         - headlamp-bin
+        - overskride-bin
         - lf-git
         - libopenaptx-git
         - libu2f-

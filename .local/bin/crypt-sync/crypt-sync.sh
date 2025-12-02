@@ -31,7 +31,8 @@ for syncfile in `ls ${XDG_BIN_HOME}/crypt-sync/crypt-sync-list*.txt`; do
             echo "Encrypting local file to vault"
             ls -la ${locfile}
             ls -la ${cryptfile}
-            gpg --yes --encrypt --sign --armor --recipient 0xAEE3FD309AFCC09E --output ${cryptfile} ${locfile}
+            # Removing --sign stops gpg from asking for passphrase for every changed file.
+            gpg --yes --encrypt --armor --recipient 0xAEE3FD309AFCC09E --output ${cryptfile} ${locfile}
             #echo "sync'ing timestamp on files: touch -r ${locfile} ${cryptfile}"
             touch -r ${locfile} ${cryptfile}
         else
