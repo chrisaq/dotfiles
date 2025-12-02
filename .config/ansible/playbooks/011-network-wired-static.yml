@@ -37,6 +37,12 @@
         enabled: true
         state: started
 
+    - name: Ensure /etc/resolv.conf is not immutable
+      command: chattr -i /etc/resolv.conf
+      args:
+        warn: false
+      ignore_errors: yes
+
     - name: Symlink /etc/resolv.conf to systemd-resolved's stub resolver
       file:
         src: /run/systemd/resolve/stub-resolv.conf
