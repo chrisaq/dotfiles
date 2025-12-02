@@ -35,4 +35,5 @@
           - firefox
           - nerd-fonts
           - ghostty
+          - lib32-libpipewire
         state: present
