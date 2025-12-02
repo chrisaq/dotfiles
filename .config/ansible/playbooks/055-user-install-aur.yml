@@ -58,12 +58,10 @@
       - i3-gaps-rounded-git
       - xdg-desktop-portal-hyprland-git
       - hyprshot
-      - hyprland-scratchpad-git
       - hyprdock
       - hyprland-workspaces
       - gopass-ui-bin
       - romvault
-      - spotify
       - asdf-vm
       - tfenv
       - hr
@@ -94,7 +92,7 @@
       kewlfft.aur.aur:
         name: "{{ item }}"
         state: present
-        use: yay
+        use: auto
       loop: "{{ aur_packages }}"
       register: aur_results
       ignore_errors: yes
