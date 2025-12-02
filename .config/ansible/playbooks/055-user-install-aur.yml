@@ -1,106 +1,106 @@
 ---
 - hosts: localhost
   become: true
+
+  vars:
+    aur_packages:
+      - spotify
+      - slack
+      - visual-studio-code-bin
+      - zoom
+      - google-chrome
+      - autopass.cr-bin
+      - brave-bin
+      - azure-cli
+      - checkupdates-aur
+      - choose
+      - ciso
+      - correcthorse-git
+      - direnv
+      - ebtables
+      - fbneo-git
+      - fontpreview-ueberzug-git
+      - gopass-jsonapi-git
+      - gopass-ui-bin
+      - gotop-bin
+      - icaclient
+      - inxi
+      - headlamp-bin
+      - overskride-bin
+      - lf-git
+      - libopenaptx-git
+      - libu2f-server
+      - host
+      - minetime-bin
+      - octant-bin
+      - pass-clip
+      - pegasus-frontend-git
+      - perl-checkupdates-aur
+      - perl-www-aur
+      - polybar
+      - pulseaudio-control
+      - rofi-bluetooth-git
+      - romvault
+      - slack-desktop
+      - spotify
+      - syncthing-gtk
+      - teams
+      - tfenv
+      - trizen
+      - xkcdpass
+      - lscolors-git
+      - terraform-lsp-bin
+      - dockerfile-language-server-bin
+      - isync-utf8-mailboxes
+      - terraform-lsp-bin
+      - i3lock-fancy-multimonitor
+      - ripmime
+      - i3-gaps-rounded-git
+      - xdg-desktop-portal-hyprland-git
+      - hyprshot
+      - hyprland-scratchpad-git
+      - hyprdock
+      - hyprland-workspaces
+      - gopass-ui-bin
+      - romvault
+      - spotify
+      - asdf-vm
+      - tfenv
+      - hr
+      - nodejs-gitmoji-cli
+      - spotify-player
+      - battop
+      - clipboard-bin
+      - iwes-bin
+      - mdtt-bin
+      - luajit-tiktoken-bin
+
   tasks:
-    - name: Install AUR packages
+    - name: Install paru
       become: false
       kewlfft.aur.aur:
         name: paru
         use: auto   # It will install yay or paru if needed
         state: present
 
-    - name: Install spotify from the AUR
+    - name: Install yay
       become: false
       kewlfft.aur.aur:
         name: yay
         state: present
 
-    - name: Install multiple AUR packages
-      become: false  # Do not use sudo for AUR installation
+    - name: Install multiple AUR packages (best-effort)
+      become: false
       kewlfft.aur.aur:
         name: "{{ item }}"
         state: present
         use: yay
-      loop:
-        - spotify
-        - slack
-        - visual-studio-code-bin
-        - zoom
-        - google-chrome
-        - other-package-1
-        - other-package-2
-        - autopass.cr-bin
-        - brave-bin
-        - azure-cli
-        - checkupdates-aur
-        - choose
-        - ciso
-        - correcthorse-git
-        - direnv
-        - ebtables
-        - fbneo-git
-        - fontpreview-ueberzug-git
-        - google-chrome
-        - gopass-jsonapi-git
-        - gopass-ui-bin
-        - gotop-bin
-        - hid-nintendo-nso-
-        - dkms
-        - i3-layout-manager-git
-        - i3exit
-        - i3tree-git
-        - icaclient
-        - inxi
-        - headlamp-bin
-        - overskride-bin
-        - lf-git
-        - libopenaptx-git
-        - libu2f-
-        - host
-        - minetime-bin
-        - octant-bin
-        - pass-clip
-        - pegasus-frontend-git
-        - perl-checkupdates-aur
-        - perl-www-aur
-        - polybar
-        - pulseaudio-control
-        - rofi-bluetooth-git
-        - romvault
-        - slack-desktop
-        - spotify
-        - syncthing-gtk
-        - teams
-        - tfenv
-        - trizen
-        - xkcdpass
-        - lscolors-git
-        - terraform-lsp-bin
-        - dockerfile-
-        - language-server-bin
-        - isync-utf8-mailboxes
-        - k0s-bin
-        - terraform-lsp-bin
-        - i3lock-fancy-multimonitor
-        - ripmime
-        - i3-gaps-rounded-git
-        - xdg-desktop-portal-hyprland-git
-        - hyprshot
-        - hyprland-scratchpad-git
-        - hyprdock
-        - hyprland-workspaces
-        - gopass-ui-bin
-        - romvault
-        - spotify
-        - asdf-vm
-        - tfenv
-        - hr
-        - nodejs-gitmoji-cli
-        - spotify-player
-        - battop
-        - hyprland-git
-        - waybar-hyprland-git
-        - clipboard-bin
-        - iwes-bin
-        - mdtt-bin
-        - luajit-tiktoken-bin
+      loop: "{{ aur_packages }}"
+      register: aur_results
+      ignore_errors: yes
+
+    - name: Show failed AUR packages
+      debug:
+        msg: "Failed to install {{ item.item }}: {{ item.msg | default(item) }}"
+      loop: "{{ aur_results.results }}"
+      when: item.failed | default(false)
