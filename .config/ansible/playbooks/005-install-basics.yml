@@ -79,4 +79,8 @@
           - glow
           - eza
           - difftastic
+          - udisks2
+          - fwupd
+          - less
+          - syncthing
         state: present
