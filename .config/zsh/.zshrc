@@ -525,6 +525,122 @@ mdsearch() {
     ugrep -Qrl -%% -Z4 --split --context=3 -t markdown --no-confirm --view="glow -p" -e "$arg"
     cd "$CWD"
 }
+# ssh tunnel
+cq_ssh-tunnel() {
+  emulate -L zsh -o pipefail
+  local -a hosts ssh_config_files
+  local line host dest tunnel_type bind_addr local_port dest_host dest_port
+  # ---- Collect ssh config files ----
+  [[ -f ~/.ssh/config ]] && ssh_config_files+=(~/.ssh/config)
+  ssh_config_files+=(~/.ssh/config.d/*.conf(N))  # ignore if dir doesn't exist / no matches
+  # ---- Hosts from ssh config (Host entries, no wildcards) ----
+  for cfg in $ssh_config_files; do
+    while IFS= read -r line; do
+      # Only lines starting exactly with "Host "
+      [[ $line == Host\ * ]] || continue
+      # Remove leading "Host " and split on whitespace
+      line=${line#Host }
+      for host in ${(z)line}; do
+        [[ $host == *"*"* || $host == *"?"* ]] && continue
+        hosts+="$host"
+      done
+    done < "$cfg"
+  done
+  # ---- Hosts from known_hosts ----
+  if [[ -f ~/.ssh/known_hosts ]]; then
+    while IFS=' ' read -r host rest; do
+      # skip empty / commented / hashed entries
+      [[ -z $host || $host == \#* || $host == \|* ]] && continue
+      # known_hosts may store multiple hosts separated by commas
+      for h in ${(s:,:)host}; do
+        # strip [ ] around IPv6 entries without using globs
+        if [[ ${h[1,1]} == "[" && ${h[-1,1]} == "]" ]]; then
+          h=${h[2,-2]}
+        fi
+        hosts+="$h"
+      done
+    done < ~/.ssh/known_hosts
+  fi
+  # ---- Unique & sorted ----
+  hosts=(${(u)hosts})
+  hosts=(${(on)hosts})
+  # ---- Pick destination (user@host / Host alias) ----
+  if (( ${#hosts} > 0 )) && command -v fzf >/dev/null 2>&1; then
+    dest=$(printf '%s\n' "${hosts[@]}" \
+      | fzf --prompt='SSH destination (alias or host, can include user@): ')
+  else
+    [[ ${#hosts} -gt 0 ]] && print "No fzf; you have ${#hosts} known hosts."
+    vared -p "SSH destination (alias, host, or user@host): " dest
+  fi
+  [[ -z $dest ]] && { print -u2 "Aborted: no destination selected."; return 1; }
+  # ---- Tunnel type ----
+  print ""
+  print "What kind of tunnel do you want?"
+  print "  1) Local  (-L): expose a remote service on this machine"
+  print "  2) Remote (-R): expose a local service on the remote machine"
+  print "  3) SOCKS  (-D): dynamic proxy (SOCKS5 on a local port)"
+  vared -p "Choose 1/2/3 [1]: " tunnel_type
+  [[ -z $tunnel_type ]] && tunnel_type=1
+  case $tunnel_type in
+    1)  # Local forward
+      print ""
+      vared -p "Local bind address on THIS machine [127.0.0.1]: " bind_addr
+      [[ -z $bind_addr ]] && bind_addr=127.0.0.1
+      vared -p "Local port to listen on (on THIS machine, e.g. 8080): " local_port
+      vared -p "Target host as seen FROM the SSH server (e.g. localhost, db.internal): " dest_host
+      vared -p "Target port on that host (e.g. 5432): " dest_port
+      if [[ -z $local_port || -z $dest_host || -z $dest_port ]]; then
+        print -u2 "Missing one or more required values. Aborting."
+        return 1
+      fi
+      print ""
+      print "Creating LOCAL tunnel:"
+      print "  Local:  ${bind_addr}:${local_port}"
+      print "  Remote: ${dest_host}:${dest_port} (as seen from $dest)"
+      print ""
+      print "Command: ssh -N -L ${bind_addr}:${local_port}:${dest_host}:${dest_port} $dest"
+      ssh -N -L "${bind_addr}:${local_port}:${dest_host}:${dest_port}" "$dest"
+      ;;
+    2)  # Remote forward
+      print ""
+      vared -p "Remote bind address on SSH SERVER [127.0.0.1]: " bind_addr
+      [[ -z $bind_addr ]] && bind_addr=127.0.0.1
+      vared -p "Remote port to listen on (ON THE SSH SERVER, e.g. 8080): " local_port
+      vared -p "Target host reachable FROM THIS machine (e.g. localhost, service.internal): " dest_host
+      vared -p "Target port on that host (e.g. 80): " dest_port
+      if [[ -z $local_port || -z $dest_host || -z $dest_port ]]; then
+        print -u2 "Missing one or more required values. Aborting."
+        return 1
+      fi
+      print ""
+      print "Creating REMOTE tunnel:"
+      print "  Remote: ${bind_addr}:${local_port} (on $dest)"
+      print "  Local : ${dest_host}:${dest_port} (from here)"
+      print ""
+      print "Command: ssh -N -R ${bind_addr}:${local_port}:${dest_host}:${dest_port} $dest"
+      ssh -N -R "${bind_addr}:${local_port}:${dest_host}:${dest_port}" "$dest"
+      ;;
+    3)  # SOCKS proxy
+      print ""
+      bind_addr=127.0.0.1
+      vared -p "Local port for SOCKS proxy (on THIS machine, e.g. 1080): " local_port
+      if [[ -z $local_port ]]; then
+        print -u2 "Missing port. Aborting."
+        return 1
+      fi
+      print ""
+      print "Creating SOCKS (dynamic) tunnel:"
+      print "  SOCKS proxy on ${bind_addr}:${local_port}"
+      print ""
+      print "Command: ssh -N -D ${bind_addr}:${local_port} $dest"
+      ssh -N -D "${bind_addr}:${local_port}" "$dest"
+      ;;
+    *)
+      print -u2 "Invalid choice '$tunnel_type'. Aborting."
+      return 1
+      ;;
+  esac
+}
 # prints 256 color palette
 256color() {
     for k in `seq 0 1`;do
