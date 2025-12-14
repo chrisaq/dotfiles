@@ -122,6 +122,7 @@ export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 # TODO: temp disable
 #export AWS_SHARED_CREDENTIALS_FILE="$XDG_CONFIG_HOME"/aws/credentials
 #export AWS_CONFIG_FILE="$XDG_CONFIG_HOME"/aws/config
+export AZURE_CONFIG_DIR=$XDG_DATA_HOME/azure
 # XDG: using aliases as workarounds
 alias tmux='TERM=xterm-256color tmux -f "$XDG_CONFIG_HOME"/tmux/tmux.conf'
 alias weechat='weechat -d "$XDG_CONFIG_HOME"/weechat'
@@ -229,7 +230,8 @@ export FZF_COMMON_OPTIONS="
   --bind='ctrl-u:preview-page-up'
   --bind='ctrl-d:preview-page-down'
   --bind='insert:toggle+down,delete:deselect+down'
-  --preview-window 'right:60%::wrap'"
+  --preview-window 'right:60%::wrap'
+  --header-first --header-lines=0 --ansi"
 #   # --preview-window 'right:60%:hidden:wrap'
 #   # --preview '([[ -d {} ]] && tree -C {}) || ([[ -f {} ]] && bat --style=full --color=always {}) || echo {}'"
 export FZF_EXCLUDES="--exclude .git --exclude node_modules --exclude '.mozilla' --exclude '.cache'"
@@ -289,17 +291,30 @@ zstyle ':autocomplete:*' min-input 0
 # # switch group using `,` and `.`
 zstyle ':fzf-tab:*' switch-group ',' '.'
 # set insert/delete to toggle/deselect multiple items
-zstyle ':fzf-tab:*' fzf-bindings 'insert:toggle+down,delete:deselect+down'
+zstyle ':fzf-tab:*' fzf-bindings 'insert:toggle+down,delete:deselect+down' 'ctrl-space:toggle' 'alt-j:down,alt-k:up' 'ctrl-u:preview-page-up' 'ctrl-d:preview-page-down' '?:toggle-preview'
 # # preview directory's content with exa when completing cd
 #zstyle ':fzf-tab:complete:cd:*' fzf-preview 'exa -1 --color=always $realpath' # remember to use single quote here!!!
 # TODO:  testing
 # zstyle ':fzf-tab:complete:*:*' fzf-preview '${XDG_BIN_HOME}/lessfilter ${(Q)realpath}'
 # testing ends
 # zstyle ':fzf-tab:complete:*:*' fzf-preview 'less -e +G ${(Q)realpath}'
+# enable descriptions as group labels
+zstyle ':completion:*:descriptions' format '[%d]'
+# actually group matches by description
+zstyle ':completion:*' group-name ''
 # Do not show preview for options
 zstyle ':fzf-tab:complete:*:options' fzf-preview ''
 # Do not show preview for arguments (TODO: not working?)
 zstyle ':fzf-tab:complete:*:argument-1' fzf-preview ''
+# Show group name (e.g. files / dirs / commands) in a separate column
+zstyle ':fzf-tab:*' show-group full
+# Show a short log when completing git branches
+zstyle ':fzf-tab:complete:git-*:*' fzf-preview '
+  case "$group" in
+    branches) git log --oneline --decorate -n 20 -- "$word" ;;
+    *)        ;;
+  esac
+'
 ### ENDS: FZF-TAB ##############################################################
 
 
@@ -517,7 +532,10 @@ cq_tmux_split_dirs_add() {
     tmux select-layout even-horizontal
   done
 }
-mdsearch() {
+cq_mdsearch() {
+    : "#:desc: search markdown files with ugrep and preview with glow"
+    : "#:usage: mdsearch [search_term]"
+    : "#:no-args: false"
     local arg="${1:-""}"
     CWD="$(pwd)"
     cd $HOME/Sync/Wiki/Tech/Tech
@@ -1101,7 +1119,7 @@ znap clone \
 znap source powerlevel10k
 znap eval trapd00r/LS_COLORS "$( whence -a dircolors gdircolors ) -b LS_COLORS"
 znap source junegunn/fzf shell/{completion,key-bindings}.zsh
-# fzf-tab before plugins which will wrap widgets 
+# fzf-tab before plugins which will wrap widgets
 # such as zsh-autosuggestions or fast-syntax-highlighting
 znap source fzf-tab
 znap source fzf-tab-source
@@ -1132,7 +1150,7 @@ znap source zsh-completions
 ################################################################################
 ### Override section - override keybindings and such from modules and tools above
 ## Aliases
-eza -a1@hlo --icons --group-directories-first
+# eza -a1@hlo --icons --group-directories-first
 alias ls="eza -a1@hlo --group-directories-first --classify --git --icons"
 alias ll="ls -l"
 alias lsl="ls -l"
@@ -1157,10 +1175,10 @@ hash -d ruter=${HOME}/Sync/Work/Ruter
 hash -d wiki=${HOME}/Sync/Wiki
 hash -d sync=${HOME}/Sync
 #### abbrev
- Q() {
-    qcmd=$(compgen -c | grep '^cq' | fzf)
-    $qcmd
-}
+#  Q() {
+#     qcmd=$(compgen -c | grep '^cq' | fzf)
+#     $qcmd
+# }
 abbrev-alias -g G="| rg"
 # Powerlevel10k
 # To customize prompt, run `p10k configure` or edit ~/.config/zsh/.p10k.zsh.
@@ -1171,105 +1189,15 @@ abbrev-alias -g G="| rg"
 ################################################################################
 ###  Personal functions and scripts system
 ## Howto add metadata to functions and scripts:
-# Example metadata for a function:
-# cq_hello() { print "hi from cq_hello"; }
-# cq_setmeta cq_hello "Say hello." "cq_hello" noargs
-# Script header example, must be in the first 50 lines of the script:
+# Script/function header example, must be start of file or function:
 # #:desc: Dump a DB to S3
 # #:usage: cq_db_dump <db_name> [--full]
 # #:noargs: true
-
-Q() {
-  emulate -L zsh
-  setopt pipefail
-
-  # helpers
-  if ! source ~/.config/zsh/cq_meta.zsh 2>/dev/null; then
-    print -u2 "Q: missing ~/.config/zsh/cq_meta.zsh"
-    return 1
-  fi
-
-  rehash  # refresh $commands
-  local -a path_cmds func_cmds all table
-  local cmd desc selection key line
-
-  # collect + dedupe
-  path_cmds=(${(M)${(k)commands}:#cq*})
-  func_cmds=(${(M)${(k)functions}:#cq*})
-  all=(${(ou)path_cmds} ${(ou)func_cmds})
-
-  if (( ${#all} == 0 )); then
-    print -u2 "Q: no cq* commands found."
-    return 1
-  fi
-
-  # rows: "name<TAB>desc"
-  table=()
-  for cmd in "${all[@]}"; do
-    desc="$(_cq_desc "$cmd")"
-    table+=("$cmd"$'\t'"${desc:- }")
-  done
-
-  # fzf (preview through wrapper; pass PATH)
-  selection=$(
-    printf '%s\n' "${table[@]}" | \
-    fzf --ansi \
-        --delimiter=$'\t' --with-nth=1,2 --nth=1,2 \
-        --no-hscroll \
-        --preview='env PATH='"$PATH"' cq-fzf-preview {1} {}' \
-        --expect=enter,alt-enter,ctrl-e \
-        --header=$'↵: run if no-args, else insert & print help • Alt-Enter: force insert • Ctrl-E: force exec'
-  ) || return 1
-
-  key="${selection%%$'\n'*}"
-  line="${selection#*$'\n'}"
-  if [[ -z "$line" || "$line" == "$key" ]]; then
-    return 1
-  fi
-  cmd="${line%%$'\t'*}"
-
-  _echo_help() {
-    local d u block
-    d="$(_cq_desc "$cmd")"
-    u="$(_cq_usage "$cmd")"
-    [[ -z "$d$u" ]] && return 0
-
-    block=$'\n# '"$cmd"$'\n'
-    [[ -n "$d" ]] && block+="# Desc: $d"$'\n'
-    [[ -n "$u" ]] && block+="# Usage: $u"$'\n'
-
-    if zle; then
-        zle -I             # finish any partial prompt line
-        print -r -- "$block"
-        zle -R             # force prompt redraw below the printed block
-    else
-        print -r -- "$block"
-    fi
-  }
-
-
-  case "$key" in
-    ctrl-e)
-      exec "$cmd"
-      ;;
-    alt-enter)
-      _echo_help
-      if zle; then LBUFFER+="$cmd "; zle redisplay; else print -r -- "$cmd"; fi
-      return 0
-      ;;
-  esac
-
-  if _cq_noargs "$cmd"; then
-    exec "$cmd"
-  else
-    _echo_help
-    if zle; then LBUFFER+="$cmd "; zle redisplay; else print -r -- "$cmd"; fi
-  fi
-}
-
-
+# Helper function to extract a specific tag value
+#
+# Uses /usr/bin/awk to ensure execution regardless of PATH issues.
+# TODO: source from ZDOTDIR if exists
+source ~/.config/zsh/Q.zsh
+zle -N Q_widget
+bindkey '^Q' Q_widget
 ### ENDS: Personal functions and scripts system ################################
-
-# Example metadata for a function:
-# cq_hello() { print "hi from cq_hello"; }
-# cq_setmeta cq_hello "Say hello." "cq_hello" noargs

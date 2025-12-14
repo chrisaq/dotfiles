@@ -1,4 +1,5 @@
 #!/bin/bash
+#:usage: cqkill
 
 #  $(ps --sort=-pcpu aux | \
 #kill -9 $(ps aux | rofi -dmenu | awk "{ print $1 }")

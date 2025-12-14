@@ -1,4 +1,7 @@
 #!/bin/bash
+#:no-args: false
+#:usage: mdsearch [search terms]
+#:desc: Search markdown files in the Tech wiki directory using ugrep with TUI and view results with glow.
 
 # Capture the argument or default to an empty string
 arg="${1:-""}"

@@ -518,7 +518,11 @@ return {
     -- optional dependencies
     dependencies = { { "echasnovski/mini.icons", opts = {} } },
     config = function()
-      require("oil").setup()
+      require("oil").setup({
+        view_options = {
+          show_hidden = true,
+        },
+      })
       key_map("n", "-", "<cmd>Oil<cr>", { desc = "open parent directory" })
     end,
   },

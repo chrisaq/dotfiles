@@ -1,0 +1,38 @@
+---
+- name: Allow wheel group to lock/suspend without auth via polkit
+  hosts: localhost
+  become: true
+  vars:
+    polkit_login1_group: wheel
+    polkit_rule_path: /etc/polkit-1/rules.d/50-hypridle-login1.rules
+
+  tasks:
+    - name: Ensure polkit rules directory exists
+      file:
+        path: /etc/polkit-1/rules.d
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Install polkit rule for login1 lock/suspend
+      copy:
+        dest: "{{ polkit_rule_path }}"
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          polkit.addRule(function(action, subject) {
+            if (subject.isInGroup("{{ polkit_login1_group }}") &&
+                (action.id == "org.freedesktop.login1.lock-session" ||
+                 action.id == "org.freedesktop.login1.suspend" ||
+                 action.id == "org.freedesktop.login1.suspend-multiple-sessions")) {
+              return polkit.Result.YES;
+            }
+          });
+
+    - name: Restart polkit to apply rule
+      service:
+        name: polkit
+        state: restarted
+
