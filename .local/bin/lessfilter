@@ -64,6 +64,8 @@ elif [ "$category" = application ] && [ "$kind" = x-sharedlib ]; then
         readelf -a "$1" | bat --color=always -plbash
     fi
 elif [ "$category" = application ]; then
+    echo kind: $kind
+    echo mime: $ext -- category: $category
     echo "Binary file: $1"
     echo
     file -Lbs -- "$1" 2>/dev/null || true

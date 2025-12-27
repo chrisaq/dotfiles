@@ -1,4 +1,7 @@
 #!/bin/bash
+#:usage: cq_pass-add
+#:no-args: true
+#:desc: Create a new gopass entry via rofi prompts.
 
 shopt -s nullglob globstar
 

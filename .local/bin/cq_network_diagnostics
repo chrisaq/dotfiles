@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#:usage: cq_network_diagnostics [-i IFACE] [--pcap]
+#:no-args: false
+#:desc: Run network diagnostics with optional interface and pcap.
 # netdiag.sh v2 — Arch + iwd + systemd-networkd/resolved
 set -u
 
@@ -256,4 +259,3 @@ elif (( PING_OK >= 1 )) && (( RES_QUERY_OK == 0 )); then
   VERDICT="Routing OK; DNS problem"
 fi
 hr; echo "${C_BOLD}VERDICT:${C_RST} $VERDICT"
-

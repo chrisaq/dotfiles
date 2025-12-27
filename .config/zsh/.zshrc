@@ -408,6 +408,9 @@ alias xkcd_pwgen="gopass pwgen -x --lang en --sep ' ' 5"
 # decrypt two files and send them to diff/meld
 # used for syncthing conflicts in crypt-sync files
  cq_decrypt_diff() {
+  : "#:desc: decrypt two GPG-encrypted files and run a diff tool"
+  : "#:usage: cq_decrypt_diff <diff_program> <file1> <file2> [program_args...]"
+  : "#:no-args: false"
   local program="$1"
   local file1="$2"
   local file2="$3"
@@ -443,6 +446,9 @@ alias cq_clip_watch="watch -n 1 'echo \"PRIMARY (middle_mouse):\" && sselp && ec
 alias watchclip="xsel -o | xclip -selection clipboard -i"
 # Start a tmux session with session picker if already running, else waitfor resurrection
 cq_tmux() {
+  : "#:desc: attach to or create a tmux session with a chooser"
+  : "#:usage: cq_tmux"
+  : "#:no-args: true"
   local -a PICKER=(choose-tree -Zs)   # or (choose-tree -s) on older tmux
   local BOOTSTRAP="__bootstrap__"
   if [[ -n $TMUX ]]; then
@@ -469,6 +475,9 @@ cq_tmux() {
   fi
 }
 cq_tmux_split_dirs() {
+  : "#:desc: split tmux panes for matching subdirectories"
+  : "#:usage: cq_tmux_split_dirs [substring]"
+  : "#:no-args: true"
   # Check if inside a Tmux session
   if [ -z "$TMUX" ]; then
     echo "You are not in a Tmux session. Please start a Tmux session first."
@@ -512,6 +521,9 @@ cq_tmux_split_dirs() {
   done
 }
 cq_tmux_split_dirs_add() {
+  : "#:desc: add tmux pane splits for matching subdirectories"
+  : "#:usage: cq_tmux_split_dirs_add [substring]"
+  : "#:no-args: false"
   # Check if inside a Tmux session
   if [ -z "$TMUX" ]; then
     echo "You are not in a Tmux session. Please start a Tmux session first."
@@ -545,6 +557,9 @@ cq_mdsearch() {
 }
 # ssh tunnel
 cq_ssh-tunnel() {
+  : "#:desc: interactive SSH tunnel builder (local/remote/SOCKS)"
+  : "#:usage: cq_ssh-tunnel"
+  : "#:no-args: true"
   emulate -L zsh -o pipefail
   local -a hosts ssh_config_files
   local line host dest tunnel_type bind_addr local_port dest_host dest_port
@@ -672,6 +687,9 @@ cq_ssh-tunnel() {
 }
 # redirect sudo to append to file
 cq_sudo_append() {
+    : "#:desc: append text to a file using sudo"
+    : "#:usage: cq_sudo_append <file> <text...>"
+    : "#:no-args: false"
     local file="$1"
     shift
     local text="$*"
@@ -679,6 +697,9 @@ cq_sudo_append() {
 }
 # send command to all tmux sessions
 cq_tmux_cmd_all() {
+  : "#:desc: send a command to all panes in the current tmux window"
+  : "#:usage: cq_tmux_cmd_all <command...>"
+  : "#:no-args: false"
   # Get the current session and window
   local current_session current_window
   current_session=$(tmux display-message -p '#S')  # Active session
@@ -689,6 +710,9 @@ cq_tmux_cmd_all() {
   done
 }
 cq_tmux_cmd_globally() {
+    : "#:desc: send a command to all panes in all tmux sessions"
+    : "#:usage: cq_tmux_cmd_globally <command...>"
+    : "#:no-args: false"
     for session in `tmux list-sessions -F '#S'`; do
         for window in `tmux list-windows -t $session -F '#P' | sort`; do
             for pane in `tmux list-panes -t $session:$window -F '#P' | sort`; do
@@ -745,6 +769,9 @@ alias helm-completion='source <(helm completion zsh)'
 # swap workspaces 1 and 2
 # make this a script for use in i3
  cq_autorandr() {
+    : "#:desc: pick an autorandr profile via rofi and apply it"
+    : "#:usage: cq_autorandr"
+    : "#:no-args: true"
     autorandr $(autorandr | cut -d' ' -f1|rofi -dmenu)
 }
  i3_swap() {
@@ -753,7 +780,10 @@ alias helm-completion='source <(helm completion zsh)'
             rename workspace temporary to $2"
 }
 # start tmux sessions
- cqtmux_startup() {
+ cq_tmux_startup() {
+    : "#:desc: start predefined tmux sessions if missing"
+    : "#:usage: cq_tmux_startup"
+    : "#:no-args: true"
     if ! tmux has-session -t "001-Main" 2>/dev/null; then
         tmux new-session -d -s 001-Main -c ~/
     fi
@@ -773,7 +803,10 @@ alias helm-completion='source <(helm completion zsh)'
         tmux new-session -d -s 101-K8S -c ~/Code/Ruter/K8S-UPGRADE-REPOS
     fi
 }
-cq-completions-list () {
+cq_completions-list () {
+    : "#:desc: list loaded zsh completion definitions"
+    : "#:usage: cq_completions-list"
+    : "#:no-args: true"
     for command completion in ${(kv)_comps:#-*(-|-,*)}
     do
         printf "%-32s %s\n" $command $completion
@@ -781,8 +814,36 @@ cq-completions-list () {
 }
 # what package does a binary belong to
 pacwhich() { pacman -Qo $(which $1) }
+# Build/install chosen AUR helper (paru or yay) in a tmpfs-backed dir when available
+cq_aur_install_helper() {
+  : "#:desc: build/install chosen AUR helper (paru or yay)"
+  : "#:usage: cq_aur_install_helper {paru|yay}"
+  : "#:no-args: false"
+  emulate -L zsh
+  setopt errexit nounset pipefail
+  local helper="${1:-}"
+  case "$helper" in
+    paru|yay) ;;
+    *) print -ru2 -- "usage: aur_install_helper {paru|yay}"; return 2 ;;
+  esac
+  local tmpbase repo dir url
+  tmpbase="${XDG_RUNTIME_DIR:-/run/user/$UID}"
+  [[ -d "$tmpbase" && -w "$tmpbase" ]] || tmpbase="/tmp"
+  command -v git >/dev/null     || { print -ru2 -- "git missing"; return 1; }
+  command -v makepkg >/dev/null || { print -ru2 -- "makepkg missing (base-devel)"; return 1; }
+  url="https://aur.archlinux.org/${helper}.git"
+  repo="$(mktemp -d "$tmpbase/aur-${helper}.XXXXXX")"
+  dir="$repo/$helper"
+  print -r -- "==> $helper: building in $repo"
+  git clone --depth=1 "$url" "$dir"
+  ( cd "$dir" && makepkg -si --noconfirm )
+  rm -rf -- "$repo"
+}
 # Install paru
  cq_paru_install() {
+    : "#:desc: clone, build, and install paru from the AUR"
+    : "#:usage: cq_paru_install"
+    : "#:no-args: true"
     if ! command -v git >/dev/null 2>&1; then
         sudo pacman -S git
     fi
@@ -792,13 +853,29 @@ pacwhich() { pacman -Qo $(which $1) }
     makepkg -si
 }
 # Set env from KEY=value list in file
-cq_env_arg() { set -o allexport; source $@; set +o allexport }
-cq_env_select() { set -o allexport; source $(fd .conf ~/.config/env -t f|fzf); set +o allexport }
+cq_env_arg() {
+  : "#:desc: source an env file with exported variables"
+  : "#:usage: cq_env_arg <file> [args...]"
+  : "#:no-args: false"
+  set -o allexport; source $@; set +o allexport
+}
+cq_env_select() {
+  : "#:desc: pick and source an env file from ~/.config/env"
+  : "#:usage: cq_env_select"
+  : "#:no-args: true"
+  set -o allexport; source $(fd .conf ~/.config/env -t f|fzf); set +o allexport
+}
 # Run command with env from ./.env
 cq_with_env() {
+    : "#:desc: run a command with environment from ./.env"
+    : "#:usage: cq_with_env <command> [args...]"
+    : "#:no-args: false"
     (set -a && . ./.env && "$@")
 }
  cq_rspamd() {
+    : "#:desc: open an SSH tunnel to rspamd and open the web UI"
+    : "#:usage: cq_rspamd <ssh_destination>"
+    : "#:no-args: false"
     local domain_name=$1
     if [ -z "$domain_name" ]; then
         echo "Usage: cq_rspamd <domain_name>"
@@ -808,6 +885,9 @@ cq_with_env() {
     xdg-open http://localhost:11334
 }
 cq_rspamd_stop() {
+    : "#:desc: stop the rspamd SSH tunnel created by cq_rspamd"
+    : "#:usage: cq_rspamd_stop"
+    : "#:no-args: true"
     pkill -f "ssh -f -N -L 11334:localhost:11334"
 }
 # k8s aliases and functions
@@ -1021,6 +1101,9 @@ kq_create_pod_shell() {
 }
 ### Self hosting functions
 cq_sync_dotfiles_to_server() {
+    : "#:desc: rsync dotfiles to a server using a file list"
+    : "#:usage: cq_sync_dotfiles_to_server <server-name>"
+    : "#:no-args: false"
     local server=$1
     local source_dir="$HOME"
     local dest_user="chrisq"
@@ -1048,6 +1131,9 @@ cq_sync_dotfiles_to_server() {
     echo "Dotfiles synchronized successfully to $server"
 }
 cq_sync_gpgssh() {
+    : "#:desc: rsync gpg/ssh config to a server using a file list"
+    : "#:usage: cq_sync_gpgssh <server-name>"
+    : "#:no-args: false"
     local server=$1
     local source_dir="$HOME"
     local dest_user="chrisq"

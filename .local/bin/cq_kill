@@ -1,5 +1,7 @@
 #!/bin/bash
 #:usage: cqkill
+#:no-args: true
+#:desc: Kill a process by selecting it from a list of running processes sorted by CPU usage.
 
 #  $(ps --sort=-pcpu aux | \
 #kill -9 $(ps aux | rofi -dmenu | awk "{ print $1 }")

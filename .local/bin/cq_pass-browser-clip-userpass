@@ -1,4 +1,7 @@
 #!/bin/bash
+#:usage: cq_pass-browser-clip-userpass
+#:no-args: true
+#:desc: Select pass entry from browser URL and copy user/pass.
 
 shopt -s nullglob globstar
 

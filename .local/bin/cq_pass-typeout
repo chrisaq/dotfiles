@@ -1,4 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#:usage: cq_pass-typeout
+#:no-args: true
+#:desc: Type a pass password and tab into the active window.
 
 shopt -s nullglob globstar
 
@@ -25,21 +28,17 @@ password_files=( "${password_files[@]%.gpg}" )
 password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu -p '' "$@" -theme ~/.local/share/rofi/themes/cq-xps17/cq.rasi)
 [[ -n $password ]] || exit
 
-
-# Testing
-#echo -e "\tfile: $password" >>$LOGFILE
-
-# xdotool type ${password}
-
 pw="$(pass show -- "$password" 2>/dev/null | head -n1 || true)"
 [[ -z "$pw" ]] && notify-send -a cqpass "pass returned empty (agent/pinentry?)" && exit 1
-xdotool type -- "$pw"
-xdotool key Tab
-# passw=$(PASSWORD_STORE_DIR=$PASSWORD_STORE_DIR pass show $password | head -n1 )
-# #echo -e "\texit code: $?" >>$LOGFILE
-# xdotool type "$passw"
-# xdotool key Tab
 
-# Testing
-#echo -e "\tpass: $passw" >>$LOGFILE
-#echo -e "exiting" >>$LOGFILE
+# Type password + tab on both Wayland and Xorg.
+if [[ -n "${WAYLAND_DISPLAY-}" ]] && command -v wtype >/dev/null 2>&1; then
+  wtype -- "$pw"
+  wtype -k Tab
+elif [[ -n "${DISPLAY-}" ]] && command -v xdotool >/dev/null 2>&1; then
+  xdotool type --clearmodifiers -- "$pw"
+  xdotool key Tab
+else
+  notify-send -a cqpass "No typer found (need wtype on Wayland or xdotool on Xorg)" || true
+  exit 1
+fi

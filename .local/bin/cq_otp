@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#:usage: cq_otp
+#:no-args: true
+#:desc: Pick a YubiKey OATH account and output the OTP.
 
 # ykman is installed in .local/bin/
 export PATH=$HOME/.local/bin:$PATH

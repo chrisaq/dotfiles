@@ -1,4 +1,7 @@
 #!/bin/bash
+#:usage: cq_nvim_swap_diff.sh <filename>
+#:no-args: false
+#:desc: Recover a swap file and diff it against the original.
 
 # Script name: vimdiff_swap.sh
 
@@ -72,4 +75,3 @@ nvim -d "$FILENAME" "$RECOVERED_FILE"
 
 # Clean up the temporary directory
 rm -rf "$TMPDIR"
-

@@ -1,4 +1,7 @@
 #!/bin/bash
+#:usage: cq_k8s_kubeconf_relabel.sh <label>
+#:no-args: false
+#:desc: Relabel default k3s kubeconfig context/user/cluster.
 
 # Relabel/rename k8s "default" context, user, and cluster to something
 # that you can actually identify.

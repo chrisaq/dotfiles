@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#:usage: cq_otp-clip
+#:no-args: true
+#:desc: Copy selected YubiKey OATH OTP to clipboard.
 
 # ykman is installed in .local/bin/
 export PATH=$HOME/.local/bin:$HOME/bin:$PATH

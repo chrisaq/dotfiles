@@ -282,7 +282,8 @@ Q_build_fzf_lines() {
     fi
 
     # name<TAB><dim>metadata<reset><NL>
-    printf '%s\t%s%s%s\n' "$name" "$dim" "$search" "$reset"
+    # adding spaces to move metadata away from command name for better visibility
+    printf '%s\t        %s%s%s\n' "$name" "$dim" "$search" "$reset"
   done
 }
 
@@ -329,7 +330,7 @@ name="$2"
 awk -F '\t' -v n="$name" '
   $1==n {
     na = ($5=="true" ? "True" : "False");
-    printf "(%s): %s\nDescription: %s\nUsage: %s\nNo arguments: %s\n", $2, $1, $3, $4, na;
+    printf "%s: %s\nDescription: %s\nUsage: %s\nNo arguments: %s\n", $2, $1, $3, $4, na;
     exit
   }
 ' "$cache"

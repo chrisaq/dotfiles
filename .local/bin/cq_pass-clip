@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#:usage: cq_pass-clip
+#:no-args: true
+#:desc: Copy a gopass password to the clipboard via rofi.
+
+# Select a gopass entry via rofi and copy its *password* (first line) to the
+# clipboard on both Xorg (xclip/xsel) and Wayland (wl-copy).
+
+set -euo pipefail
+
+clipboard_copy() {
+  local text="$1"
+
+  if [[ -n "${WAYLAND_DISPLAY-}" ]] && command -v wl-copy >/dev/null 2>&1; then
+    printf %s "$text" | wl-copy
+    return 0
+  fi
+
+  if [[ -n "${DISPLAY-}" ]] && command -v xclip >/dev/null 2>&1; then
+    printf %s "$text" | xclip -selection clipboard
+    return 0
+  fi
+
+  if [[ -n "${DISPLAY-}" ]] && command -v xsel >/dev/null 2>&1; then
+    printf %s "$text" | xsel --clipboard --input
+    return 0
+  fi
+
+  echo "cqpass-clip: no clipboard tool found (need wl-copy or xclip/xsel)" >&2
+  return 1
+}
+
+entry="$({ gopass ls --flat 2>/dev/null || true; } | rofi -dmenu -p gopass)"
+[[ -n "$entry" ]] || exit 0
+
+pw="$({ gopass show -o -- "$entry" 2>/dev/null || true; } | head -n1)"
+if [[ -z "$pw" ]]; then
+  notify-send -a cqpass "gopass returned empty (agent/pinentry?)" || true
+  exit 1
+fi
+
+clipboard_copy "$pw"

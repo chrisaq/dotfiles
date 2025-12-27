@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+#:usage: cq_k8s_redeploy_testing_tmux [DIR]
+#:no-args: false
+#:desc: Open tmux panes for k8s redeploy/testing workflows.
+# k8s-panes.sh [DIR] — new tmux window + 2x2, robust send-keys
+set -euo pipefail
+DIR="${1:-}"
+WN="${WN:-k8s-panes}"
+
+# If not already in tmux, start/attach a session and re-run inside it
+if [[ -z "${TMUX-}" ]]; then
+  tmux new-session -d -s ktest
+  tmux switch-client -t ktest || tmux attach -t ktest
+fi
+
+# New window (in DIR if given)
+WIN_ID="$(tmux new-window -P -F '#{window_id}' -n "$WN" ${DIR:+-c "$DIR"})"
+tmux select-window -t "$WIN_ID"
+tmux set-window-option -t "$WIN_ID" remain-on-exit off
+
+# Capture pane IDs and split deterministically
+LT="$(tmux display-message -p -t "$WIN_ID" '#{pane_id}')"                                   # left-top (first pane)
+RT="$(tmux split-window -h -P -F '#{pane_id}' -t "$LT"  ${DIR:+-c "$DIR"})"                 # right-top
+LB="$(tmux split-window -v -P -F '#{pane_id}' -t "$LT"  ${DIR:+-c "$DIR"})"                 # left-bottom
+RB="$(tmux split-window -v -P -F '#{pane_id}' -t "$RT"  ${DIR:+-c "$DIR"})"                 # right-bottom
+tmux select-layout -t "$WIN_ID" tiled
+tmux select-pane   -t "$LT"
+
+
+# --- Top-Left: deploy & watch (RUNS now) ---
+# tmux send-keys -t 0 "kubectl apply -f . && kubectl get pods -w" C-m
+tmux send-keys -t "$LT" "cq_k8s_redeploy_testing" C-m
+
+# --- Left-Bottom: attach to pod (prefilled, wait for Enter) ---
+#tmux send-keys -t 2 "P=\$(kubectl get pods -l app=APP -o name | head -n1); kubectl exec -it \${P#pod/} -- bash"
+tmux send-keys -t "$LB" "cq_k8s_shell_on_deployment fqdn-ns fqdn"
+
+# --- Right-Top: cilium on same node (prefilled, wait for Enter) ---
+# tmux send-keys -t 1 "P=\$(kubectl get pods -l app=APP -o jsonpath='{.items[0].metadata.name}'); N=\$(kubectl get pod \"\$P\" -o jsonpath='{.spec.nodeName}'); C=\$(kubectl -n kube-system get pods -l k8s-app=cilium -o json | jq -r \".items[]|select(.spec.nodeName==\\\"\$N\\\").metadata.name\" | head -n1); kubectl -n kube-system exec -it \"\$C\" -c cilium -- cilium monitor --all"
+tmux send-keys -t "$RT" "cq_k8s_cilium_shell_on_pod_node fqdn-ns"
+
+# --- Right-Bottom: local test (prefilled, wait for Enter) ---
+# tmux send-keys -t 3 "kubectl run -it tmp --rm --image=curlimages/curl --restart=Never -- sh"
+tmux send-keys -t "$RB" "nvim RESULTS.md"
+
+# Focus useful pane
+tmux select-pane -t "$LT"

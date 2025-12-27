@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#:usage: cq_hypr_next-on-output
+#:no-args: true
+#:desc: Switch to next workspace on the current monitor.
 set -euo pipefail
 mon=$(hyprctl -j activeworkspace | jq -r '.monitor')
 cur=$(hyprctl -j activeworkspace | jq -r '.id')

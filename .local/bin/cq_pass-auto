@@ -1,4 +1,7 @@
 #!/bin/bash
+#:usage: cq_pass-auto [--type] [ROFI_ARGS...]
+#:no-args: false
+#:desc: Pick a pass entry and copy or type credentials.
 
 shopt -s nullglob globstar
 

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#:usage: cq_note [NVIM_ARGS...]
+#:no-args: false
+#:desc: Launch nvim with an appname derived from the script name.
 # Script to simplify launching Neovim with a different configurations
 # Create a symlink to this script in your PATH and it will create a neovim config with that name
 # given that you have a template-init.lua in your XDG_CONFIG_HOME/nvim-configs directory
@@ -22,4 +25,3 @@ if [[ $cmd != nvim ]]; then
 fi
 
 exec "$exe" "$@"
-

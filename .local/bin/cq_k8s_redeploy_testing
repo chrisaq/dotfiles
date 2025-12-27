@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+#:usage: cq_k8s_redeploy_testing [MANI_DIR]
+#:no-args: false
+#:desc: Reapply manifests and run tests after selective k8s deletes.
+set -euo pipefail
+
+# k8s-nuke-selective-and-apply.sh
+# Delete ONLY Deployments and CiliumNetworkPolicies in namespaces referenced by manifests,
+# then apply manifests, wait for rollouts, and run tests.
+
+MANI_DIR="${1:-.}"                 # Dir with *.yml/*.yaml (recursive)
+CTX="${CTX:-}"                     # kubectl --context (optional)
+TIMEOUT="${TIMEOUT:-180s}"         # Rollout timeout
+TEST_DIR="${TEST_DIR:-./tests}"    # Test scripts directory
+
+command -v kubectl >/dev/null || { echo "kubectl not found"; exit 127; }
+command -v yq >/dev/null || { echo "yq (v4) not found"; exit 127; }
+
+k() { kubectl ${CTX:+--context "$CTX"} "$@"; }
+
+# Context banner
+CURRENT_CTX="${CTX:-$(kubectl config current-context)}"
+CLUSTER_NAME="$(kubectl config view -o jsonpath="{.contexts[?(@.name=='$CURRENT_CTX')].context.cluster}")"
+CLUSTER_SERVER="$(kubectl config view -o jsonpath="{.clusters[?(@.name=='$CLUSTER_NAME')].cluster.server}")"
+echo "Context:   $CURRENT_CTX"
+echo "Cluster:   $CLUSTER_NAME"
+echo "API URL:   $CLUSTER_SERVER"
+echo "Manifests: $MANI_DIR"
+echo
+
+# Namespaces from manifests (Namespace objects + metadata.namespace on other kinds)
+mapfile -t NS1 < <(
+  find "$MANI_DIR" -type f \( -name '*.yml' -o -name '*.yaml' \) \
+  | while read -r f; do yq -r 'select(.kind=="Namespace" and .metadata.name) | .metadata.name' "$f" || true; done \
+  | sed '/^$/d' | sort -u
+)
+mapfile -t NS2 < <(
+  find "$MANI_DIR" -type f \( -name '*.yml' -o -name '*.yaml' \) \
+  | while read -r f; do yq -r 'select(has("apiVersion") and has("kind") and has("metadata") and .kind!="Namespace") | .metadata.namespace // empty' "$f" || true; done \
+  | sed '/^$/d' | sort -u
+)
+mapfile -t NSES < <(printf '%s\n' "${NS1[@]}" "${NS2[@]}" | sed '/^$/d' | sort -u)
+
+((${#NSES[@]})) || { echo "No namespaces found in manifests. Abort."; exit 2; }
+
+echo "Namespaces to touch:"
+printf '  - %s\n' "${NSES[@]}"
+echo
+
+# Per-namespace: show Deployments + CiliumNetworkPolicies, confirm, delete just those
+for ns in "${NSES[@]}"; do
+  echo "===== Namespace: $ns ====="
+  if ! k get ns "$ns" >/dev/null 2>&1; then
+    echo "(namespace not found; will be created by apply)"
+  fi
+
+  # List current targets (fast)
+  mapfile -t DEPLOY_LIST < <(k -n "$ns" get deploy -o name 2>/dev/null || true)
+  mapfile -t CNP_LIST   < <(k -n "$ns" get ciliumnetworkpolicies.cilium.io -o name 2>/dev/null || true)
+
+  dcount=${#DEPLOY_LIST[@]}
+  ccount=${#CNP_LIST[@]}
+
+  echo "Will delete:"
+  echo "  Deployments ($dcount)"
+  ((${dcount})) && printf '    %s\n' "${DEPLOY_LIST[@]}"
+  echo "  CiliumNetworkPolicies ($ccount)"
+  ((${ccount})) && printf '    %s\n' "${CNP_LIST[@]}"
+  echo
+
+  read -r -p "Type the namespace '$ns' to CONFIRM deleting only these kinds: " REPLY_NS
+  [[ "$REPLY_NS" == "$ns" ]] || { echo "Aborted."; exit 1; }
+
+  ((${dcount})) && k -n "$ns" delete deploy --all --ignore-not-found --wait
+  ((${ccount})) && k -n "$ns" delete ciliumnetworkpolicies.cilium.io --all --ignore-not-found --wait
+  echo
+done
+
+# Apply manifests
+echo "📥 Applying manifests from: $MANI_DIR"
+k apply -f "$MANI_DIR" --recursive
+
+# Wait for rollouts (Deployments/StatefulSets/DaemonSets) in affected namespaces
+for ns in "${NSES[@]}"; do
+  echo "⏳ Waiting for rollouts in namespace: $ns"
+  mapfile -t WORKLOADS < <(k -n "$ns" get deploy,sts,ds -o name 2>/dev/null || true)
+  for w in "${WORKLOADS[@]:-}"; do
+    k -n "$ns" rollout status "$w" --timeout="$TIMEOUT"
+  done
+done
+
+# Run tests
+echo "🧪 Running tests in $TEST_DIR (if present)…"
+if compgen -G "$TEST_DIR/*.sh" >/dev/null; then
+  for test in "$TEST_DIR"/*.sh; do
+    echo "→ $test"
+    CTX="$CTX" TIMEOUT="$TIMEOUT" bash "$test"
+  done
+else
+  echo "No tests found. Add executable scripts to $TEST_DIR/"
+fi
+
+echo "✅ Done."

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#:usage: cq_hypr_prev-on-output
+#:no-args: true
+#:desc: Switch to previous workspace on the current monitor.
 # previous workspace on this monitor (wrap; ignore special/negative IDs)
 set -euo pipefail
 
@@ -19,4 +22,3 @@ for i in "${!ws[@]}"; do
     exit 0
   fi
 done
-

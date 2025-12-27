@@ -1,3 +1,6 @@
+#:usage: cq_sys_status.py
+#:no-args: true
+#:desc: Show GTK window with PRIMARY and CLIPBOARD contents.
 import gi
 gi.require_version("Gtk", "3.0")  # Use "4.0" for GTK 4 if required
 from gi.repository import Gtk, Gdk, GLib
@@ -61,4 +64,3 @@ win.show_all()  # Show the window and all its contents
 
 # Start the GTK main loop
 Gtk.main()
-

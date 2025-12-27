@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-
-# prints passwork to whatever window, field or whatever that has focus
-# gopass ls --flat | rofi -dmenu -p gopass | xargs --no-run-if-empty gopass show -o | head -n 1 | xdotool type --clearmodifiers --file - 
-
-gopass ls --flat | \
-rofi -dmenu -p gopass | \
-xargs --no-run-if-empty gopass show -c
