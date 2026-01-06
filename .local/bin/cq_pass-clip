@@ -1,18 +1,24 @@
 #!/usr/bin/env bash
-#:usage: cq_pass-clip
-#:no-args: true
-#:desc: Copy a gopass password to the clipboard via rofi.
-
-# Select a gopass entry via rofi and copy its *password* (first line) to the
-# clipboard on both Xorg (xclip/xsel) and Wayland (wl-copy).
+#:usage: cq_pass-clip [ROFI_ARGS...]
+#:no-args: false
+#:desc: Copy a gopass password (first line) to clipboard via rofi.
 
 set -euo pipefail
+
+ROFI_THEME="${ROFI_THEME:-$HOME/.local/share/rofi/themes/cq-xps17/cq.rasi}"
+ROFI_PROMPT="${ROFI_PROMPT:-gopass (clip)}"
+CLIP_TIMEOUT="${CLIP_TIMEOUT:-15}"
+
+notify() { command -v notify-send >/dev/null 2>&1 && notify-send -a cqpass "$@"; }
 
 clipboard_copy() {
   local text="$1"
 
   if [[ -n "${WAYLAND_DISPLAY-}" ]] && command -v wl-copy >/dev/null 2>&1; then
     printf %s "$text" | wl-copy
+    if [[ "${CLIP_TIMEOUT}" =~ ^[0-9]+$ ]] && (( CLIP_TIMEOUT > 0 )); then
+      (sleep "$CLIP_TIMEOUT"; wl-copy -c) >/dev/null 2>&1 &
+    fi
     return 0
   fi
 
@@ -26,17 +32,29 @@ clipboard_copy() {
     return 0
   fi
 
-  echo "cqpass-clip: no clipboard tool found (need wl-copy or xclip/xsel)" >&2
+  echo "cq_pass-clip: no clipboard tool found (need wl-copy or xclip/xsel)" >&2
   return 1
 }
 
-entry="$({ gopass ls --flat 2>/dev/null || true; } | rofi -dmenu -p gopass)"
+pkill -x rofi >/dev/null 2>&1 || true
+
+entries="$({ gopass ls --flat 2>/dev/null || true; })"
+if [[ -z "$entries" ]]; then
+  notify "gopass has no entries (or failed)" "Is your store available?"
+  exit 1
+fi
+
+entry="$(printf '%s\n' "$entries" | rofi -dmenu -i -p "$ROFI_PROMPT" -theme "$ROFI_THEME" "$@")"
 [[ -n "$entry" ]] || exit 0
 
-pw="$({ gopass show -o -- "$entry" 2>/dev/null || true; } | head -n1)"
+secret="$({ gopass show -o -- "$entry" 2>/dev/null || true; })"
+pw="$(printf '%s\n' "$secret" | head -n1)"
+
 if [[ -z "$pw" ]]; then
-  notify-send -a cqpass "gopass returned empty (agent/pinentry?)" || true
+  notify "gopass returned empty" "Agent/pinentry?"
   exit 1
 fi
 
 clipboard_copy "$pw"
+notify "Copied password" "$entry"
+

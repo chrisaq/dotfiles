@@ -1,44 +1,162 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #:usage: cq_pass-auto [--type] [ROFI_ARGS...]
 #:no-args: false
-#:desc: Pick a pass entry and copy or type credentials.
+#:desc: Pick a gopass entry and copy or type credentials (user+pass).
 
-shopt -s nullglob globstar
+set -euo pipefail
 
-# switch for autotyping
 typeit=0
-if [[ $1 == "--type" ]]; then
-    typeit=1
-    shift
+if [[ "${1-}" == "--type" ]]; then
+  typeit=1
+  shift
 fi
 
-# get all the saved password files
-prefix=${PASSWORD_STORE_DIR-~/Sync/Password-Store}
-password_files=( "$prefix"/**/*.gpg )
-password_files=( "${password_files[@]#"$prefix"/}" )
-password_files=( "${password_files[@]%.gpg}" )
+# ---- config ----
+ROFI_THEME="${ROFI_THEME:-$HOME/.local/share/rofi/themes/cq-xps17/cq.rasi}"
+ROFI_PROMPT_CLIP="${ROFI_PROMPT_CLIP:-gopass (clip)}"
+ROFI_PROMPT_TYPE="${ROFI_PROMPT_TYPE:-gopass (type user+pass)}"
 
-# shows a list of all password files and saved the selected one in a variable
-#password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu "$@" -theme ~/.local/share/rofi/themes/nord/nord.rasi)
-password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu -f '' "$@" -theme ~/.local/share/rofi/themes/cq-xps17/cq.rasi)
-[[ -n $password ]] || exit
+# Clipboard clear timeout (seconds). Set to 0 to disable.
+CLIP_TIMEOUT="${CLIP_TIMEOUT:-15}"
+# ---------------
 
-# pass -c copied the password in clipboard. The additional output from pass is piped in to /dev/null 
-if [[ $typeit -eq 0 ]]; then
-    pass show -c "$password" | head -n1  2>/dev/null
+notify() { command -v notify-send >/dev/null 2>&1 && notify-send -a cqpass "$@"; }
+
+extract_username() {
+  local entry_path="$1"
+  local secret="$2"
+  local u=""
+
+  # 1) key:value fields
+  u="$(printf '%s\n' "$secret" |
+      sed -nE 's/^(login|user(name)?|email)[[:space:]]*:[[:space:]]*(.+)$/\3/ip' |
+      head -n1 || true)"
+
+  # 2) any email-looking token
+  if [[ -z "$u" ]]; then
+    u="$(printf '%s\n' "$secret" |
+        grep -Eio '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' |
+        head -n1 || true)"
+  fi
+
+  # 3) from path tail (last segment)
+  if [[ -z "$u" ]]; then
+    u="${entry_path##*/}"
+  fi
+
+  printf '%s' "$u"
+}
+
+clipboard_copy() {
+  local text="$1"
+
+  if [[ -n "${WAYLAND_DISPLAY-}" ]] && command -v wl-copy >/dev/null 2>&1; then
+    printf %s "$text" | wl-copy
+    if [[ "${CLIP_TIMEOUT}" =~ ^[0-9]+$ ]] && (( CLIP_TIMEOUT > 0 )); then
+      (sleep "$CLIP_TIMEOUT"; wl-copy -c) >/dev/null 2>&1 &
+    fi
+    return 0
+  fi
+
+  if [[ -n "${DISPLAY-}" ]] && command -v xclip >/dev/null 2>&1; then
+    printf %s "$text" | xclip -selection clipboard
+    return 0
+  fi
+
+  if [[ -n "${DISPLAY-}" ]] && command -v xsel >/dev/null 2>&1; then
+    printf %s "$text" | xsel --clipboard --input
+    return 0
+  fi
+
+  echo "cq_pass-auto: no clipboard tool found (need wl-copy or xclip/xsel)" >&2
+  return 1
+}
+
+primary_selection_copy() {
+  local text="$1"
+
+  if [[ -n "${WAYLAND_DISPLAY-}" ]] && command -v wl-copy >/dev/null 2>&1; then
+    printf %s "$text" | wl-copy --primary
+    if [[ "${CLIP_TIMEOUT}" =~ ^[0-9]+$ ]] && (( CLIP_TIMEOUT > 0 )); then
+      (sleep "$CLIP_TIMEOUT"; wl-copy -c) >/dev/null 2>&1 &
+    fi
+    return 0
+  fi
+
+  if [[ -n "${DISPLAY-}" ]] && command -v xclip >/dev/null 2>&1; then
+    printf %s "$text" | xclip
+    return 0
+  fi
+
+  if [[ -n "${DISPLAY-}" ]] && command -v xsel >/dev/null 2>&1; then
+    printf %s "$text" | xsel
+    return 0
+  fi
+
+  echo "cq_pass-auto: no clipboard tool found (need wl-copy or xclip/xsel)" >&2
+  return 1
+}
+
+
+type_userpass() {
+  local user="$1" pass="$2"
+
+  if [[ -n "${WAYLAND_DISPLAY-}" ]] && command -v wtype >/dev/null 2>&1; then
+    wtype -- "$user"
+    wtype -k Tab
+    wtype -- "$pass"
+    wtype -k Tab
+    return 0
+  fi
+
+  if [[ -n "${DISPLAY-}" ]] && command -v xdotool >/dev/null 2>&1; then
+    xdotool type --clearmodifiers -- "$user"
+    xdotool key Tab
+    xdotool type --clearmodifiers -- "$pass"
+    xdotool key Tab
+    return 0
+  fi
+
+  notify "No typer found" "Need wtype (Wayland) or xdotool (Xorg)"
+  return 1
+}
+
+# Toggle rofi nicely if you call this from a keybind
+# (If rofi isn't running, pkill exits nonzero; ignore it.)
+pkill -x rofi >/dev/null 2>&1 || true
+
+entries="$({ gopass ls --flat 2>/dev/null || true; })"
+if [[ -z "$entries" ]]; then
+  notify "gopass has no entries (or failed)" "Is your store available?"
+  exit 1
+fi
+
+prompt="$ROFI_PROMPT_CLIP"
+(( typeit == 1 )) && prompt="$ROFI_PROMPT_TYPE"
+
+entry="$(printf '%s\n' "$entries" | rofi -dmenu -i -p "$prompt" -theme "$ROFI_THEME" "$@")"
+[[ -n "$entry" ]] || exit 0
+
+secret="$({ gopass show -o -- "$entry" 2>/dev/null || true; })"
+if [[ -z "$secret" ]]; then
+  notify "gopass returned empty" "Agent/pinentry?"
+  exit 1
+fi
+
+passw="$(printf '%s\n' "$secret" | head -n1)"
+# uname="$(printf '%s\n' "$secret" | tail -n1)"
+uname="$(extract_username "$entry" "$secret")"
+
+
+if (( typeit == 0 )); then
+  clipboard_copy "$passw"
+  primary_selection_copy "$uname"
+  notify "Copied password" "$entry"
 else
-    # If i want to use autotype i save the user name and the password in to a variable 
-    # the actual password files are simple text file. 
-    # The password has to be on the first line,
-    # because if you using `pass -i` the first line will be replaced with a new password
-
-    passw=$(pass show $password | head -n1 )
-    uname=$(pass show $password | tail -n1 )
-    # xdotool types the username on the active spot (cli or inputfield from a browser)
-    xdotool type "$uname"
-    # type a TAB (for moving forward in browser input fields)
-    xdotool key Tab
-    # type the password in the active input
-    xdotool type "$passw"
-    xdotool key Tab
+  if [[ -z "$uname" ]]; then
+    notify "Missing username" "Expected username as last line in entry"
+    exit 1
+  fi
+  type_userpass "$uname" "$passw"
 fi
+

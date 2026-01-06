@@ -1,44 +1,52 @@
 #!/usr/bin/env bash
-#:usage: cq_pass-typeout
-#:no-args: true
-#:desc: Type a pass password and tab into the active window.
+#:usage: cq_pass-typeout [ROFI_ARGS...]
+#:no-args: false
+#:desc: Type a gopass password and Tab into the active window.
 
-shopt -s nullglob globstar
+set -euo pipefail
 
-# Testing
-LOGFILE=$HOME/.cache/cqpass
-#echo -e "\t" >>$LOGFILE
-#echo -e "cqpass-typeout -- $(date)" >>$LOGFILE
-#echo -e "\t$(gpgconf --list-dirs agent-socket)" >>$LOGFILE
-#echo -e "\tPASSWORD_STORE_DIR: $PASSWORD_STORE_DIR" >>$LOGFILE
-#echo -e "\tGNUPGHOME: $GNUPGHOME" >>$LOGFILE
+ROFI_THEME="${ROFI_THEME:-$HOME/.local/share/rofi/themes/cq-xps17/cq.rasi}"
+ROFI_PROMPT="${ROFI_PROMPT:-gopass (type pass)}"
 
-# get all the saved password files
-prefix=${PASSWORD_STORE_DIR-~/Sync/Password-Store}
-PASSWORD_STORE_DIR=$prefix
-password_files=( "$prefix"/**/*.gpg )
-password_files=( "${password_files[@]#"$prefix"/}" )
-password_files=( "${password_files[@]%.gpg}" )
+notify() { command -v notify-send >/dev/null 2>&1 && notify-send -a cqpass "$@"; }
 
-# Testing
-#echo -e "\tprefix: $prefix" >>$LOGFILE
+type_pass_tab() {
+  local pass="$1"
 
-# shows a list of all password files and saved the selected one in a variable
-#password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu "$@" -theme ~/.local/share/rofi/themes/nord/nord.rasi)
-password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu -p '' "$@" -theme ~/.local/share/rofi/themes/cq-xps17/cq.rasi)
-[[ -n $password ]] || exit
+  if [[ -n "${WAYLAND_DISPLAY-}" ]] && command -v wtype >/dev/null 2>&1; then
+    wtype -- "$pass"
+    wtype -k Tab
+    return 0
+  fi
 
-pw="$(pass show -- "$password" 2>/dev/null | head -n1 || true)"
-[[ -z "$pw" ]] && notify-send -a cqpass "pass returned empty (agent/pinentry?)" && exit 1
+  if [[ -n "${DISPLAY-}" ]] && command -v xdotool >/dev/null 2>&1; then
+    xdotool type --clearmodifiers -- "$pass"
+    xdotool key Tab
+    return 0
+  fi
 
-# Type password + tab on both Wayland and Xorg.
-if [[ -n "${WAYLAND_DISPLAY-}" ]] && command -v wtype >/dev/null 2>&1; then
-  wtype -- "$pw"
-  wtype -k Tab
-elif [[ -n "${DISPLAY-}" ]] && command -v xdotool >/dev/null 2>&1; then
-  xdotool type --clearmodifiers -- "$pw"
-  xdotool key Tab
-else
-  notify-send -a cqpass "No typer found (need wtype on Wayland or xdotool on Xorg)" || true
+  notify "No typer found" "Need wtype (Wayland) or xdotool (Xorg)"
+  return 1
+}
+
+pkill -x rofi >/dev/null 2>&1 || true
+
+entries="$({ gopass ls --flat 2>/dev/null || true; })"
+if [[ -z "$entries" ]]; then
+  notify "gopass has no entries (or failed)" "Is your store available?"
   exit 1
 fi
+
+entry="$(printf '%s\n' "$entries" | rofi -dmenu -i -p "$ROFI_PROMPT" -theme "$ROFI_THEME" "$@")"
+[[ -n "$entry" ]] || exit 0
+
+secret="$({ gopass show -o -- "$entry" 2>/dev/null || true; })"
+pw="$(printf '%s\n' "$secret" | head -n1)"
+
+if [[ -z "$pw" ]]; then
+  notify "gopass returned empty" "Agent/pinentry?"
+  exit 1
+fi
+
+type_pass_tab "$pw"
+
