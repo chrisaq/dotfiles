@@ -36,5 +36,8 @@
           - firefox
           - nerd-fonts
           - ghostty
+          - ugrep
+          - duf
+          - yazi
           - lib32-libpipewire
         state: present

@@ -68,6 +68,7 @@
       - nodejs-gitmoji-cli
       - spotify-player
       - battop
+      - ps_mem
       - clipboard-bin
       - iwes-bin
       - mdtt-bin

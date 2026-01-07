@@ -87,6 +87,8 @@ export LESSHISTFILE="$XDG_CACHE_HOME"/less/history
 if [[ ! -d "$XDG_CONFIG_HOME"/less ]]; then
     mkdir -p "$XDG_CONFIG_HOME"/less
 fi
+# grep with catppuccin macchiato for grep/ugrep
+export GREP_COLORS='mt=38;5;177:fn=38;5;110:ln=38;5;246'
 export LESSKEY="$XDG_CONFIG_HOME"/less/lesskey
 export MEDNAFEN_HOME="$XDG_CONFIG_HOME"/mednafen
 export NOTMUCH_CONFIG="$XDG_CONFIG_HOME"/notmuch/notmuchrc
