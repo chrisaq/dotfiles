@@ -1,10 +1,10 @@
 # echo sourcing $HOME/.zshenv
 
-# zsh config files in the order they are sourced
+# zsh config files in the order they are sourced:
 
 # $ZDOTDIR/.zshenv
 ### sourced on all invocations of the shell
-### contain commands to set the command search path
+### contains the command search PATH and core environment variable exports
 ### should not contain commands that produce output or assume the shell is attached to a tty
 
 # $ZDOTDIR/.zprofile
@@ -22,4 +22,5 @@
 
 # setting ZDOTDIR to .config/zsh stops ~/.zshrc from being sourced
 ZDOTDIR=$HOME/.config/zsh
-. $ZDOTDIR/.zshenv
+# zshenv holds core environment variable exports (XDG_*, PATH, etc)
+. $ZDOTDIR/zshenv

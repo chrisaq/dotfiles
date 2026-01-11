@@ -66,15 +66,7 @@ setopt complete_in_word
 
 ################################################################################
 ### XDG section
-# should be set by pam, but missing in some places
-export XDG_CONFIG_HOME=${HOME}/.config
-export XDG_DATA_HOME=${HOME}/.local/share
-export XDG_BIN_HOME=${HOME}/.local/bin
-export XDG_CACHE_HOME=${HOME}/.cache
-export XDG_RUNTIME_DIR=/run/user/`id -u`
-# Setting this breaks seahorse and perhaps others:
-# export XDG_DATA_DIRS=""
-# because xdg-utils are(were?) broken:
+# Core XDG variables are set in $ZDOTDIR/zshenv
 export DE="generic"
 ##### XDG apps workarounds #####
 # https://wiki.archlinux.org/index.php/XDG_Base_Directory_support
@@ -143,10 +135,6 @@ export ANSIBLE_GALAXY_CACHE_DIR="${XDG_CACHE_HOME}/ansible/galaxy_cache"
 # if [ -d "$HOME/bin" ] ; then
 #     PATH="$HOME/bin:$PATH"
 # fi
-# XDG bin as well
-if [ -d "$HOME/.local/bin" ] ; then
-    PATH="$HOME/.local/bin:$PATH"
-fi
 # rust/cargo bin
 if [ -d "$HOME/.local/share/cargo/bin" ] ; then
     PATH="$HOME/.local/share/cargo/bin:$PATH"

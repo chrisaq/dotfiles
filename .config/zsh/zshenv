@@ -1,0 +1,11 @@
+# sourced by ~/.zshenv
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+### XDG section
+# should be set by pam, but missing in some places
+export XDG_CONFIG_HOME=${HOME}/.config
+export XDG_DATA_HOME=${HOME}/.local/share
+export XDG_BIN_HOME=${HOME}/.local/bin
+export XDG_CACHE_HOME=${HOME}/.cache
+# export XDG_RUNTIME_DIR=/run/user/`id -u`
+# Setting this breaks seahorse and perhaps others:
+# export XDG_DATA_DIRS=""

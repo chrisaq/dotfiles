@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #:usage: cq_pass-clip [ROFI_ARGS...]
 #:no-args: false
-#:desc: Copy a gopass password (first line) to clipboard via rofi.
+#:desc: Copy gopass password to clipboard and username (if found) to primary selection via rofi.
 
 set -euo pipefail
 
@@ -12,28 +12,71 @@ CLIP_TIMEOUT="${CLIP_TIMEOUT:-15}"
 notify() { command -v notify-send >/dev/null 2>&1 && notify-send -a cqpass "$@"; }
 
 clipboard_copy() {
-  local text="$1"
+  local sel="$1"   # clipboard | primary
+  local text="$2"
 
   if [[ -n "${WAYLAND_DISPLAY-}" ]] && command -v wl-copy >/dev/null 2>&1; then
-    printf %s "$text" | wl-copy
+    if [[ "$sel" == "primary" ]]; then
+      printf %s "$text" | wl-copy --primary
+    else
+      printf %s "$text" | wl-copy
+    fi
+
     if [[ "${CLIP_TIMEOUT}" =~ ^[0-9]+$ ]] && (( CLIP_TIMEOUT > 0 )); then
-      (sleep "$CLIP_TIMEOUT"; wl-copy -c) >/dev/null 2>&1 &
+      if [[ "$sel" == "primary" ]]; then
+        (sleep "$CLIP_TIMEOUT"; wl-copy --primary -c) >/dev/null 2>&1 &
+      else
+        (sleep "$CLIP_TIMEOUT"; wl-copy -c) >/dev/null 2>&1 &
+      fi
     fi
     return 0
   fi
 
   if [[ -n "${DISPLAY-}" ]] && command -v xclip >/dev/null 2>&1; then
-    printf %s "$text" | xclip -selection clipboard
+    printf %s "$text" | xclip -selection "$sel"
     return 0
   fi
 
   if [[ -n "${DISPLAY-}" ]] && command -v xsel >/dev/null 2>&1; then
-    printf %s "$text" | xsel --clipboard --input
+    if [[ "$sel" == "primary" ]]; then
+      printf %s "$text" | xsel --primary --input
+    else
+      printf %s "$text" | xsel --clipboard --input
+    fi
     return 0
   fi
 
   echo "cq_pass-clip: no clipboard tool found (need wl-copy or xclip/xsel)" >&2
   return 1
+}
+
+extract_username() {
+  # gopass usually prints: first line = password, then "key: value" lines.
+  # Prefer "username:" / "user:" / "login:"; else fall back to 2nd non-empty line.
+  local secret="$1"
+  local u=""
+
+  u="$(
+    printf '%s\n' "$secret" |
+      awk -F': *' '
+        tolower($1) ~ /^(username|user|login)$/ { print $2; exit }
+      '
+  )"
+
+  if [[ -z "$u" ]]; then
+    u="$(
+      printf '%s\n' "$secret" |
+        awk 'NR>1 && $0 !~ /^[[:space:]]*$/ { print; exit }'
+    )"
+    # If the fallback line is still "key: value", strip the key.
+    if [[ "$u" == *:* ]]; then
+      u="${u#*: }"
+      u="${u#:}"
+      u="${u# }"
+    fi
+  fi
+
+  printf %s "$u"
 }
 
 pkill -x rofi >/dev/null 2>&1 || true
@@ -47,7 +90,7 @@ fi
 entry="$(printf '%s\n' "$entries" | rofi -dmenu -i -p "$ROFI_PROMPT" -theme "$ROFI_THEME" "$@")"
 [[ -n "$entry" ]] || exit 0
 
-secret="$({ gopass show -o -- "$entry" 2>/dev/null || true; })"
+secret="$({ gopass show -- "$entry" 2>/dev/null || true; })"
 pw="$(printf '%s\n' "$secret" | head -n1)"
 
 if [[ -z "$pw" ]]; then
@@ -55,6 +98,13 @@ if [[ -z "$pw" ]]; then
   exit 1
 fi
 
-clipboard_copy "$pw"
-notify "Copied password" "$entry"
+user="$(extract_username "$secret")"
+
+clipboard_copy clipboard "$pw"
+if [[ -n "$user" ]]; then
+  clipboard_copy primary "$user"
+  notify "Copied password (clipboard) + username (primary)" "$entry"
+else
+  notify "Copied password (clipboard)" "$entry"
+fi
 
