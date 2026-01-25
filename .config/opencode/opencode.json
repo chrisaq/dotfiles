@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "mcp-duckduckgo": {
+      "type": "remote",
+      "url": "https://mcp-duckduckgo.k8s.int.kotelett.no/mcp",
+      "enabled": true
+    },
+    "mcp-semgrep": {
+      "type": "remote",
+      "url": "https://mcp-semgrep.k8s.int.kotelett.no/mcp",
+      "enabled": true
+    }
+  }
+}
+
