@@ -26,6 +26,7 @@ ruter_prod-pd-1_envrc.gpg:Workspace/Ruter/prod-pd-1/.envrc
 ruter_qa-gp-1_envrc.gpg:Workspace/Ruter/qa-gp-1/.envrc
 ruter_qa-pd-1_envrc.gpg:Workspace/Ruter/qa-pd-1/.envrc
 cq_laptop.yaml.gpg:.config/kube/cq_laptop.yaml
+cq_home.yaml.gpg:.config/kube/cq_home.yaml
 ruter_dev-cmp-1.yaml.gpg:.config/kube/ruter_dev-cmp-1.yaml
 ruter_dev-gp-1.yaml.gpg:.config/kube/ruter_dev-gp-1.yaml
 ruter_dev-pd-1.yaml.gpg:.config/kube/ruter_dev-pd-1.yaml

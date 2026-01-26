@@ -972,7 +972,7 @@ kq_k8s_run_image_ns() {
 }"
 }
 kq_bring_aksconf_split() {
-  kubectl config view --minify --flatten --context=cf-dev-noe-applications-aks-01 > $XDG_CONFIG_HOME/kube/bring-dev.yaml
+  # kubectl config view --minify --flatten --context=cf-dev-noe-applications-aks-01 > $XDG_CONFIG_HOME/kube/bring-dev.yaml
   kubectl config view --minify --flatten --context=cf-test-noe-applications-aks-01 > $XDG_CONFIG_HOME/kube/bring-test.yaml
   kubectl config view --minify --flatten --context=cf-qa-noe-applications-aks-01 > $XDG_CONFIG_HOME/kube/bring-qa.yaml
   kubectl config view --minify --flatten --context=cf-prod-noe-applications-aks-01 > $XDG_CONFIG_HOME/kube/bring-prod.yaml

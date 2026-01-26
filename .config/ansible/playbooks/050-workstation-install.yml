@@ -40,4 +40,5 @@
           - duf
           - yazi
           - lib32-libpipewire
+          - asciinema
         state: present
