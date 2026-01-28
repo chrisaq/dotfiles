@@ -106,7 +106,6 @@ return {
         sources = {
           { name = "nvim_lsp" },
           { name = "copilot"},
-          { name = "supermaven" },
           { name = "codeium" },
           { name = "luasnip" },
           { name = "buffer" },

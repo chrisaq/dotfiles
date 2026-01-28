@@ -1,5 +1,41 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "ollama_robert": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (robert)",
+      "options": {
+        "baseURL": "http://robert.int.kotelett.no:11434/v1"
+      },
+      "models": {
+        "dolphin3:latest": {},
+        "llama3.1:70b": {},
+        "llama3.1:8b": {},
+        "qwen3-coder:latest": {},
+        "deepseek-r1:70b": {},
+        "deepseek-r1:latest": {},
+        "functiongemma:latest": {},
+        "gpt-oss:latest": {},
+        "gpt-oss:120b": {},
+        "tinyllama:latest": {}
+      }
+    },
+    "ollama_hexen": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (hexen)",
+      "options": {
+        "baseURL": "http://robert.int.kotelett.no:11434/v1"
+      },
+      "models": {
+        "qwen3:30b-a3b": {},
+        "smollm:1.7b": {},
+        "llama3.1:latest": {},
+        "tinyllama:latest": {},
+        "deepseek-r1:7b": {},
+        "llama3.1:8b": {}
+      }
+    }
+  },
   "mcp": {
     "mcp-duckduckgo": {
       "type": "remote",
