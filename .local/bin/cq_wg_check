@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# wg-diag: WireGuard + systemd-networkd + routing snapshot
+# Usage:
+#   sudo ./wg-diag
+#   sudo ./wg-diag wg-home
+#   sudo ./wg-diag wg-home wg-full
+# Optional env:
+#   TARGETS="10.1.0.1 10.1.10.11 1.1.1.1"
+#   PING_COUNT=1
+#   PING_TIMEOUT=1
+
+PING_COUNT="${PING_COUNT:-1}"
+PING_TIMEOUT="${PING_TIMEOUT:-1}"
+TARGETS_DEFAULT="10.1.0.1 10.1.10.11"
+TARGETS="${TARGETS:-$TARGETS_DEFAULT}"
+
+hr() { printf '%*s\n' "${COLUMNS:-80}" '' | tr ' ' -; }
+sec_now() { date +%s; }
+
+# Handshake age: parse `wg show <if> latest-handshakes` which outputs: "<peerkey>\t<epoch|0>"
+handshake_age() {
+  local ifc="$1"
+  wg show "$ifc" latest-handshakes 2>/dev/null | while read -r peer ts; do
+    if [[ "${ts:-0}" == "0" ]]; then
+      printf "  peer %s  handshake: NEVER\n" "${peer:0:16}…"
+      continue
+    fi
+    local now age
+    now="$(sec_now)"
+    age="$(( now - ts ))"
+    printf "  peer %s  handshake_age_s: %d\n" "${peer:0:16}…" "$age"
+  done
+}
+
+cmd_exists() { command -v "$1" >/dev/null 2>&1; }
+
+print_header() {
+  echo "wg-diag @ $(date -Is)"
+  echo "host: $(hostnamectl --static 2>/dev/null || hostname)"
+  echo "kernel: $(uname -r)"
+  echo "who: $(id -un) (uid=$(id -u))"
+}
+
+list_wg_ifaces() {
+  # `wg show interfaces` prints a space-separated list, empty if none
+  local ifs
+  ifs="$(wg show interfaces 2>/dev/null || true)"
+  if [[ -n "$ifs" ]]; then
+    echo "$ifs"
+    return 0
+  fi
+  # fallback: look for links of type wireguard
+  ip -o link show | awk -F': ' '{print $2}' | cut -d@ -f1 | while read -r i; do
+    if ip -d link show "$i" 2>/dev/null | grep -q 'wireguard'; then
+      echo "$i"
+    fi
+  done | xargs echo
+}
+
+print_iface_block() {
+  local ifc="$1"
+  hr
+  echo "INTERFACE: $ifc"
+  hr
+
+  echo "# ip link"
+  ip -d link show dev "$ifc" || true
+  echo
+
+  echo "# ip addr"
+  ip -br addr show dev "$ifc" || true
+  echo
+
+  echo "# wg show"
+  wg show "$ifc" || true
+  echo
+
+  echo "# handshake ages (seconds)"
+  handshake_age "$ifc" || true
+  echo
+
+  if cmd_exists networkctl; then
+    echo "# networkctl status"
+    networkctl status "$ifc" || true
+    SYSTEMD_PAGER=cat SYSTEMD_LESS=FRSXMK networkctl status "$ifc" || true
+    echo
+  fi
+
+  echo "# routes referencing interface"
+  ip -4 route show dev "$ifc" || true
+  ip -6 route show dev "$ifc" || true
+  echo
+
+  echo "# policy routing rules (if any)"
+  ip rule show || true
+  echo
+
+  echo "# nftables (quick glance)"
+  if cmd_exists nft; then
+    nft list ruleset 2>/dev/null | sed -n '1,200p' || true
+    if nft list ruleset 2>/dev/null | wc -l | awk '{exit !($1>200)}'; then
+      echo "… (ruleset truncated; re-run: nft list ruleset)"
+    fi
+  else
+    echo "nft not installed"
+  fi
+  echo
+
+  echo "# sysctl hints (rp_filter / forwarding)"
+  sysctl -a 2>/dev/null | grep -E '(^net\.ipv4\.ip_forward|^net\.ipv4\.conf\.(all|default|'"$ifc"')\.rp_filter|^net\.ipv6\.conf\.all\.forwarding)' || true
+  echo
+
+  echo "# connectivity probes (ping + route decision)"
+  for t in $TARGETS; do
+    echo "target: $t"
+    ip route get "$t" 2>/dev/null || true
+    ping -c "$PING_COUNT" -W "$PING_TIMEOUT" "$t" 2>/dev/null || echo "ping: FAIL"
+    echo
+  done
+}
+
+main() {
+  if [[ $EUID -ne 0 ]]; then
+    echo "Please run as root (sudo) for best results." >&2
+    echo
+  fi
+
+  print_header
+  hr
+
+  echo "# quick summary"
+  echo "interfaces: $(list_wg_ifaces || true)"
+  echo "default route:"
+  ip route show default || true
+  echo "resolv.conf:"
+  grep -vE '^\s*#|^\s*$' /etc/resolv.conf 2>/dev/null || true
+  # sed -n '1,120p' /etc/resolv.conf 2>/dev/null || true
+  echo
+
+  local ifaces=()
+  if [[ $# -gt 0 ]]; then
+    ifaces=("$@")
+  else
+    read -r -a ifaces <<<"$(list_wg_ifaces)"
+  fi
+
+  if [[ ${#ifaces[@]} -eq 0 ]]; then
+    echo "No WireGuard interfaces found."
+    exit 1
+  fi
+
+  for ifc in "${ifaces[@]}"; do
+    print_iface_block "$ifc"
+    # Detect endpoint hairpin / bootstrap loop
+    wg show "$ifc" endpoints | while read -r peer endpoint; do
+      ep="${endpoint%:*}"
+      r="$(ip route get "$ep" 2>/dev/null || true)"
+      echo "endpoint $endpoint -> $r"
+      if echo "$r" | grep -q "dev $ifc"; then
+          echo "!!! BROKEN: endpoint routes via tunnel (hairpin latch)"
+          echo "Run cq_wg_reset ${ifc}"
+      fi
+    done
+
+  done
+
+  hr
+  echo "Done."
+}
+
+main "$@"
+

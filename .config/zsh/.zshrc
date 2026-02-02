@@ -756,21 +756,76 @@ alias spotify-tui='spotify_player'
 alias cq_snd_restart="systemctl --user restart pipewire pipewire-pulse wireplumber"
 alias tfinit='terraform init -backend-config=tf-init.conf'
 alias helm-completion='source <(helm completion zsh)'
+cq_wg_portal() {
+  : "#:desc: temporarily disable wg-home to complete captive portal login, then re-enable it"
+  : "#:usage: cq_wg_portal"
+  : "#:no-args: true"
+  local url="http://neverssl.com/"
+  echo "[wg] bringing down wg-home..."
+  sudo networkctl down wg-home 2>/dev/null || true
+  echo "[portal] opening ${url} (login to the portal, then press Enter here)..."
+  if command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$url" >/dev/null 2>&1 || true
+  else
+    echo "xdg-open not found; open ${url} manually."
+  fi
+  read -r "?[portal] press Enter when you're online... "
+  echo "[wg] re-enabling wg-home..."
+  sudo networkctl reconfigure wg-home
+  echo "[wg] status:"
+  sudo wg show wg-home 2>/dev/null || sudo wg show 2>/dev/null || true
+}
+cq_wg_home() {
+  : "#:desc: enable split-tunnel WireGuard (home LAN only)"
+  : "#:usage: cq_wg_home"
+  : "#:no-args: true"
+  sudo networkctl down wg-full 2>/dev/null || true
+  sudo networkctl reconfigure wg-home
+}
+cq_wg_full() {
+  : "#:desc: enable full-tunnel WireGuard (all traffic via home)"
+  : "#:usage: cq_wg_full"
+  : "#:no-args: true"
+  sudo networkctl down wg-home 2>/dev/null || true
+  sudo networkctl reconfigure wg-full
+}
+cq_wg_reset() {
+  : "#:desc: reset WireGuard interface state (clear latched endpoints, restart cleanly)"
+  : "#:usage: cq_wg_reset [iface]"
+  : "#:args: iface (default: wg-home)"
+  set -euo pipefail
+  IFACE="${1:-wg-home}"
+  sudo networkctl down "$IFACE" || true
+  # Clear learned endpoint for every peer on the interface
+  sudo wg show "$IFACE" peers | while read -r peer; do
+    sudo wg set "$IFACE" peer "$peer" endpoint "" || true
+  done
+  sudo resolvectl flush-caches
+  sudo networkctl up "$IFACE"
+  sudo wg show "$IFACE" endpoints
+}
+cq_wg_off() {
+  : "#:desc: disable all WireGuard tunnels"
+  : "#:usage: cq_wg_off"
+  : "#:no-args: true"
+  sudo networkctl down wg-home 2>/dev/null || true
+  sudo networkctl down wg-full 2>/dev/null || true
+}
 # swap workspaces 1 and 2
 # make this a script for use in i3
- cq_autorandr() {
+cq_autorandr() {
     : "#:desc: pick an autorandr profile via rofi and apply it"
     : "#:usage: cq_autorandr"
     : "#:no-args: true"
     autorandr $(autorandr | cut -d' ' -f1|rofi -dmenu)
 }
- i3_swap() {
+i3_swap() {
     i3-msg "rename workspace $1 to temporary;
             rename workspace $2 to $1;
             rename workspace temporary to $2"
 }
 # start tmux sessions
- cq_tmux_startup() {
+cq_tmux_startup() {
     : "#:desc: start predefined tmux sessions if missing"
     : "#:usage: cq_tmux_startup"
     : "#:no-args: true"
@@ -945,7 +1000,7 @@ kq_k8s_run_image_ns() {
     --image="$image" \
     --restart=Never \
     --overrides="
-{
+ {
   \"spec\": {
     \"automountServiceAccountToken\": false,
     \"securityContext\": {
@@ -1037,9 +1092,9 @@ kq_shell_on_deployment() {
   if command -v fzf >/dev/null; then
     pod="$(kubectl -n "$ns" get pod -l "$sel" -o json \
       | jq -r '.items[]
-               | select(.status.phase=="Running")
-               | select([.status.containerStatuses[]? | .ready] | all)
-               | .metadata.name' \
+                | select(.status.phase=="Running")
+                | select([.status.containerStatuses[]? | .ready] | all)
+                | .metadata.name' \
       | fzf --prompt="pod[$dep]> " --height=40%)" || return 1
   else
     pod="$(kubectl -n "$ns" get pod -l "$sel" -o jsonpath='{.items[0].metadata.name}')" || return 1
@@ -1232,6 +1287,19 @@ alias ll="ls -l"
 alias lsl="ls -l"
 alias lla="ls -la"
 alias lsla="ls -la"
+## atuin
+# Atuin
+export ATUIN_SYNC_ADDRESS="https://atuin.k8s.int.kotelett.no"
+# optional but recommended
+export ATUIN_NOBIND="true"        # we’ll bind keys ourselves
+# export ATUIN_HISTORY_FILTER="^ "  # ignore commands starting with space
+eval "$(atuin init zsh)"
+# Ctrl-R → Atuin full-screen search
+bindkey '^R' atuin-search
+# Up arrow → context-aware history (cwd + host)
+bindkey '^[[A' atuin-up-search
+# Ctrl-Up → global history (ignore cwd)
+bindkey '^[[1;5A' atuin-up-search-all
 ## TMSTART
 # binding a shell script to a ctrl sequence needs a function to work
 tmstart() {
