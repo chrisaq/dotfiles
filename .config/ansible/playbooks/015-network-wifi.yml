@@ -6,6 +6,7 @@
       pacman:
         name:
           - systemd
+          - iw
           - iwd
         state: present
 
@@ -19,6 +20,9 @@
         - { section: 'Match', option: 'Name', value: 'wl*' }
         - { section: 'Network', option: 'DHCP', value: 'yes' }
         - { section: 'Network', option: 'Metric', value: '200' }
+        - { section: 'Network', option: 'RequiredForOnline', value: 'no' }
+        - { section: 'Network', option: 'ExecUp',   value: '/usr/local/bin/wg-policy up' }
+        - { section: 'Network', option: 'ExecDown', value: '/usr/local/bin/wg-policy down' }
 
     - name: Enable and start systemd-networkd
       systemd:
@@ -64,6 +68,82 @@
         section: 'General'
         option: 'EnableNetworkConfiguration'
         value: 'false'
+
+    - name: Install wg-policy hook for systemd-networkd ExecUp/ExecDown
+      copy:
+        dest: /usr/local/bin/wg-policy
+        owner: root
+        group: root
+        mode: '0755'
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          ACTION="${1:-}"
+          # IFACE="wlan0"   # adjust if you want wlp* detection
+          IFACE="$(iw dev 2>/dev/null | awk '$1=="Interface"{print $2; exit}' || true)"
+          [[ -n "$IFACE" ]] || exit 0
+
+          # Get SSID (empty if not associated)
+          SSID="$(iw dev "$IFACE" link 2>/dev/null | awk -F': ' '/SSID:/{print $2; exit}' || true)"
+
+          # Buckets (edit)
+          NEVER_VPN_SSIDS=("nv2g" "nv5g" "hiournet" "hiournet_5G")
+          ALWAYS_HOME_TUNNEL_SSIDS=("posten.guest")
+          ALWAYS_FULL_TUNNEL_SSIDS=("QDFam" "QDFam-5G")
+
+          in_list() {
+            local needle="$1"; shift
+            local x
+            for x in "$@"; do [[ "$x" == "$needle" ]] && return 0; done
+            return 1
+          }
+
+          down_all() {
+            networkctl down wg-home 2>/dev/null || true
+            networkctl down wg-full 2>/dev/null || true
+          }
+
+          up_home() {
+            networkctl down wg-full 2>/dev/null || true
+            networkctl up wg-home 2>/dev/null || true
+          }
+
+          up_full() {
+            networkctl down wg-home 2>/dev/null || true
+            networkctl up wg-full 2>/dev/null || true
+          }
+
+          case "$ACTION" in
+            up)
+              # If we don't know SSID yet, do nothing (avoid flapping)
+              [[ -n "$SSID" ]] || exit 0
+
+              if in_list "$SSID" "${NEVER_VPN_SSIDS[@]}"; then
+                down_all
+                exit 0
+              fi
+
+              if in_list "$SSID" "${ALWAYS_FULL_TUNNEL_SSIDS[@]}"; then
+                up_full
+                exit 0
+              fi
+
+              if in_list "$SSID" "${ALWAYS_HOME_TUNNEL_SSIDS[@]}"; then
+                up_home
+                exit 0
+              fi
+
+              # Default behavior: bring up wg-home when on “unknown” networks
+              up_home
+              ;;
+            down)
+              down_all
+              ;;
+            *)
+              exit 0
+              ;;
+          esac
 
     - name: Restart systemd-resolved to apply custom configuration
       systemd:

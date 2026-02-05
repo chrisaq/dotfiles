@@ -790,20 +790,32 @@ cq_wg_full() {
   sudo networkctl reconfigure wg-full
 }
 cq_wg_reset() {
-  : "#:desc: reset WireGuard interface state (clear latched endpoints, restart cleanly)"
+  : "#:desc: reset WireGuard (force endpoint from netdev, then restart interface)"
   : "#:usage: cq_wg_reset [iface]"
-  : "#:args: iface (default: wg-home)"
-  set -euo pipefail
-  IFACE="${1:-wg-home}"
-  sudo networkctl down "$IFACE" || true
-  # Clear learned endpoint for every peer on the interface
-  sudo wg show "$IFACE" peers | while read -r peer; do
-    sudo wg set "$IFACE" peer "$peer" endpoint "" || true
-  done
-  sudo resolvectl flush-caches
-  sudo networkctl up "$IFACE"
-  sudo wg show "$IFACE" endpoints
+  : "#:no-args: false"
+  local iface="${1:-wg-home}"
+  local netdev="/etc/systemd/network/11-wg-home.netdev"
+  local ep
+  ep="$(sudo awk -F= '
+    $1 ~ /^[[:space:]]*Endpoint[[:space:]]*$/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}
+  ' "$netdev" 2>/dev/null)"
+  if [[ -z "${ep:-}" ]]; then
+    echo "Could not read Endpoint= from $netdev" >&2
+    return 1
+  fi
+  # If iface exists, force endpoint for all peers (prevents bootstrapping loop)
+  if ip link show "$iface" >/dev/null 2>&1; then
+    sudo wg show "$iface" peers 2>/dev/null | while read -r peer; do
+      [[ -n "$peer" ]] || continue
+      sudo wg set "$iface" peer "$peer" endpoint "$ep" 2>/dev/null || true
+    done
+  fi
+  sudo resolvectl flush-caches 2>/dev/null || true
+  sudo networkctl down "$iface" 2>/dev/null || true
+  sudo networkctl up "$iface" 2>/dev/null || true
+  sudo wg show "$iface" endpoints 2>/dev/null || true
 }
+
 cq_wg_off() {
   : "#:desc: disable all WireGuard tunnels"
   : "#:usage: cq_wg_off"
