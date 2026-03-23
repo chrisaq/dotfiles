@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+#:usage: cq_oc_profile [profile-name]
+#:no-args: false
+#:desc: Launch opencode with an appname derived from the script name.
+# Create new opencode profiles:
+# ln -s ~/.local/bin/cq_oc_profile ~/.local/bin/opencode-ohmy
+# Install something within the profile:
+# opencode-ohmy -- bunx oh-my-opencode install
+set -euo pipefail
+
+prog="$(basename "$0")"
+
+# Determine profile name
+if [[ "$prog" != "cq_oc_profile" ]]; then
+  profile="$prog"
+else
+  [[ $# -ge 1 ]] || { echo "Usage: cq_oc_profile <profile> [-- <cmd...>]"; exit 2; }
+  profile="$1"
+  shift
+fi
+
+# Proper XDG bases (respect existing env if set)
+xdg_config_base="${XDG_CONFIG_HOME:-$HOME/.config}"
+xdg_data_base="${XDG_DATA_HOME:-$HOME/.local/share}"
+xdg_state_base="${XDG_STATE_HOME:-$HOME/.local/state}"
+xdg_cache_base="${XDG_CACHE_HOME:-$HOME/.cache}"
+
+# Per-profile XDG roots
+export XDG_CONFIG_HOME="$xdg_config_base/opencode-profiles/$profile"
+export XDG_DATA_HOME="$xdg_data_base/opencode-profiles/$profile"
+export XDG_STATE_HOME="$xdg_state_base/opencode-profiles/$profile"
+export XDG_CACHE_HOME="$xdg_cache_base/opencode-profiles/$profile"
+
+mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
+
+# ---- Shared auth.json (optional but automatic) ----
+global_auth="$HOME/.local/share/opencode/auth.json"
+profile_auth="$XDG_DATA_HOME/opencode/auth.json"
+
+if [[ -f "$global_auth" && ! -e "$profile_auth" ]]; then
+  mkdir -p "$(dirname "$profile_auth")"
+  ln -s "$global_auth" "$profile_auth"
+fi
+# -----------------------------------------------
+
+# Allow running arbitrary commands inside profile env
+if [[ ${1:-} == "--" ]]; then
+  shift
+  exec "$@"
+fi
+
+exec opencode "$@"
+

@@ -155,6 +155,10 @@ fi
 if [ -d "/usr/bin/vendor_perl/" ] ; then
     PATH="$PATH:/usr/bin/vendor_perl"
 fi
+# pnpm
+if [ -d "$HOME/.local/share/pnpm" ] ; then
+    PATH="$PATH:$HOME/.local/share/pnpm"
+fi
 # path to user-installed ruby gems bin
 if command -v ruby >/dev/null 2>&1 && command -v gem >/dev/null 2>&1; then
     PATH="$(ruby -r rubygems -e 'puts Gem.user_dir')/bin:$PATH"
@@ -434,6 +438,8 @@ alias cq_clip_watch="watch -n 1 'echo \"PRIMARY (middle_mouse):\" && sselp && ec
     echo \"Clipboard (ctrl-c/p):\" && cb && echo && echo && \
     echo \"tmux-buffer:\" && tmux show-buffer && echo'"
 alias watchclip="xsel -o | xclip -selection clipboard -i"
+alias cq_scrape_videos="kubectl -n media exec deploy/tinymediamanager-ui -- \
+  bash -lc '/app/tinyMediaManager -datadir /data -scrapeNew -writeNfo -writeArtwork -quit'"
 # Start a tmux session with session picker if already running, else waitfor resurrection
 cq_tmux() {
   : "#:desc: attach to or create a tmux session with a chooser"
@@ -756,6 +762,31 @@ alias spotify-tui='spotify_player'
 alias cq_snd_restart="systemctl --user restart pipewire pipewire-pulse wireplumber"
 alias tfinit='terraform init -backend-config=tf-init.conf'
 alias helm-completion='source <(helm completion zsh)'
+cq_wg_diag() {
+  : "#:desc: diagnose WireGuard routing, endpoint reachability and peer status"
+  : "#:usage: cq_wg_diag [iface]"
+  : "#:no-args: false"
+  local iface="${1:-wg-home}"
+  local ep host
+  ep="$(sudo wg show "$iface" endpoints 2>/dev/null | awk 'NR==1 {print $2}')"
+  host="${ep%:*}"
+  echo "== ip route =="
+  ip route
+  echo
+  echo "== ip rule =="
+  ip rule
+  echo
+  echo "== wg show =="
+  sudo wg show "$iface"
+  echo
+  if [[ -n "$host" ]]; then
+    echo "== route to endpoint ($host) =="
+    ip route get "$host"
+  fi
+  echo
+  echo "== ping tunnel gateway (10.1.0.1) =="
+  ping -c1 -W1 10.1.0.1 2>/dev/null || echo "no reply"
+}
 cq_wg_portal() {
   : "#:desc: temporarily disable wg-home to complete captive portal login, then re-enable it"
   : "#:usage: cq_wg_portal"
@@ -790,32 +821,47 @@ cq_wg_full() {
   sudo networkctl reconfigure wg-full
 }
 cq_wg_reset() {
-  : "#:desc: reset WireGuard (force endpoint from netdev, then restart interface)"
+  : "#:desc: reset WireGuard and show endpoint/route state"
   : "#:usage: cq_wg_reset [iface]"
   : "#:no-args: false"
   local iface="${1:-wg-home}"
-  local netdev="/etc/systemd/network/11-wg-home.netdev"
-  local ep
+  local netdev="/etc/systemd/network/11-${iface}.netdev"
+  local ep host port
+  [[ -f "$netdev" ]] || {
+    echo "Missing netdev file: $netdev" >&2
+    return 1
+  }
   ep="$(sudo awk -F= '
-    $1 ~ /^[[:space:]]*Endpoint[[:space:]]*$/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}
-  ' "$netdev" 2>/dev/null)"
-  if [[ -z "${ep:-}" ]]; then
+    $1 ~ /^[[:space:]]*Endpoint[[:space:]]*$/ {
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
+      print $2
+      exit
+    }
+  ' "$netdev")"
+  [[ -n "$ep" ]] || {
     echo "Could not read Endpoint= from $netdev" >&2
     return 1
-  fi
-  # If iface exists, force endpoint for all peers (prevents bootstrapping loop)
+  }
+  host="${ep%:*}"
+  port="${ep##*:}"
+  echo "iface:    $iface"
+  echo "netdev:   $netdev"
+  echo "endpoint: $ep"
   if ip link show "$iface" >/dev/null 2>&1; then
-    sudo wg show "$iface" peers 2>/dev/null | while read -r peer; do
+    while read -r peer; do
       [[ -n "$peer" ]] || continue
-      sudo wg set "$iface" peer "$peer" endpoint "$ep" 2>/dev/null || true
-    done
+      sudo wg set "$iface" peer "$peer" endpoint "$ep" || return 1
+    done < <(sudo wg show "$iface" peers)
   fi
   sudo resolvectl flush-caches 2>/dev/null || true
-  sudo networkctl down "$iface" 2>/dev/null || true
-  sudo networkctl up "$iface" 2>/dev/null || true
-  sudo wg show "$iface" endpoints 2>/dev/null || true
+  sudo networkctl reconfigure "$iface" 2>/dev/null || true
+  echo
+  echo "WireGuard status:"
+  sudo wg show "$iface" 2>/dev/null || true
+  echo
+  echo "Route to endpoint host:"
+  ip route get "$host" 2>/dev/null || true
 }
-
 cq_wg_off() {
   : "#:desc: disable all WireGuard tunnels"
   : "#:usage: cq_wg_off"
@@ -1215,9 +1261,12 @@ cq_sync_gpgssh() {
     else
         rsync -avz -r --delete --files-from=<(grep -v '^\s*#' "$files_path") "$source_dir/" "$dest_user@$server:$dest_path"
     fi
+    B
     echo "Dotfiles synchronized successfully to $server"
 }
 alias cq_soud_restart='systemctl --user restart pipewire-pulse pipewire wireplumber'
+# uvx aliases
+alias hf="uvx --from huggingface-hub hf"
 ### ENDS: Aliases and functions ################################################
 
 ################################################################################
@@ -1253,6 +1302,7 @@ znap clone \
      trapd00r/LS_COLORS \
      ohmyzsh/ohmyzsh \
      git@github.com:zsh-users/{zsh-autosuggestions,zsh-completions}.git \
+     git@github.com:jeffreytse/zsh-vi-mode.git \
      git@github.com:Aloxaf/fzf-tab.git \
      git@github.com:Freed-Wu/fzf-tab-source.git \
      git@github.com:MichaelAquilina/zsh-you-should-use.git
@@ -1264,6 +1314,7 @@ znap eval trapd00r/LS_COLORS "$( whence -a dircolors gdircolors ) -b LS_COLORS"
 znap source junegunn/fzf shell/{completion,key-bindings}.zsh
 # fzf-tab before plugins which will wrap widgets
 # such as zsh-autosuggestions or fast-syntax-highlighting
+znap source jeffreytse/zsh-vi-mode
 znap source fzf-tab
 znap source fzf-tab-source
 znap source ohmyzsh/ohmyzsh lib/{git,theme-and-appearance,completion}
@@ -1294,24 +1345,23 @@ znap source zsh-completions
 ### Override section - override keybindings and such from modules and tools above
 ## Aliases
 # eza -a1@hlo --icons --group-directories-first
-alias ls="eza -a1@hlo --group-directories-first --classify --git --icons"
-alias ll="ls -l"
-alias lsl="ls -l"
-alias lla="ls -la"
-alias lsla="ls -la"
+alias ls="eza --group-directories-first --classify"
+alias ll="eza -a1@hlo --group-directories-first --classify --git --icons"
+alias lsla="ll -a"
 ## atuin
 # Atuin
 export ATUIN_SYNC_ADDRESS="https://atuin.k8s.int.kotelett.no"
 # optional but recommended
 export ATUIN_NOBIND="true"        # we’ll bind keys ourselves
 # export ATUIN_HISTORY_FILTER="^ "  # ignore commands starting with space
-eval "$(atuin init zsh)"
-# Ctrl-R → Atuin full-screen search
-bindkey '^R' atuin-search
+eval "$(atuin init zsh --disable-up-arrow)"
+# Ctrl-R → Atuin full-screen search (moved to bottom vi mode modification)
+# bindkey '^R' atuin-search
+# keep arrow up for previous xommand in same window
 # Up arrow → context-aware history (cwd + host)
-bindkey '^[[A' atuin-up-search
+# bindkey '^[[A' atuin-up-search
 # Ctrl-Up → global history (ignore cwd)
-bindkey '^[[1;5A' atuin-up-search-all
+# bindkey '^[[1;5A' atuin-up-search-all
 ## TMSTART
 # binding a shell script to a ctrl sequence needs a function to work
 tmstart() {
@@ -1357,3 +1407,14 @@ source ~/.config/zsh/Q.zsh
 zle -N Q_widget
 bindkey '^Q' Q_widget
 ### ENDS: Personal functions and scripts system ################################
+# after loading zsh-vi-mode + oh-my-zsh sudo plugin
+function zvm_after_init() {
+  zvm_bindkey viins '^R' _atuin_search_widget
+  zvm_bindkey vicmd '^R' _atuin_search_widget
+  # Make "double Esc" work again:
+  # 1st Esc: viins -> vicmd (handled by zsh-vi-mode)
+  # 2nd Esc: runs sudo-command-line (this binding)
+  zvm_bindkey vicmd '\e' sudo-command-line
+}
+# another workaround
+bindkey '^R' _atuin_search_widget

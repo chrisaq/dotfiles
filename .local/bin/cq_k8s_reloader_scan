@@ -1,0 +1,378 @@
+#!/usr/bin/env -S uv run --quiet
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "kubernetes>=29.0.0",
+#   "rich>=13.7.1",
+#   "typer>=0.12.3",
+# ]
+# ///
+#:usage: cq_k8s_reloader_scan [OPTIONS]
+#:no-args: false
+#:desc: Scan all Deployments (all namespaces) and report
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+import typer
+from kubernetes import client, config
+from kubernetes.client import ApiException
+from rich.console import Console
+from rich.table import Table
+
+app = typer.Typer(add_completion=False)
+console = Console()
+
+RELOADER_ANNOTATION_PREFIXES: Tuple[str, ...] = (
+    "reloader.stakater.com/",
+    "configmap.reloader.stakater.com/",
+    "secret.reloader.stakater.com/",
+)
+RELOADER_ANNOTATION_EXACT: Set[str] = {
+    "reloader.stakater.com/auto",
+    "reloader.stakater.com/search",
+    "configmap.reloader.stakater.com/reload",
+    "secret.reloader.stakater.com/reload",
+    "configmap.reloader.stakater.com/match",
+    "secret.reloader.stakater.com/match",
+    "reloader.stakater.com/match",
+}
+
+
+@dataclass(frozen=True)
+class RefHit:
+    kind: str  # "configmap" | "secret"
+    name: str
+    path: str  # where we found it, e.g. spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.name
+
+    def key(self) -> Tuple[str, str, str]:
+        return (self.kind, self.name, self.path)
+
+
+@dataclass(frozen=True)
+class DeploymentFinding:
+    namespace: str
+    name: str
+    replicas: Optional[int]
+    has_reloader_annotations: bool
+    reloader_annotations: Dict[str, str] = field(default_factory=dict)
+    configmaps: Set[str] = field(default_factory=set)
+    secrets: Set[str] = field(default_factory=set)
+    ref_hits: Tuple[RefHit, ...] = tuple()
+
+
+def _load_kube(kubeconfig: Optional[str], context: Optional[str]) -> None:
+    try:
+        if kubeconfig or context:
+            config.load_kube_config(config_file=kubeconfig, context=context)
+        else:
+            config.load_kube_config()
+    except Exception:
+        config.load_incluster_config()
+
+
+def _annos(obj: Any) -> Dict[str, str]:
+    md = getattr(obj, "metadata", None)
+    if md is None:
+        return {}
+    a = getattr(md, "annotations", None)
+    return dict(a) if a else {}
+
+
+def _filter_reloader_annos(annotations: Dict[str, str]) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for k, v in annotations.items():
+        if k in RELOADER_ANNOTATION_EXACT or k.startswith(RELOADER_ANNOTATION_PREFIXES):
+            out[k] = str(v)
+    return out
+
+
+def _push_hit(
+    hits: List[RefHit],
+    configmaps: Set[str],
+    secrets: Set[str],
+    kind: str,
+    name: Optional[str],
+    path: str,
+) -> None:
+    if not name:
+        return
+    if kind == "configmap":
+        configmaps.add(name)
+    elif kind == "secret":
+        secrets.add(name)
+    hits.append(RefHit(kind=kind, name=name, path=path))
+
+
+def _add_env_refs(container: Any, base_path: str, configmaps: Set[str], secrets: Set[str], hits: List[RefHit]) -> None:
+    env_from = getattr(container, "env_from", None) or []
+    for i, src in enumerate(env_from):
+        cm = getattr(src, "config_map_ref", None)
+        if cm:
+            _push_hit(
+                hits,
+                configmaps,
+                secrets,
+                "configmap",
+                getattr(cm, "name", None),
+                f"{base_path}.envFrom[{i}].configMapRef.name",
+            )
+        sec = getattr(src, "secret_ref", None)
+        if sec:
+            _push_hit(
+                hits,
+                configmaps,
+                secrets,
+                "secret",
+                getattr(sec, "name", None),
+                f"{base_path}.envFrom[{i}].secretRef.name",
+            )
+
+    env = getattr(container, "env", None) or []
+    for i, e in enumerate(env):
+        vf = getattr(e, "value_from", None)
+        if not vf:
+            continue
+        cmkr = getattr(vf, "config_map_key_ref", None)
+        if cmkr:
+            _push_hit(
+                hits,
+                configmaps,
+                secrets,
+                "configmap",
+                getattr(cmkr, "name", None),
+                f"{base_path}.env[{i}].valueFrom.configMapKeyRef.name",
+            )
+        skr = getattr(vf, "secret_key_ref", None)
+        if skr:
+            _push_hit(
+                hits,
+                configmaps,
+                secrets,
+                "secret",
+                getattr(skr, "name", None),
+                f"{base_path}.env[{i}].valueFrom.secretKeyRef.name",
+            )
+
+
+def _add_volume_refs(pod_spec: Any, configmaps: Set[str], secrets: Set[str], hits: List[RefHit]) -> None:
+    vols = getattr(pod_spec, "volumes", None) or []
+    for i, v in enumerate(vols):
+        cm = getattr(v, "config_map", None)
+        if cm:
+            _push_hit(
+                hits,
+                configmaps,
+                secrets,
+                "configmap",
+                getattr(cm, "name", None),
+                f"spec.template.spec.volumes[{i}].configMap.name",
+            )
+        sec = getattr(v, "secret", None)
+        if sec:
+            _push_hit(
+                hits,
+                configmaps,
+                secrets,
+                "secret",
+                getattr(sec, "secret_name", None),
+                f"spec.template.spec.volumes[{i}].secret.secretName",
+            )
+
+        proj = getattr(v, "projected", None)
+        if proj and getattr(proj, "sources", None):
+            for j, s in enumerate(proj.sources or []):
+                cm2 = getattr(s, "config_map", None)
+                if cm2:
+                    _push_hit(
+                        hits,
+                        configmaps,
+                        secrets,
+                        "configmap",
+                        getattr(cm2, "name", None),
+                        f"spec.template.spec.volumes[{i}].projected.sources[{j}].configMap.name",
+                    )
+                sec2 = getattr(s, "secret", None)
+                if sec2:
+                    _push_hit(
+                        hits,
+                        configmaps,
+                        secrets,
+                        "secret",
+                        getattr(sec2, "name", None),
+                        f"spec.template.spec.volumes[{i}].projected.sources[{j}].secret.name",
+                    )
+
+
+def _deployment_to_finding(dep: Any) -> DeploymentFinding:
+    ns = dep.metadata.namespace
+    name = dep.metadata.name
+    replicas = getattr(dep.spec, "replicas", None)
+
+    dep_annos = _annos(dep)
+    tpl_annos = _annos(dep.spec.template)
+
+    reloader_annos: Dict[str, str] = {}
+    reloader_annos.update(_filter_reloader_annos(dep_annos))
+    reloader_annos.update(_filter_reloader_annos(tpl_annos))
+
+    pod_spec = dep.spec.template.spec
+
+    configmaps: Set[str] = set()
+    secrets: Set[str] = set()
+    hits: List[RefHit] = []
+
+    _add_volume_refs(pod_spec, configmaps, secrets, hits)
+
+    init = getattr(pod_spec, "init_containers", None) or []
+    for idx, c in enumerate(init):
+        _add_env_refs(c, f"spec.template.spec.initContainers[{idx}]", configmaps, secrets, hits)
+
+    containers = getattr(pod_spec, "containers", None) or []
+    for idx, c in enumerate(containers):
+        _add_env_refs(c, f"spec.template.spec.containers[{idx}]", configmaps, secrets, hits)
+
+    # Dedup hits (same kind/name/path)
+    seen: Set[Tuple[str, str, str]] = set()
+    uniq: List[RefHit] = []
+    for h in hits:
+        k = h.key()
+        if k in seen:
+            continue
+        seen.add(k)
+        uniq.append(h)
+
+    return DeploymentFinding(
+        namespace=ns,
+        name=name,
+        replicas=replicas,
+        has_reloader_annotations=bool(reloader_annos),
+        reloader_annotations=dict(sorted(reloader_annos.items(), key=lambda kv: kv[0])),
+        configmaps=set(sorted(configmaps)),
+        secrets=set(sorted(secrets)),
+        ref_hits=tuple(uniq),
+    )
+
+
+def _ns_allowed(ns: str, include: Optional[str], exclude: Optional[str]) -> bool:
+    if include and not re.search(include, ns):
+        return False
+    if exclude and re.search(exclude, ns):
+        return False
+    return True
+
+
+@app.command()
+def scan_deployments(
+    include_namespace: Optional[str] = typer.Option(None, "--include-namespace", help="Regex include."),
+    exclude_namespace: Optional[str] = typer.Option(None, "--exclude-namespace", help="Regex exclude."),
+    only_with_refs: bool = typer.Option(False, "--only-with-refs", help="Only show deployments with CM/Secret refs."),
+    only_with_reloader_annos: bool = typer.Option(False, "--only-with-reloader-annos", help="Only show deployments with reloader annotations."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Print matching Secret/ConfigMap refs with paths (and reloader annos)."),
+    kubeconfig: Optional[str] = typer.Option(None, "--kubeconfig", help="Path to kubeconfig (optional)."),
+    context: Optional[str] = typer.Option(None, "--context", help="Kubeconfig context (optional)."),
+    output_json: bool = typer.Option(False, "--json", help="Output JSON instead of a table."),
+) -> None:
+    _load_kube(kubeconfig, context)
+    api = client.AppsV1Api()
+
+    try:
+        deps = api.list_deployment_for_all_namespaces(watch=False).items
+    except ApiException as e:
+        console.print(f"[red]Error listing deployments:[/red] {e}")
+        raise typer.Exit(code=2)
+
+    findings: List[DeploymentFinding] = []
+    for d in deps:
+        ns = d.metadata.namespace
+        if not _ns_allowed(ns, include_namespace, exclude_namespace):
+            continue
+        f = _deployment_to_finding(d)
+        if only_with_refs and not (f.configmaps or f.secrets):
+            continue
+        if only_with_reloader_annos and not f.has_reloader_annotations:
+            continue
+        findings.append(f)
+
+    def sort_key(x: DeploymentFinding) -> Tuple[int, str, str]:
+        needs = int((bool(x.configmaps or x.secrets)) and (not x.has_reloader_annotations))
+        return (-needs, x.namespace, x.name)
+
+    findings.sort(key=sort_key)
+
+    if output_json:
+        payload = [
+            {
+                "namespace": f.namespace,
+                "name": f.name,
+                "replicas": f.replicas,
+                "has_reloader_annotations": f.has_reloader_annotations,
+                "reloader_annotations": f.reloader_annotations,
+                "refs": [{"kind": h.kind, "name": h.name, "path": h.path} for h in f.ref_hits],
+                "configmaps": sorted(f.configmaps),
+                "secrets": sorted(f.secrets),
+            }
+            for f in findings
+        ]
+        console.print_json(json.dumps(payload))
+        raise typer.Exit(code=0)
+
+    table = Table(title="Deployments: Secret/ConfigMap refs vs reloader fields")
+    table.add_column("Namespace", style="bold")
+    table.add_column("Deployment", style="bold")
+    table.add_column("Replicas", justify="right")
+    table.add_column("CM refs", justify="right")
+    table.add_column("Secret refs", justify="right")
+    table.add_column("Reloader annos?", justify="center")
+    table.add_column("Reloader anno keys (preview)")
+
+    for f in findings:
+        anno_keys = ", ".join(list(f.reloader_annotations.keys())[:4])
+        if len(f.reloader_annotations) > 4:
+            anno_keys += f" …(+{len(f.reloader_annotations) - 4})"
+
+        table.add_row(
+            f.namespace,
+            f.name,
+            "-" if f.replicas is None else str(f.replicas),
+            str(len(f.configmaps)),
+            str(len(f.secrets)),
+            "✅" if f.has_reloader_annotations else "—",
+            anno_keys if anno_keys else "—",
+        )
+
+    console.print(table)
+
+    needs = [f for f in findings if (f.configmaps or f.secrets) and (not f.has_reloader_annotations)]
+    console.print()
+    console.print(
+        f"[bold]Summary:[/bold] total={len(findings)} | "
+        f"with_refs={sum(1 for f in findings if (f.configmaps or f.secrets))} | "
+        f"with_reloader_annos={sum(1 for f in findings if f.has_reloader_annotations)} | "
+        f"[bold]refs_but_no_reloader_annos={len(needs)}[/bold]"
+    )
+
+    if verbose:
+        console.print()
+        for f in findings:
+            if not (f.ref_hits or f.reloader_annotations):
+                continue
+
+            console.print(f"[bold]{f.namespace}/{f.name}[/bold]")
+            if f.reloader_annotations:
+                for k, v in f.reloader_annotations.items():
+                    console.print(f"  [dim]anno[/dim] {k}={v}")
+            if f.ref_hits:
+                for h in sorted(f.ref_hits, key=lambda x: (x.kind, x.name, x.path)):
+                    console.print(f"  [dim]{h.kind}[/dim] {h.name}  [dim]{h.path}[/dim]")
+            else:
+                console.print("  [dim]no secret/configmap refs found in env/volumes[/dim]")
+            console.print()
+
+
+if __name__ == "__main__":
+    app()
+

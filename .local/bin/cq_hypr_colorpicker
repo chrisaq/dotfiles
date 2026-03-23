@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+#:usage: cq_hypr_colorpicker
+#:no-args: true
+#:desc: Pick a color via hyprpicker, notify, then advance workspace.
+ # Checking and installing dependencies
+ dependencies=("hyprpicker" "convert")
+ for dep in "${dependencies[@]}"; do
+     command -v "$dep" &> /dev/null || { echo "$dep not found, please install it."; exit 1; }
+ done
+
+# Get color from hyprpicker
+color=$(hyprpicker -a)
+
+# Set image path for notification
+image=/tmp/${color}.png
+
+# Generate color image using ImageMagick
+convert -size 32x32 xc:"$color" "$image"
+
+# Display notification with color information
+if [[ "$color" ]]; then
+    dunstify -t 3000 -u low -a colorpicker -i "$image" "$color, copied to clipboard."
+fi
+
+set -euo pipefail
+mon=$(hyprctl -j activeworkspace | jq -r '.monitor')
+cur=$(hyprctl -j activeworkspace | jq -r '.id')
+mapfile -t ws < <(hyprctl -j workspaces | jq -r --arg m "$mon" '
+  map(select(.monitor==$m)) | map(.id) | unique | sort | .[]')
+for i in "${!ws[@]}"; do
+  if [[ "${ws[$i]}" == "$cur" ]]; then
+    nxt=${ws[$(((i+1)%${#ws[@]}))]}
+    hyprctl dispatch workspace "$nxt"
+    exit 0
+  fi
+done

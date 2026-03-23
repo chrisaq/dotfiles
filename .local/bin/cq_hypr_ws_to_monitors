@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+#:usage: cq_hypr_ws_to_monitors
+#:no-args: true
+#:desc: Assign workspaces to laptop/external monitors.
+set -euo pipefail
+
+# Requires: jq, hyprctl
+
+# Discover monitors
+mon_json="$(hyprctl -j monitors)"
+
+# Laptop panel = first monitor whose name starts with eDP
+lap=$(jq -r '.[] | select(.name|test("^eDP")) | .name' <<<"$mon_json" | head -n1 || true)
+# External = first *active* monitor that is not the laptop (DP/HDMI/etc.)
+ext=$(jq -r --arg lap "$lap" '.[] | select(.name!=$lap and .disabled==false) | .name' <<<"$mon_json" | head -n1 || true)
+
+if [[ -z "${lap:-}" ]]; then
+  echo "No eDP laptop panel found; aborting." >&2
+  exit 1
+fi
+
+# Ensure workspaces exist (Hyprland creates on demand)
+create_ws() {
+  for ws in "$@"; do
+    hyprctl dispatch workspace "$ws" >/dev/null 2>&1 || true
+  done
+}
+
+move_ws_to() {
+  local mon="$1"; shift
+  for ws in "$@"; do
+    # Ensure it exists, then move
+    hyprctl dispatch workspace "$ws" >/dev/null 2>&1 || true
+    hyprctl dispatch moveworkspacetomonitor "$ws" "$mon" >/dev/null 2>&1 || true
+  done
+}
+
+if [[ -n "${ext:-}" ]]; then
+  # External present → 1–4 to external, 5–9 to laptop
+  create_ws 1 2 3 4 5 6 7 8 9
+  move_ws_to "$ext" 1 2 3 4
+  move_ws_to "$lap" 5 6 7 8 9
+  echo "Assigned: WS 1–4 → $ext, WS 5–9 → $lap"
+else
+  # No external → everything to laptop
+  create_ws 1 2 3 4 5 6 7 8 9
+  move_ws_to "$lap" 1 2 3 4 5 6 7 8 9
+  echo "Assigned: WS 1–9 → $lap (no external)"
+fi

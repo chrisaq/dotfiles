@@ -15,7 +15,7 @@
     "reload_style_on_change": true,
 
     // positions generated based on config.ctl //
-    "modules-left": ["custom/smallspacer","custom/smallspacer","custom/wsnum","custom/smallspacer","hyprland/workspaces","custom/spacer","mpris","custom/spacer","hyprland/submap"],
+    "modules-left": ["custom/smallspacer","custom/smallspacer","custom/wsnum","custom/smallspacer","hyprland/workspaces","custom/spacer","mpris","custom/spacer","custom/submap-options"],
     "modules-center": ["custom/padd","custom/l_end","custom/r_end","hyprland/window","custom/padd"],
     "modules-right": ["custom/padd","custom/l_end","group/expand","network","group/expand-3","group/expand-2","group/expand-4","power-profiles-daemon","custom/smallspacer","memory","cpu","clock","custom/smallspacer","custom/notification","custom/padd"],
 
@@ -180,12 +180,13 @@
         },
     },
 
-    "hyprland/submap": {
-        "format": "✌️ {}",
-        "always-on": true,
-        "default-submap": "submap: none",
-        "max-length": 16,
-        "tooltip": true
+    "custom/submap-options": {
+        "exec": "/home/chrisq/.config/waybar/scripts/submap-options.py",
+        "return-type": "json",
+        "interval": 1,
+        "format": "{}",
+        "tooltip": true,
+        "escape": true
     },
 
     "wlr/workspaces": {

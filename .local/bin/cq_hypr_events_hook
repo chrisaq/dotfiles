@@ -1,0 +1,130 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = ["rich>=13", "typer>=0.12"]
+# ///
+#:usage: cq_hypr_events_hook
+#:no-args: true
+#:desc: Listen to Hyprland events and invoke stub handlers.
+from __future__ import annotations
+
+import os, socket, signal, sys, time, re
+from typing import Tuple, Dict, Callable
+import typer
+from rich.console import Console
+from rich.traceback import install as rich_install
+
+app = typer.Typer(add_completion=False)
+console = Console()
+rich_install(show_locals=False)
+
+EV_RE = re.compile(r"^(?P<event>[a-zA-Z0-9_]+)>>(?P<payload>.*)$")
+
+def event_socket_path() -> str:
+    xdg = os.environ.get("XDG_RUNTIME_DIR")
+    sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+    if not xdg or not sig:
+        raise RuntimeError("Missing XDG_RUNTIME_DIR or HYPRLAND_INSTANCE_SIGNATURE in env")
+    return os.path.join(xdg, "hypr", sig, ".socket2.sock")
+
+def parse_event_line(line: str) -> Tuple[str, str, Dict[str, str]]:
+    m = EV_RE.match(line.strip())
+    if not m:
+        return "", line.strip(), {}
+    event = m.group("event")
+    payload = m.group("payload").strip()
+    kv: Dict[str, str] = {}
+    toks = payload.split()
+    for i in range(0, len(toks) - 1, 2):
+        k, v = toks[i], toks[i + 1]
+        if re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", k):
+            kv[k] = v
+    return event, payload, kv
+
+# --- stub handlers you can fill in ---
+def on_monitor_added(name: str, kv: dict) -> None:
+    console.log(f"[bold green]monitoradded[/] {name} kv={kv}")
+    # TODO: call your ws assignment
+
+def on_monitor_removed(name: str, kv: dict) -> None:
+    console.log(f"[bold yellow]monitorremoved[/] {name} kv={kv}")
+    # TODO
+
+def on_workspace(ev: str, payload: str, kv: dict) -> None:
+    console.log(f"[cyan]{ev}[/] {payload} kv={kv}")
+    # TODO
+
+def on_activewindow(payload: str, kv: dict) -> None:
+    console.log(f"[magenta]activewindow[/] {payload}")
+    # TODO
+
+def on_fullscreen(payload: str, kv: dict) -> None:
+    console.log(f"[magenta]fullscreen[/] {payload}")
+    # TODO
+
+HANDLERS: Dict[str, Callable] = {
+    "monitoradded":   lambda payload, kv: on_monitor_added(payload, kv),
+    "monitorremoved": lambda payload, kv: on_monitor_removed(payload, kv),
+    "workspace":        lambda payload, kv: on_workspace("workspace", payload, kv),
+    "createworkspace":  lambda payload, kv: on_workspace("createworkspace", payload, kv),
+    "destroyworkspace": lambda payload, kv: on_workspace("destroyworkspace", payload, kv),
+    "activewindow":   on_activewindow,
+    "fullscreen":     on_fullscreen,
+}
+
+def listen_once(sockpath: str) -> None:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+        s.connect(sockpath)
+        buf = b""
+        while True:
+            chunk = s.recv(4096)
+            if not chunk:
+                break
+            buf += chunk
+            parts = buf.split(b"\n")
+            buf = parts[-1]  # keep incomplete tail
+            for raw in parts[:-1]:
+                if not raw:
+                    continue
+                line = raw.decode("utf-8", "replace").strip("\r").strip()
+                if not line:
+                    continue
+                ev, payload, kv = parse_event_line(line)
+                if not ev:
+                    console.log(f"[dim]unparsed:[/] {line}")
+                    continue
+                handler = HANDLERS.get(ev)
+                if handler:
+                    try:
+                        handler(payload, kv)
+                    except Exception as e:
+                        console.log(f"[red]handler error for {ev}[/]: {e}")
+                else:
+                    console.log(f"[dim]event:[/] {ev}  payload: {payload}")
+
+stop = False
+def _sig(*_):
+    global stop; stop = True
+
+@app.command("listen")
+def listen() -> None:
+    signal.signal(signal.SIGINT, _sig)
+    signal.signal(signal.SIGTERM, _sig)
+    sockpath = event_socket_path()
+    console.log(f"[bold]Hyprland event listener[/] socket={sockpath}")
+
+    backoff = 0.5
+    while not stop:
+        try:
+            listen_once(sockpath)
+            if not stop:
+                console.log("[yellow]event stream ended; reconnecting…[/]")
+        except Exception as e:
+            if stop: break
+            console.log(f"[red]listener error[/]: {e}")
+        time.sleep(backoff)
+        backoff = min(backoff * 2, 10.0)
+    console.log("[bold]stopped[/]")
+
+if __name__ == "__main__":
+    app()

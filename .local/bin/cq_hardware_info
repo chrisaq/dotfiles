@@ -1,0 +1,467 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "rich>=13.7",
+#   "typer>=0.12",
+#   "textual>=0.58",
+# ]
+# ///
+#:usage: cq_hardware_info
+#:no-args: true
+#:desc: Minimal, opinionated hardware inventory (CPU/RAM/Disks + filtered PCIe/USB/Storage), with optional TUI.
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import sys
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Literal
+
+import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Container, Horizontal
+from textual.reactive import reactive
+from textual.widgets import Footer, Header, Label, ListItem, Static, Tab, Tabs
+
+app = typer.Typer(add_completion=False)
+console = Console()
+
+
+# ----------------------------
+# Shell helpers / collectors
+# ----------------------------
+def run_cmd(cmd: list[str], *, check: bool = False) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(cmd, text=True, capture_output=True, check=check)
+
+
+def cmd_out(cmd: list[str]) -> str:
+    p = run_cmd(cmd)
+    if p.returncode != 0:
+        return ""
+    return p.stdout.strip()
+
+
+def dmidecode_out() -> str:
+    """Get dmidecode output, allowing sudo prompt when needed (fixes false 'needs passwordless sudo')."""
+    if os.geteuid() == 0:
+        return cmd_out(["dmidecode", "-t", "memory"])
+
+    # First try passwordless (avoids prompt in TUI if already configured)
+    p = run_cmd(["sudo", "-n", "dmidecode", "-t", "memory"])
+    if p.returncode == 0 and p.stdout.strip():
+        return p.stdout.strip()
+
+    # Fall back to interactive sudo (will prompt in terminal)
+    p2 = run_cmd(["sudo", "dmidecode", "-t", "memory"])
+    if p2.returncode != 0:
+        return ""
+    return p2.stdout.strip()
+
+
+@dataclass(frozen=True)
+class CpuInfo:
+    model: str
+    cores: int
+    threads: int
+
+
+def get_cpu() -> CpuInfo:
+    out = cmd_out(["lscpu"])
+    model = ""
+    sockets = 1
+    cores_per_socket = 0
+    threads_per_core = 0
+    for line in out.splitlines():
+        if ":" not in line:
+            continue
+        k, v = line.split(":", 1)
+        k = k.strip()
+        v = v.strip()
+        if k == "Model name":
+            model = v
+        elif k == "Socket(s)":
+            sockets = int(v or "1")
+        elif k == "Core(s) per socket":
+            cores_per_socket = int(v or "0")
+        elif k == "Thread(s) per core":
+            threads_per_core = int(v or "0")
+    cores = sockets * cores_per_socket if cores_per_socket else 0
+    threads = cores * threads_per_core if cores and threads_per_core else 0
+    return CpuInfo(model=model or "Unknown CPU", cores=cores, threads=threads)
+
+
+@dataclass(frozen=True)
+class RamInfo:
+    total: str
+    dimms: list[str]  # "16 GB DDR5 5600 MT/s"
+
+
+def get_ram() -> RamInfo:
+    total_lines = cmd_out(["free", "-h"]).splitlines()
+    total_mem = "Unknown"
+    for ln in total_lines:
+        if ln.startswith("Mem:"):
+            parts = ln.split()
+            if len(parts) >= 2:
+                total_mem = parts[1]
+            break
+
+    raw = dmidecode_out()
+    dimms: list[str] = []
+    if raw:
+        blocks = raw.split("\n\n")
+        for b in blocks:
+            if not b.strip().startswith("Memory Device"):
+                continue
+            size = ""
+            mtype = ""
+            speed = ""
+            for ln in b.splitlines():
+                ln = ln.strip()
+                if ln.startswith("Size:"):
+                    size = ln.removeprefix("Size:").strip()
+                elif ln.startswith("Type:"):
+                    mtype = ln.removeprefix("Type:").strip()
+                elif ln.startswith("Speed:"):
+                    speed = ln.removeprefix("Speed:").strip()
+            if size and size != "No Module Installed":
+                dimms.append(" ".join(x for x in [size, mtype, speed] if x))
+
+    return RamInfo(total=total_mem, dimms=dimms)
+
+
+@dataclass(frozen=True)
+class Disk:
+    name: str
+    model: str
+    size: str
+    tran: str
+    rota: str
+
+
+def get_disks() -> list[Disk]:
+    out = cmd_out(["lsblk", "-d", "-o", "NAME,MODEL,SIZE,TRAN,ROTA,TYPE"])
+    disks: list[Disk] = []
+    lines = out.splitlines()
+    if not lines:
+        return disks
+    for ln in lines[1:]:
+        parts = ln.split(None, 5)
+        if len(parts) < 6:
+            continue
+        name, model, size, tran, rota, typ = parts
+        if typ != "disk":
+            continue
+        disks.append(Disk(name=name, model=model, size=size, tran=tran, rota=rota))
+    return disks
+
+
+PCI_FILTER_RE = re.compile(
+    r"(Host bridge|ISA bridge|PCI bridge|RAM memory|SMBus|System peripheral|Signal processing controller:.*Thermal)",
+    re.IGNORECASE,
+)
+
+
+def get_pci(real_only: bool) -> list[str]:
+    out = cmd_out(["lspci", "-nn"])
+    lines = [ln for ln in out.splitlines() if ln.strip()]
+    if not real_only:
+        return lines
+    return [ln for ln in lines if not PCI_FILTER_RE.search(ln)]
+
+
+def get_pci_tree() -> str:
+    return cmd_out(["lspci", "-t"])
+
+
+def get_usb(real_only: bool) -> list[str]:
+    out = cmd_out(["lsusb"])
+    lines = [ln for ln in out.splitlines() if ln.strip()]
+    if not real_only:
+        return lines
+    return [ln for ln in lines if "root hub" not in ln.lower()]
+
+
+def get_usb_tree() -> str:
+    return cmd_out(["lsusb", "-t"])
+
+
+def get_storage_json() -> dict[str, Any]:
+    out = cmd_out(["lsblk", "-J", "-O"])
+    if not out:
+        return {}
+    try:
+        return json.loads(out)
+    except json.JSONDecodeError:
+        return {}
+
+
+def storage_filtered_view(lsblk_json: dict[str, Any]) -> list[str]:
+    out: list[str] = []
+    devs = lsblk_json.get("blockdevices") or []
+    for d in devs:
+        if d.get("type") != "disk":
+            continue
+        name = d.get("name", "?")
+        model = (d.get("model") or "").strip()
+        size = d.get("size") or "?"
+        tran = d.get("tran") or ""
+        out.append(f"{name}  {size}  {tran}  {model}".rstrip())
+        for ch in d.get("children") or []:
+            if ch.get("type") == "part":
+                out.append(
+                    f"  └─ {ch.get('name','?')}  {ch.get('size','?')}  {(ch.get('fstype') or '')}  {(ch.get('mountpoint') or '')}".rstrip()
+                )
+    return out
+
+
+def storage_full_view(lsblk_json: dict[str, Any]) -> list[str]:
+    out: list[str] = []
+    devs = lsblk_json.get("blockdevices") or []
+
+    def walk(node: dict[str, Any], prefix: str = "") -> None:
+        name = node.get("name", "?")
+        typ = node.get("type", "")
+        size = node.get("size", "?")
+        fstype = node.get("fstype") or ""
+        mp = node.get("mountpoint") or ""
+        model = (node.get("model") or "").strip()
+        out.append("  ".join(x for x in [f"{prefix}{name}", f"[{typ}]", size, fstype, mp, model] if x).rstrip())
+        kids = node.get("children") or []
+        for i, ch in enumerate(kids):
+            last = i == len(kids) - 1
+            walk(ch, prefix + ("└─ " if last else "├─ "))
+
+    for d in devs:
+        walk(d, "")
+    return out
+
+
+def build_left_summary_text() -> str:
+    cpu = get_cpu()
+    ram = get_ram()
+    disks = get_disks()
+
+    lines: list[str] = []
+    lines.append(f"[b]CPU[/b]\n{cpu.model}\nCores/Threads: {cpu.cores} / {cpu.threads}\n")
+    lines.append(f"[b]RAM[/b]\nTotal: {ram.total}")
+    if ram.dimms:
+        for d in ram.dimms:
+            lines.append(f"- {d}")
+    lines.append("")  # spacer
+    lines.append("[b]Disks[/b]")
+    if disks:
+        for d in disks:
+            lines.append(f"- {d.name}  {d.size}  {d.tran}  {d.model}".rstrip())
+    else:
+        lines.append("(none)")
+    return "\n".join(lines).strip()
+
+
+def get_pkg_version(name: str) -> str:
+    try:
+        from importlib.metadata import version
+
+        return version(name)
+    except Exception:
+        return "unknown"
+
+
+# ----------------------------
+# CLI output (non-TUI)
+# ----------------------------
+def print_summary() -> None:
+    cpu = get_cpu()
+    ram = get_ram()
+    disks = get_disks()
+
+    t = Table(title="Hardware Summary", show_lines=False)
+    t.add_column("Component", style="bold")
+    t.add_column("Details")
+
+    t.add_row("CPU", f"{cpu.model}\nCores/Threads: {cpu.cores} / {cpu.threads}")
+
+    if ram.dimms:
+        t.add_row("RAM", f"{ram.total}\n" + "\n".join(f"- {d}" for d in ram.dimms))
+    else:
+        # No scary message; just state total.
+        t.add_row("RAM", ram.total)
+
+    t.add_row(
+        "Disks",
+        "\n".join(f"- {d.name}  {d.size}  {d.tran}  {d.model}" for d in disks) if disks else "No disks found",
+    )
+
+    console.print(t)
+    console.print()
+    console.print(Panel("\n".join(get_pci(real_only=True)) or "(none)", title="PCIe (real-only)"))
+    console.print(Panel("\n".join(get_usb(real_only=True)) or "(none)", title="USB (real-only)"))
+
+
+# ----------------------------
+# Textual TUI
+# ----------------------------
+class HardwareTui(App[None]):
+    CSS = """
+    #top_tabs { height: 3; }
+    #main { height: 1fr; }
+    #left { width: 40%; border: solid $panel; padding: 0 1; }
+    #right { width: 60%; border: solid $panel; padding: 0 1; }
+    """
+
+    BINDINGS = [
+        Binding("q", "quit", "Quit"),
+        Binding("tab", "next_tab", "Next tab"),
+        Binding("shift+tab", "prev_tab", "Prev tab"),
+        Binding("r", "refresh", "Refresh"),
+        Binding("1", "mode_one", "Mode 1"),
+        Binding("2", "mode_two", "Mode 2"),
+    ]
+
+    active_tab: reactive[Literal["about", "pcie", "usb", "storage"]] = reactive("about")
+    pcie_mode: reactive[Literal["real", "tree"]] = reactive("real")
+    usb_mode: reactive[Literal["real", "tree"]] = reactive("real")
+    storage_mode: reactive[Literal["filtered", "full"]] = reactive("filtered")
+
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+
+        yield Tabs(
+            Tab("cq_hardware_info", id="about"),
+            Tab("pcie", id="pcie"),
+            Tab("usb", id="usb"),
+            Tab("storage", id="storage"),
+            id="top_tabs",
+        )
+
+        with Horizontal(id="main"):
+            with Container(id="left"):
+                yield Label("Summary", id="left_title")
+                yield Static("", id="left_summary")
+            with Container(id="right"):
+                yield Static("", id="right_content")
+
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one(Tabs).active = "about"
+        self.render_all()
+
+    def action_next_tab(self) -> None:
+        self.query_one(Tabs).action_next_tab()
+
+    def action_prev_tab(self) -> None:
+        self.query_one(Tabs).action_previous_tab()
+
+    def action_refresh(self) -> None:
+        self.render_all()
+
+    def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
+        tab_id = event.tab.id or "about"
+        if tab_id in {"about", "pcie", "usb", "storage"}:
+            self.active_tab = tab_id  # type: ignore[assignment]
+        else:
+            self.active_tab = "about"
+        self.render_right()
+
+    def render_all(self) -> None:
+        self.render_left()
+        self.render_right()
+
+    def render_left(self) -> None:
+        left = self.query_one("#left_summary", Static)
+        left.update(Panel(build_left_summary_text(), title="Machine", border_style=""))
+
+    def render_right(self) -> None:
+        right = self.query_one("#right_content", Static)
+
+        if self.active_tab == "about":
+            now = datetime.now().isoformat(timespec="seconds")
+            prog = Text()
+            prog.append("cq_hardware_info\n", style="bold")
+            prog.append("Minimal, opinionated hardware inventory (real devices first).\n\n")
+            prog.append("Keys: Tab/Shift+Tab = cycle tabs • r = refresh • q = quit\n", style="dim")
+            prog.append("Modes: 1/2 toggles within PCIe/USB/Storage tabs.\n\n", style="dim")
+
+            prog.append(f"Python: {sys.version.split()[0]}\n")
+            prog.append(f"typer: {get_pkg_version('typer')}\n")
+            prog.append(f"rich: {get_pkg_version('rich')}\n")
+            prog.append(f"textual: {get_pkg_version('textual')}\n\n")
+            prog.append(f"Time: {now}\n")
+            prog.append("© 2026 Chris (local script)\n")
+
+            right.update(Panel(prog, title="About", border_style=""))
+            return
+
+        if self.active_tab == "pcie":
+            if self.pcie_mode == "tree":
+                body = get_pci_tree()
+                title = "PCIe (tree)"
+            else:
+                body = "\n".join(get_pci(real_only=True)) or "(none)"
+                title = "PCIe (real-only)"
+            right.update(Panel(f"Mode: [b]1=real-only[/b]  2=tree\n\n{body}", title=title, border_style=""))
+            return
+
+        if self.active_tab == "usb":
+            if self.usb_mode == "tree":
+                body = get_usb_tree()
+                title = "USB (tree)"
+            else:
+                body = "\n".join(get_usb(real_only=True)) or "(none)"
+                title = "USB (real-only)"
+            right.update(Panel(f"Mode: [b]1=real-only[/b]  2=tree\n\n{body}", title=title, border_style=""))
+            return
+
+        if self.active_tab == "storage":
+            js = get_storage_json()
+            if self.storage_mode == "full":
+                body = "\n".join(storage_full_view(js)) or "(none)"
+                title = "Storage (full)"
+            else:
+                body = "\n".join(storage_filtered_view(js)) or "(none)"
+                title = "Storage (filtered)"
+            right.update(Panel(f"Mode: [b]1=filtered[/b]  2=full\n\n{body}", title=title, border_style=""))
+            return
+
+    def action_mode_one(self) -> None:
+        if self.active_tab == "pcie":
+            self.pcie_mode = "real"
+        elif self.active_tab == "usb":
+            self.usb_mode = "real"
+        elif self.active_tab == "storage":
+            self.storage_mode = "filtered"
+        self.render_right()
+
+    def action_mode_two(self) -> None:
+        if self.active_tab == "pcie":
+            self.pcie_mode = "tree"
+        elif self.active_tab == "usb":
+            self.usb_mode = "tree"
+        elif self.active_tab == "storage":
+            self.storage_mode = "full"
+        self.render_right()
+
+
+@app.command()
+def main(
+    tui: bool = typer.Option(False, "-t", "--tui", help="Launch Textual TUI"),
+) -> None:
+    if tui:
+        HardwareTui().run()
+    else:
+        print_summary()
+
+
+if __name__ == "__main__":
+    app()

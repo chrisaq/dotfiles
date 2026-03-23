@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+#:usage: cq_yubikey_find_hog
+#:no-args: true
+#:desc: Find processes holding YubiKey USB/hidraw nodes.
+set -euo pipefail
+
+have_lsusb=$(command -v lsusb || true)
+[[ -z "$have_lsusb" ]] && { echo "lsusb not found"; exit 1; }
+
+mapfile -t lines < <(lsusb | grep -i 'Yubico')
+[[ ${#lines[@]} -gt 0 ]] || { echo "No YubiKey found"; exit 2; }
+
+for line in "${lines[@]}"; do
+  # Example: "Bus 003 Device 007: ID 1050:0116 Yubico.com ..."
+  bus=$(sed -nE 's/^Bus ([0-9]+) Device ([0-9]+).*/\1/p' <<<"$line")
+  dev=$(sed -nE 's/^Bus ([0-9]+) Device ([0-9]+).*/\2/p' <<<"$line")
+
+  # Force base-10 outside printf
+  bus_d=$((10#$bus))
+  dev_d=$((10#$dev))
+  devnode=$(printf "/dev/bus/usb/%03d/%03d" "$bus_d" "$dev_d")
+
+  echo "🔎 $line"
+  echo "🔗 $devnode"
+
+  echo "📌 USB bus node holders:"
+  sudo lsof -nP "$devnode" 2>/dev/null || echo "(none)"
+
+  echo "🧷 hidraw holders (FIDO/CTAP):"
+  for h in /dev/hidraw*; do
+    [[ -e "$h" ]] || continue
+    if udevadm info -q property -n "$h" 2>/dev/null | grep -qi 'ID_VENDOR_ID=1050'; then
+      sudo lsof -nP "$h" 2>/dev/null | awk 'NR==1 || NF' || true
+    fi
+  done
+
+  echo
+done

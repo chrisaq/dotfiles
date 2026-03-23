@@ -38,3 +38,4 @@ ruter_stage-pd-1.yaml.gpg:.config/kube/ruter_stage-pd-1.yaml
 secrets_env.gpg:.config/zsh/secrets_env
 npmrc.gpg:.config/npm/npmrc
 gradle-properties.gpg:.local/share/gradle/gradle.properties
+sops-age-encryption-key.gpg:.config/sops/age/keys.txt
