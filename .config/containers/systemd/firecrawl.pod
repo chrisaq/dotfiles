@@ -1,0 +1,6 @@
+[Pod]
+PodName=firecrawl-stack
+PublishPort=3002:3002
+
+[Install]
+WantedBy=default.target

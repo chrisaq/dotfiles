@@ -1,0 +1,16 @@
+[Unit]
+Description=Qdrant Vector Database Service
+After=network-online.target
+
+[Container]
+Image=docker.io/qdrant/qdrant:latest
+PublishPort=6333:6333
+PublishPort=6334:6334
+Volume=%h/.local/share/qdrant_storage:/qdrant/storage:Z
+# Optional: Enable auto-updates
+# AutoUpdate=registry
+
+[Install]
+# This ensures the service starts at boot
+WantedBy=default.target
+

@@ -1,0 +1,10 @@
+[Container]
+ContainerName=firecrawl-worker
+Image=ghcr.io/firecrawl/firecrawl:latest
+Pod=firecrawl.pod
+Exec=node dist/services/worker.js
+Environment=REDIS_URL=redis://localhost:6379
+
+# [Unit]
+# After=firecrawl-redis.service
+# Requires=firecrawl-redis.service

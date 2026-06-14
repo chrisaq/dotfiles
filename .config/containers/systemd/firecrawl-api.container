@@ -1,0 +1,14 @@
+[Container]
+ContainerName=firecrawl-api
+Image=ghcr.io/firecrawl/firecrawl:latest
+Pod=firecrawl.pod
+Environment=REDIS_URL=redis://localhost:6379
+Environment=PORT=3002
+# Add your LLM keys if using extraction features
+#Environment=OPENAI_API_KEY=your_key_here 
+
+
+# [Unit]
+# After=firecrawl-redis.service
+# Requires=firecrawl-redis.service
+# 

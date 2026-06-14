@@ -1,0 +1,4 @@
+[Container]
+ContainerName=firecrawl-redis
+Image=docker.io/library/redis:alpine
+Pod=firecrawl.pod

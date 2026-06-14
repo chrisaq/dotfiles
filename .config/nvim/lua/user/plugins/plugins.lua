@@ -4,8 +4,9 @@ return {
   "lewis6991/impatient.nvim",
   {
   "folke/snacks.nvim",
-  priority = 1000,
+  -- priority = 1000,
   lazy = false,
+  -- event = "VimEnter", -- or "VeryLazy"
   ---@type snacks.Config
     opts = {
       -- your configuration comes here
@@ -170,10 +171,19 @@ return {
   },
   {
     "nvim-treesitter/nvim-treesitter",
+    branch = "main",
+    build = ":TSUpdate",
+    opts = {
+      ensure_installed = { "lua", "vim", "vimdoc", "markdown", "markdown_inline" },
+      highlight = { enable = true },
+    },
+    -- config = function(_, opts)
+    --   require("nvim-treesitter.configs").setup(opts) -- NOTE: Some versions of 'main' still provide a shim, but it's buggy.
+    -- end,
     dependencies = {
-      "nvim-treesitter/nvim-treesitter-textobjects",
-      "nvim-treesitter/nvim-treesitter-refactor",
-      "JoosepAlviste/nvim-ts-context-commentstring",
+      -- { "nvim-treesitter/nvim-treesitter-textobjects", branch = "main" },
+      -- { "nvim-treesitter/nvim-treesitter-refactor", branch = "main" },
+      -- "JoosepAlviste/nvim-ts-context-commentstring",
     },
   },
   {
@@ -257,13 +267,20 @@ return {
     end
   },
   {
+    -- we keep separate because it breaks folke/snacks.nvim's dashboard if loaded at the same time, and it's a small plugin so no need to load it early
+    "echasnovski/mini.trailspace",
+      event = "VeryLazy", -- This usually stops it from messing with the dashboard
+      config = function()
+        require("mini.trailspace").setup()
+      end,
+  },
+  {
     "echasnovski/mini.nvim",
     config = function()
       require("mini.ai").setup()
       require("mini.align").setup()
       require("mini.cursorword").setup()
       require("mini.extra").setup()
-      require("mini.trailspace").setup({ only_in_normal_buffers = true })
       key_map("n", "<leader><Space>", ":lua MiniTrailspace.trim()<CR>", { desc = "Trailspace clear all" })
       require("mini.surround").setup()
       key_map({ "n", "x" }, "s", "<Nop>") -- disable substitute key used by surround

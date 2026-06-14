@@ -1,6 +1,8 @@
 ---
 # install/workstation-stage-03.yml
 # Self hosted apps etc
+- name: MiddleClick
+  import_playbook: ../playbooks/060-user-desktop-settings.yml
 
 - name: MKDocs
   import_playbook: ../playbooks/305-mkdocs-setup.yml

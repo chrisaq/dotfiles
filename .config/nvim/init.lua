@@ -37,6 +37,5 @@ local lazy_opts = {
 
 require("lazy").setup(plugins, lazy_opts)
 
-require("user/treesitter") -- ~0ms
 require("user/telescope") -- 30ms
 require("user/style") -- 10ms

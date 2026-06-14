@@ -408,6 +408,10 @@ alias xkcd_pwgen="gopass pwgen -x --lang en --sep ' ' 5"
   local program="$1"
   local file1="$2"
   local file2="$3"
+  if [[ -z "$program" || -z "$file1" || -z "$file2" ]]; then
+    echo "Usage: cq_decrypt_diff <diff_program> <file1> <file2> [program_args...]" >&2
+    return 1
+  fi
   shift 3
   "$program" <(gpg --quiet --decrypt "$file1") <(gpg --quiet --decrypt "$file2") "$@"
 }
@@ -419,7 +423,7 @@ _cq_decrypt_diff_completions() {
     '2: :_files' \
     '3: :_files'
 }
-compdef _decrypt_and_run_completions decrypt_and_run
+compdef _cq_decrypt_diff_completions cq_decrypt_diff
 # Load secrets env if the file exists
 if [ -f "$XDG_CONFIG_HOME/zsh/secrets_env" ]; then
   source "$XDG_CONFIG_HOME/zsh/secrets_env"
@@ -528,7 +532,10 @@ cq_tmux_split_dirs_add() {
   # Get the substring to filter directories (optional)
   local substring="${1:-}"
   # Get a list of directories matching the substring in the current directory
-  local dirs=($(find . -maxdepth 1 -type d -iname "*$substring*" ! -path . | sort))
+  local dirs=()
+  while IFS= read -r dir; do
+    dirs+=("$dir")
+  done < <(find . -maxdepth 1 -type d -iname "*$substring*" ! -path "." | sort)
   # If no matching directories are found, exit
   if [ ${#dirs[@]} -eq 0 ]; then
     echo "No directories found matching '${substring}'."
@@ -536,20 +543,27 @@ cq_tmux_split_dirs_add() {
   fi
   # For each directory, create a vertical split and cd into it
   for dir in "${dirs[@]}"; do
-    tmux split-window -v "cd $dir && exec $SHELL"
+    dir="${dir#./}"
+    tmux split-window -v "cd \"$dir\" && exec \"$SHELL\""
     tmux select-layout even-horizontal
   done
 }
 cq_mdsearch() {
     : "#:desc: search markdown files with ugrep and preview with glow"
-    : "#:usage: mdsearch [search_term]"
+    : "#:usage: cq_mdsearch [search_term]"
     : "#:no-args: false"
     local arg="${1:-""}"
-    CWD="$(pwd)"
-    cd $HOME/Sync/Wiki/Tech/Tech
+    local cwd wiki_dir
+    cwd="$(pwd)"
+    wiki_dir="$HOME/Sync/Wiki/Tech/Tech"
+    if [[ ! -d "$wiki_dir" ]]; then
+        echo "Missing wiki directory: $wiki_dir" >&2
+        return 1
+    fi
+    cd "$wiki_dir" || return 1
     # ugrep -Qrl --split --context=3 -t markdown --view="glow -p" -e "$arg"
     ugrep -Qrl -%% -Z4 --split --context=3 -t markdown --no-confirm --view="glow -p" -e "$arg"
-    cd "$CWD"
+    cd "$cwd" || return 1
 }
 # ssh tunnel
 cq_ssh-tunnel() {
@@ -687,6 +701,10 @@ cq_sudo_append() {
     : "#:usage: cq_sudo_append <file> <text...>"
     : "#:no-args: false"
     local file="$1"
+    if [[ -z "$file" || "$#" -lt 2 ]]; then
+        echo "Usage: cq_sudo_append <file> <text...>" >&2
+        return 1
+    fi
     shift
     local text="$*"
     echo "$text" | sudo tee -a "$file" > /dev/null
@@ -696,6 +714,10 @@ cq_tmux_cmd_all() {
   : "#:desc: send a command to all panes in the current tmux window"
   : "#:usage: cq_tmux_cmd_all <command...>"
   : "#:no-args: false"
+  if [[ -z "$TMUX" || "$#" -eq 0 ]]; then
+    echo "Usage: cq_tmux_cmd_all <command...>" >&2
+    return 1
+  fi
   # Get the current session and window
   local current_session current_window
   current_session=$(tmux display-message -p '#S')  # Active session
@@ -709,13 +731,18 @@ cq_tmux_cmd_globally() {
     : "#:desc: send a command to all panes in all tmux sessions"
     : "#:usage: cq_tmux_cmd_globally <command...>"
     : "#:no-args: false"
-    for session in `tmux list-sessions -F '#S'`; do
-        for window in `tmux list-windows -t $session -F '#P' | sort`; do
-            for pane in `tmux list-panes -t $session:$window -F '#P' | sort`; do
+    local session window pane
+    if [[ "$#" -eq 0 ]]; then
+        echo "Usage: cq_tmux_cmd_globally <command...>" >&2
+        return 1
+    fi
+    while IFS= read -r session; do
+        while IFS= read -r window; do
+            while IFS= read -r pane; do
                 tmux send-keys -t "$session:$window.$pane" "$*" C-m
-            done
-        done
-    done
+            done < <(tmux list-panes -t "$session:$window" -F '#P' | sort)
+        done < <(tmux list-windows -t "$session" -F '#I' | sort)
+    done < <(tmux list-sessions -F '#S')
 }
 # prints true color palette
 truecolor() {
@@ -875,7 +902,10 @@ cq_autorandr() {
     : "#:desc: pick an autorandr profile via rofi and apply it"
     : "#:usage: cq_autorandr"
     : "#:no-args: true"
-    autorandr $(autorandr | cut -d' ' -f1|rofi -dmenu)
+    local profile
+    profile="$(autorandr | awk '{print $1}' | rofi -dmenu)"
+    [[ -n "$profile" ]] || return 1
+    autorandr "$profile"
 }
 i3_swap() {
     i3-msg "rename workspace $1 to temporary;
@@ -950,30 +980,145 @@ cq_aur_install_helper() {
     if ! command -v git >/dev/null 2>&1; then
         sudo pacman -S git
     fi
-    mkdir -p ~/tmp/
-    git clone https://aur.archlinux.org/paru.git
-    cd ~/tmp/paru
+    local repo_dir="$HOME/tmp/paru"
+    mkdir -p "$HOME/tmp" || return 1
+    if [[ -d "$repo_dir/.git" ]]; then
+        git -C "$repo_dir" pull --ff-only || return 1
+    else
+        rm -rf "$repo_dir"
+        git clone https://aur.archlinux.org/paru.git "$repo_dir" || return 1
+    fi
+    cd "$repo_dir" || return 1
     makepkg -si
 }
 # Set env from KEY=value list in file
 cq_env_arg() {
   : "#:desc: source an env file with exported variables"
-  : "#:usage: cq_env_arg <file> [args...]"
+  : "#:usage: cq_env_arg <file>"
   : "#:no-args: false"
-  set -o allexport; source $@; set +o allexport
+  local env_file="$1"
+  if [[ -z "$env_file" ]]; then
+    echo "Usage: cq_env_arg <file>" >&2
+    return 1
+  fi
+  if [[ ! -f "$env_file" ]]; then
+    echo "Missing env file: $env_file" >&2
+    return 1
+  fi
+  set -o allexport
+  source "$env_file"
+  set +o allexport
 }
 cq_env_select() {
   : "#:desc: pick and source an env file from ~/.config/env"
   : "#:usage: cq_env_select"
   : "#:no-args: true"
-  set -o allexport; source $(fd .conf ~/.config/env -t f|fzf); set +o allexport
+  local env_file
+  env_file="$(fd .conf ~/.config/env -t f | fzf)"
+  [[ -n "$env_file" ]] || return 1
+  set -o allexport
+  source "$env_file"
+  set +o allexport
 }
 # Run command with env from ./.env
 cq_with_env() {
     : "#:desc: run a command with environment from ./.env"
     : "#:usage: cq_with_env <command> [args...]"
     : "#:no-args: false"
+    if [[ ! -f ./.env ]]; then
+        echo "Missing env file: ./.env" >&2
+        return 1
+    fi
+    if [[ "$#" -eq 0 ]]; then
+        echo "Usage: cq_with_env <command> [args...]" >&2
+        return 1
+    fi
     (set -a && . ./.env && "$@")
+}
+_cq_ai_require_bun() {
+    command -v bun >/dev/null 2>&1 || {
+        echo "bun is required but was not found in PATH." >&2
+        return 1
+    }
+    command -v bunx >/dev/null 2>&1 || {
+        echo "bunx is required but was not found in PATH." >&2
+        return 1
+    }
+}
+cq_ai_bmad() {
+    : "#:desc: install or upgrade BMAD in the current directory"
+    : "#:usage: cq_ai_bmad"
+    : "#:no-args: true"
+    _cq_ai_require_bun || return 1
+    bunx bmad-method@6.0.4 install
+}
+cq_ai_everything_claude_code() {
+    : "#:desc: install or upgrade everything-claude-code in the current directory"
+    : "#:usage: cq_ai_everything_claude_code [claude|cursor|opencode]"
+    : "#:no-args: true"
+    local target="${1:-claude}"
+    case "$target" in
+        claude|cursor|opencode) ;;
+        *)
+            echo "Usage: cq_ai_everything_claude_code [claude|cursor|opencode]" >&2
+            return 1
+            ;;
+    esac
+    _cq_ai_require_bun || return 1
+    bunx --package ecc-universal ecc-install --target "$target"
+}
+cq_ai_get_shit_done() {
+    : "#:desc: install or upgrade get-shit-done in the current directory"
+    : "#:usage: cq_ai_get_shit_done [claude|opencode|gemini|codex|copilot|cursor|windsurf|antigravity|all]"
+    : "#:no-args: true"
+    local runtime="${1:-codex}"
+    case "$runtime" in
+        claude|opencode|gemini|codex|copilot|cursor|windsurf|antigravity|all) ;;
+        *)
+            echo "Usage: cq_ai_get_shit_done [claude|opencode|gemini|codex|copilot|cursor|windsurf|antigravity|all]" >&2
+            return 1
+            ;;
+    esac
+    _cq_ai_require_bun || return 1
+    bunx get-shit-done-cc@latest "--$runtime" --local
+}
+cq_ai_ohmyopenagent() {
+    : "#:desc: install or upgrade ohmyopenagent in the current directory"
+    : "#:usage: cq_ai_ohmyopenagent"
+    : "#:no-args: true"
+    _cq_ai_require_bun || return 1
+    bunx oh-my-opencode install
+}
+cq_opencode_setup() {
+    : "#:desc: sync everything-claude-code and install OpenCode agents/commands into .opencode"
+    : "#:usage: cq_opencode_setup"
+    : "#:no-args: true"
+    local source_dir="$HOME/Code/Private/everything-claude-code"
+    local source_url="https://github.com/affaan-m/everything-claude-code"
+    local target_dir="$PWD/.opencode"
+
+    if [[ -d "$source_dir/.git" ]]; then
+        echo "Updating $source_dir..."
+        git -C "$source_dir" pull --ff-only || return 1
+    elif [[ -d "$source_dir" ]]; then
+        echo "Error: $source_dir exists but is not a git repository." >&2
+        return 1
+    else
+        echo "Cloning everything-claude-code into $source_dir..."
+        mkdir -p "${source_dir:h}" || return 1
+        git clone "$source_url" "$source_dir" || return 1
+    fi
+
+    if [[ ! -d "$source_dir/agents" || ! -d "$source_dir/commands" ]]; then
+        echo "Error: expected agents/ and commands/ in $source_dir" >&2
+        return 1
+    fi
+
+    mkdir -p "$target_dir" || return 1
+    cp -a "$source_dir/agents" "$target_dir/" || return 1
+    cp -a "$source_dir/commands" "$target_dir/" || return 1
+
+    echo "Installed OpenCode config to $target_dir"
 }
  cq_rspamd() {
     : "#:desc: open an SSH tunnel to rspamd and open the web UI"
@@ -984,8 +1129,10 @@ cq_with_env() {
         echo "Usage: cq_rspamd <domain_name>"
         return 1
     fi
-    ssh -f -N -L 11334:localhost:11334 "$domain_name"
-    xdg-open http://localhost:11334
+    ssh -f -N -L 11334:localhost:11334 "$domain_name" || return 1
+    if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open http://localhost:11334 >/dev/null 2>&1 || true
+    fi
 }
 cq_rspamd_stop() {
     : "#:desc: stop the rspamd SSH tunnel created by cq_rspamd"
@@ -1202,12 +1349,66 @@ kq_create_pod_shell() {
     --image="$img" \
     -- bash
 }
+kq_cilium_dbg_session() {
+  if [ -z "$1" ]; then
+    echo "Start a cilium-dbg command session against the Cilium pod on the same node as a selected pod"
+    echo "Usage: kq_cilium_dbg_session <namespace>"
+    return 1
+  fi
+  local ns="$1"
+  local pod node cil cmd
+  pod=$(
+    kubectl get pods -n "$ns" \
+      --no-headers \
+      -o custom-columns=":metadata.name" |
+      fzf --prompt="Pick a pod in $ns: "
+  ) || return 1
+  [ -n "$pod" ] || return 1
+  node=$(kubectl -n "$ns" get pod "$pod" -o jsonpath='{.spec.nodeName}')
+  [ -n "$node" ] || {
+    echo "Could not determine node for pod: $pod"
+    return 1
+  }
+  cil=$(
+    kubectl -n kube-system get pod -l k8s-app=cilium \
+      -o jsonpath="{.items[?(@.spec.nodeName=='$node')].metadata.name}"
+  )
+  [ -n "$cil" ] || {
+    echo "No Cilium pod found on node: $node"
+    return 1
+  }
+  echo "Pod:        $pod"
+  echo "Node:       $node"
+  echo "Cilium pod: $cil"
+  echo
+  echo "Type cilium-dbg args, for example:"
+  echo "  status"
+  echo "  endpoint list"
+  echo "  fqdn cache list"
+  echo "  policy get"
+  echo
+  echo "Type 'exit' or Ctrl-D to quit."
+  echo
+  while true; do
+    printf "cilium-dbg> "
+    IFS= read -r cmd || break
+    case "$cmd" in
+      "" )
+        continue
+        ;;
+      exit|quit )
+        break
+        ;;
+    esac
+    kubectl -n kube-system exec "$cil" -- cilium-dbg ${(z)cmd}
+  done
+}
 ### Self hosting functions
 cq_sync_dotfiles_to_server() {
     : "#:desc: rsync dotfiles to a server using a file list"
     : "#:usage: cq_sync_dotfiles_to_server <server-name>"
     : "#:no-args: false"
-    local server=$1
+    local server="$1"
     local source_dir="$HOME"
     local dest_user="chrisq"
     local dest_path="/home/chrisq"
@@ -1227,9 +1428,9 @@ cq_sync_dotfiles_to_server() {
     # Check if the exclusion file exists, same name as files list but with .exclude extension
     local exclude_path="$files_path.exclude"
     if [[ -f "$exclude_path" ]]; then
-        rsync -avz -r --delete --files-from=<(grep -v '^\s*#' "$files_path") --exclude-from="$exclude_path" "$source_dir/" "$dest_user@$server:$dest_path"
+        rsync -avz -r --delete --files-from=<(grep -v '^[[:space:]]*#' "$files_path") --exclude-from="$exclude_path" "$source_dir/" "$dest_user@$server:$dest_path" || return 1
     else
-        rsync -avz -r --delete --files-from=<(grep -v '^\s*#' "$files_path") "$source_dir/" "$dest_user@$server:$dest_path"
+        rsync -avz -r --delete --files-from=<(grep -v '^[[:space:]]*#' "$files_path") "$source_dir/" "$dest_user@$server:$dest_path" || return 1
     fi
     echo "Dotfiles synchronized successfully to $server"
 }
@@ -1237,7 +1438,7 @@ cq_sync_gpgssh() {
     : "#:desc: rsync gpg/ssh config to a server using a file list"
     : "#:usage: cq_sync_gpgssh <server-name>"
     : "#:no-args: false"
-    local server=$1
+    local server="$1"
     local source_dir="$HOME"
     local dest_user="chrisq"
     local dest_path="/home/chrisq"
@@ -1257,12 +1458,11 @@ cq_sync_gpgssh() {
     # Check if the exclusion file exists, same name as files list but with .exclude extension
     local exclude_path="$files_path.exclude"
     if [[ -f "$exclude_path" ]]; then
-        rsync -avz -r --delete --files-from=<(grep -v '^\s*#' "$files_path") --exclude-from="$exclude_path" "$source_dir/" "$dest_user@$server:$dest_path"
+        rsync -avz -r --delete --files-from=<(grep -v '^[[:space:]]*#' "$files_path") --exclude-from="$exclude_path" "$source_dir/" "$dest_user@$server:$dest_path" || return 1
     else
-        rsync -avz -r --delete --files-from=<(grep -v '^\s*#' "$files_path") "$source_dir/" "$dest_user@$server:$dest_path"
+        rsync -avz -r --delete --files-from=<(grep -v '^[[:space:]]*#' "$files_path") "$source_dir/" "$dest_user@$server:$dest_path" || return 1
     fi
-    B
-    echo "Dotfiles synchronized successfully to $server"
+    echo "GPG/SSH files synchronized successfully to $server"
 }
 alias cq_soud_restart='systemctl --user restart pipewire-pulse pipewire wireplumber'
 # uvx aliases
@@ -1363,13 +1563,6 @@ eval "$(atuin init zsh --disable-up-arrow)"
 # Ctrl-Up → global history (ignore cwd)
 # bindkey '^[[1;5A' atuin-up-search-all
 ## TMSTART
-# binding a shell script to a ctrl sequence needs a function to work
-tmstart() {
-    $HOME/.local/bin/tmstart
-}
-# Then make the function a zsh widget:
-zle -N tmstart
-bindkey '^S' tmstart
 ## expand aliases using tab right after the alias:
 bindkey "^Xa" _expand_alias
 zstyle ':completion:*' completer _expand_alias _complete _ignored
@@ -1417,4 +1610,11 @@ function zvm_after_init() {
   zvm_bindkey vicmd '\e' sudo-command-line
 }
 # another workaround
+# binding a shell script to a ctrl sequence needs a function to work
+tmstart() {
+    $HOME/.local/bin/tmstart
+}
+# Then make the function a zsh widget:
+zle -N tmstart
+bindkey '^S' tmstart
 bindkey '^R' _atuin_search_widget

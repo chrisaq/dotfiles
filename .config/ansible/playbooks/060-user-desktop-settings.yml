@@ -1,0 +1,16 @@
+---
+- name: Configure user desktop settings
+  hosts: workstation
+  become: false
+
+  tasks:
+    - name: Read GTK primary paste setting
+      ansible.builtin.command:
+        cmd: gsettings get org.gnome.desktop.interface gtk-enable-primary-paste
+      register: gtk_primary_paste
+      changed_when: false
+
+    - name: Enable GTK primary paste for middle mouse click
+      ansible.builtin.command:
+        cmd: gsettings set org.gnome.desktop.interface gtk-enable-primary-paste true
+      when: gtk_primary_paste.stdout != "true"
