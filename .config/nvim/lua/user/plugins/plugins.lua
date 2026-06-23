@@ -110,7 +110,7 @@ return {
     "MeanderingProgrammer/render-markdown.nvim",
     opts = { file_types = { "markdown", "Avante" } },
     -- dependencies = { 'nvim-treesitter/nvim-treesitter', 'echasnovski/mini.nvim' }, -- if you use the mini.nvim suite
-    dependencies = { "nvim-treesitter/nvim-treesitter", "echasnovski/mini.icons" }, -- if you use standalone mini plugins
+    dependencies = { "echasnovski/mini.icons" }, -- if you use standalone mini plugins
   },
   {
     "folke/trouble.nvim",
@@ -169,6 +169,7 @@ return {
       })
     end,
   },
+<<<<<<< Updated upstream
   {
     "nvim-treesitter/nvim-treesitter",
     branch = "main",
@@ -186,6 +187,25 @@ return {
       -- "JoosepAlviste/nvim-ts-context-commentstring",
     },
   },
+||||||| Stash base
+  {
+    "nvim-treesitter/nvim-treesitter",
+    dependencies = {
+      "nvim-treesitter/nvim-treesitter-textobjects",
+      "nvim-treesitter/nvim-treesitter-refactor",
+      "JoosepAlviste/nvim-ts-context-commentstring",
+    },
+  },
+=======
+  -- {
+  --   "nvim-treesitter/nvim-treesitter",
+  --   dependencies = {
+  --     "nvim-treesitter/nvim-treesitter-textobjects",
+  --     "nvim-treesitter/nvim-treesitter-refactor",
+  --     "JoosepAlviste/nvim-ts-context-commentstring",
+  --   },
+  -- },
+>>>>>>> Stashed changes
   {
     "Exafunction/codeium.nvim",
     -- locking to this commit until https://github.com/Exafunction/codeium-vim/issues/236 or 232 is resolved

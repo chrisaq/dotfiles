@@ -37,5 +37,11 @@ local lazy_opts = {
 
 require("lazy").setup(plugins, lazy_opts)
 
+<<<<<<< Updated upstream
+||||||| Stash base
+require("user/treesitter") -- ~0ms
+=======
+-- require("user/treesitter") -- ~0ms
+>>>>>>> Stashed changes
 require("user/telescope") -- 30ms
 require("user/style") -- 10ms
