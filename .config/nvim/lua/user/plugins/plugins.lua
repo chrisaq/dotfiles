@@ -169,43 +169,6 @@ return {
       })
     end,
   },
-<<<<<<< Updated upstream
-  {
-    "nvim-treesitter/nvim-treesitter",
-    branch = "main",
-    build = ":TSUpdate",
-    opts = {
-      ensure_installed = { "lua", "vim", "vimdoc", "markdown", "markdown_inline" },
-      highlight = { enable = true },
-    },
-    -- config = function(_, opts)
-    --   require("nvim-treesitter.configs").setup(opts) -- NOTE: Some versions of 'main' still provide a shim, but it's buggy.
-    -- end,
-    dependencies = {
-      -- { "nvim-treesitter/nvim-treesitter-textobjects", branch = "main" },
-      -- { "nvim-treesitter/nvim-treesitter-refactor", branch = "main" },
-      -- "JoosepAlviste/nvim-ts-context-commentstring",
-    },
-  },
-||||||| Stash base
-  {
-    "nvim-treesitter/nvim-treesitter",
-    dependencies = {
-      "nvim-treesitter/nvim-treesitter-textobjects",
-      "nvim-treesitter/nvim-treesitter-refactor",
-      "JoosepAlviste/nvim-ts-context-commentstring",
-    },
-  },
-=======
-  -- {
-  --   "nvim-treesitter/nvim-treesitter",
-  --   dependencies = {
-  --     "nvim-treesitter/nvim-treesitter-textobjects",
-  --     "nvim-treesitter/nvim-treesitter-refactor",
-  --     "JoosepAlviste/nvim-ts-context-commentstring",
-  --   },
-  -- },
->>>>>>> Stashed changes
   {
     "Exafunction/codeium.nvim",
     -- locking to this commit until https://github.com/Exafunction/codeium-vim/issues/236 or 232 is resolved
