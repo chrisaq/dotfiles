@@ -762,9 +762,9 @@ truecolor() {
 }
 # exa aliases
 compdef eza=ls # use same completion
-alias xl="eza --group-directories-first --classify=always --git --icons"
+alias xl="eza --group-directories-first --classify=always --git --icons=auto"
 alias xll="xl -l"
-alias lx="eza --group-directories-first --classify=always --git --icons"
+alias lx="eza --group-directories-first --classify=always --git --icons=auto"
 alias lxx="xl -l"
 # alias ls='ls --color=auto'
 alias mouseslow='xinput --set-prop $(xinput list | grep "Razer Razer Orochi" | grep -vi keyboard| cut -d '=' -f2 | cut -f1) "libinput Accel Speed" -1'
@@ -1544,9 +1544,9 @@ znap source zsh-completions
 ################################################################################
 ### Override section - override keybindings and such from modules and tools above
 ## Aliases
-# eza -a1@hlo --icons --group-directories-first
+# eza -a1@hlo --icons=auto --group-directories-first
 alias ls="eza --group-directories-first --classify=auto"
-alias ll="eza -a1@hlo --group-directories-first --classify=always --git --icons"
+alias ll="eza -a1@hlo --group-directories-first --classify=always --git --icons=auto"
 alias lsla="ll -a"
 ## atuin
 # Atuin

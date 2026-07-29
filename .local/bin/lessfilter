@@ -27,7 +27,7 @@ elif [ "$kind" = vnd.sqlite3 ]; then
 # https://github.com/wofr06/lesspipe/pull/107
 elif [ -d "$1" ]; then
     if [ "$(command -v eza)" ]; then
-        eza --git -hl --color=always --icons "$1"
+        eza --git -hl --color=always --icons=always "$1"
     fi
 # https://github.com/wofr06/lesspipe/pull/110
 elif [ "$kind" = pdf ]; then
