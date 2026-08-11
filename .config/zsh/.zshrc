@@ -1493,6 +1493,11 @@ stty -ixon <$TTY >$TTY
 
 
 ################################################################################
+### zsh-snap
+# completion
+if (( ${+commands[bosh]} )); then
+  source <(bosh completion zsh)
+fi
 ### zsh-snap section
 znap clone \
      git@github.com:romkatv/powerlevel10k.git \
