@@ -1,0 +1,888 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "typer>=0.12.5",
+#   "rich>=13.7.1",
+#   "pykeepass==4.2.0",
+#   "pathspec>=0.12.1",
+# ]
+# ///
+"""
+Sync a pass/gopass password-store with KeePass .kdbx files.
+
+Main workflow:
+  password-store -> passwords.kdbx -> KeePassDX on Android
+
+Optional writeback workflow:
+  android.kdbx -> password-store
+
+Defaults, after resolving the password-store root:
+  export DB: <store>/passwords.kdbx
+  import DB: <store>/android.kdbx
+  ignore:    <store>/.keepass-sync-ignore
+
+Store resolution priority:
+  1. --store
+  2. CWD if .keepass-sync-ignore exists there
+  3. $PASSWORD_STORE_DIR
+  4. ~/.password-store
+"""
+
+from __future__ import annotations
+
+import getpass
+import os
+import shlex
+import shutil
+import subprocess
+from datetime import datetime
+from dataclasses import dataclass, field
+from pathlib import Path, PurePosixPath
+from typing import Annotated, Optional
+
+import pathspec
+import typer
+from lxml.builder import E
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.table import Table
+
+APP_NAME = "pass-keepass-sync"
+IGNORE_FILE = ".keepass-sync-ignore"
+EXPORT_KDBX_NAME = "passwords.kdbx"
+IMPORT_KDBX_NAME = "android.kdbx"
+SYNC_TAG = "pass-keepass-sync"
+PROP_PASS_PATH = "PassPath"
+PROP_SYNC_SOURCE = "SyncSource"
+
+USERNAME_KEYS = {"login", "user", "username", "email"}
+URL_KEYS = {"url", "uri", "website"}
+OTP_KEYS = {"otp", "totp", "otpauth"}
+NOTES_KEYS = {"note", "notes"}
+RESERVED_KEEPASS_STRING_KEYS = {"Title", "UserName", "Password", "URL", "Tags", "IconID", "Times", "History", "Notes", "otp"}
+RESERVED_KEEPASS_STRING_KEYS_LOWER = {key.lower() for key in RESERVED_KEEPASS_STRING_KEYS}
+
+console = Console(stderr=True)
+app = typer.Typer(
+    name=APP_NAME,
+    add_completion=False,
+    no_args_is_help=True,
+    rich_markup_mode="rich",
+    help="Sync pass/gopass password-store entries with KeePass .kdbx files.",
+)
+
+
+@dataclass
+class Config:
+    store: Path
+    ignore_file: str
+    tool: str
+    dry_run: bool = False
+    verbose: bool = False
+
+
+@dataclass
+class Secret:
+    path: str
+    password: str
+    username: str = ""
+    url: str = ""
+    otp: str = ""
+    notes: str = ""
+    fields: dict[str, str] = field(default_factory=dict)
+
+    def to_pass_text(self) -> str:
+        lines = [self.password]
+        if self.username:
+            lines.append(f"login: {self.username}")
+        if self.url:
+            lines.append(f"url: {self.url}")
+        if self.otp:
+            lines.append(f"otpauth: {self.otp}")
+        for key, value in sorted(self.fields.items()):
+            if key.lower() in USERNAME_KEYS | URL_KEYS | OTP_KEYS:
+                continue
+            lines.append(f"{key}: {value}")
+        if self.notes:
+            lines.append("")
+            lines.extend(self.notes.splitlines())
+        return "\n".join(lines).rstrip() + "\n"
+
+
+class SyncError(RuntimeError):
+    pass
+
+
+StoreOpt = Annotated[
+    Optional[Path],
+    typer.Option(
+        "--store",
+        "-s",
+        help="Password-store root. Priority: --store, CWD with ignore file, $PASSWORD_STORE_DIR, ~/.password-store.",
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True,
+    ),
+]
+IgnoreOpt = Annotated[
+    str,
+    typer.Option("--ignore-file", help=f"Ignore file name in store root. Default: {IGNORE_FILE}"),
+]
+ToolOpt = Annotated[
+    Optional[str],
+    typer.Option("--password-tool", help="Password-store command to use: auto, gopass, or pass."),
+]
+DryRunOpt = Annotated[
+    bool,
+    typer.Option("--dry-run", help="Print every planned step, but do not create, modify, delete, or import anything."),
+]
+VerboseOpt = Annotated[
+    bool,
+    typer.Option("--verbose", "-v", help="Print more detail."),
+]
+
+
+def die(message: str) -> None:
+    raise SyncError(message)
+
+
+def step(message: str) -> None:
+    console.print(f"[cyan]→[/cyan] {message}")
+
+
+def dry(message: str) -> None:
+    console.print(f"[yellow]DRY-RUN[/yellow] {message}")
+
+
+def run_cmd(cmd: list[str], *, input_text: str | None = None, check: bool = False) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(cmd, input=input_text, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=check)
+
+
+def quote_cmd(cmd: list[str]) -> str:
+    return " ".join(shlex.quote(part) for part in cmd)
+
+
+def resolve_store(cli_store: Path | None, ignore_file: str) -> Path:
+    if cli_store is not None:
+        return cli_store.expanduser().resolve()
+
+    cwd = Path.cwd().resolve()
+    if (cwd / ignore_file).is_file():
+        return cwd
+
+    if os.environ.get("PASSWORD_STORE_DIR"):
+        return Path(os.environ["PASSWORD_STORE_DIR"]).expanduser().resolve()
+
+    return (Path.home() / ".password-store").resolve()
+
+
+def detect_tool(explicit: str | None) -> str:
+    if explicit and explicit != "auto":
+        if explicit not in {"gopass", "pass"}:
+            die("--password-tool must be one of: auto, gopass, pass")
+        if not shutil.which(explicit):
+            die(f"{explicit!r} was requested but not found in PATH")
+        return explicit
+
+    for candidate in ("gopass", "pass"):
+        if shutil.which(candidate):
+            return candidate
+    die("Neither gopass nor pass was found in PATH")
+    raise AssertionError
+
+
+def make_config(store: Path | None, ignore_file: str, password_tool: str | None, dry_run: bool, verbose: bool) -> Config:
+    resolved_store = resolve_store(store, ignore_file)
+    tool = detect_tool(password_tool)
+    return Config(store=resolved_store, ignore_file=ignore_file, tool=tool, dry_run=dry_run, verbose=verbose)
+
+
+def load_ignore(store: Path, ignore_file: str) -> pathspec.PathSpec:
+    path = store / ignore_file
+    if not path.exists():
+        return pathspec.PathSpec.from_lines("gitwildmatch", [])
+    return pathspec.PathSpec.from_lines("gitwildmatch", path.read_text(encoding="utf-8").splitlines())
+
+
+def is_ignored(spec: pathspec.PathSpec, rel: str) -> bool:
+    return spec.match_file(rel) or spec.match_file(rel + "/")
+
+
+def iter_store_entries(store: Path, spec: pathspec.PathSpec) -> list[str]:
+    entries: list[str] = []
+    for file in sorted(store.rglob("*.gpg")):
+        rel_file = file.relative_to(store).as_posix()
+        rel_entry = rel_file.removesuffix(".gpg")
+        if is_ignored(spec, rel_file) or is_ignored(spec, rel_entry):
+            continue
+        entries.append(rel_entry)
+    return entries
+
+
+def pass_show_cmd(tool: str, entry: str) -> list[str]:
+    if tool == "gopass":
+        return [tool, "show", "-f", entry]
+    return [tool, "show", entry]
+
+
+def pass_insert_cmd(tool: str, entry: str) -> list[str]:
+    if tool == "gopass":
+        return [tool, "insert", "-f", "-m", entry]
+    return [tool, "insert", "-m", "-f", entry]
+
+
+def read_pass_entry(cfg: Config, entry: str) -> str:
+    cmd = pass_show_cmd(cfg.tool, entry)
+    if cfg.verbose or cfg.dry_run:
+        step(f"read {entry} using: {quote_cmd(cmd)}")
+    cp = run_cmd(cmd)
+    if cp.returncode != 0:
+        die(f"failed to read {entry!r}: {cp.stderr.strip()}")
+    return cp.stdout
+
+
+def write_pass_entry(cfg: Config, entry: str, content: str) -> None:
+    cmd = pass_insert_cmd(cfg.tool, entry)
+    if cfg.dry_run:
+        dry(f"would write password-store entry {entry} using: {quote_cmd(cmd)}")
+        return
+    cp = run_cmd(cmd, input_text=content)
+    if cp.returncode != 0:
+        die(f"failed to write {entry!r}: {cp.stderr.strip()}")
+
+
+def parse_secret(path: str, raw: str) -> Secret:
+    lines = raw.splitlines()
+    password = lines[0] if lines else ""
+    secret = Secret(path=path, password=password)
+    notes: list[str] = []
+    in_notes = False
+
+    for line in lines[1:]:
+        if not line.strip():
+            in_notes = True
+            continue
+        if not in_notes and ":" in line:
+            key, value = line.split(":", 1)
+            k = key.strip()
+            v = value.strip()
+            kl = k.lower()
+            if kl in USERNAME_KEYS and not secret.username:
+                secret.username = v
+            elif kl in URL_KEYS and not secret.url:
+                secret.url = v
+            elif kl in OTP_KEYS or v.startswith("otpauth://"):
+                secret.otp = v
+            elif kl in NOTES_KEYS:
+                if v:
+                    notes.append(v)
+            elif kl == "password":
+                if v and not secret.password:
+                    secret.password = v
+            elif kl in RESERVED_KEEPASS_STRING_KEYS_LOWER:
+                if v:
+                    notes.append(f"{k}: {v}")
+            else:
+                secret.fields[k] = v
+        elif not in_notes and line.strip().startswith("otpauth://"):
+            secret.otp = line.strip()
+        else:
+            notes.append(line)
+
+    secret.notes = "\n".join(notes)
+    return secret
+
+
+def get_password(label: str, env: str | None, command: str | None, dry_run: bool) -> str:
+    if env and os.environ.get(env):
+        if dry_run:
+            dry(f"would read {label} password from environment variable ${env}")
+        return os.environ[env]
+    if command:
+        if dry_run:
+            dry(f"would read {label} password from command: {command}")
+        cp = run_cmd(["sh", "-c", command])
+        if cp.returncode != 0:
+            die(f"password command failed: {cp.stderr.strip()}")
+        return cp.stdout.rstrip("\n")
+    if dry_run:
+        dry(f"would prompt for {label} password if KeePass inspection/write is needed")
+        return ""
+    return getpass.getpass(f"{label} password: ")
+
+
+def import_keepass():
+    from pykeepass import PyKeePass, create_database
+    return PyKeePass, create_database
+
+
+def timestamp() -> str:
+    return datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
+def available_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+    for index in range(1, 1000):
+        candidate = path.with_name(f"{path.name}.{index}")
+        if not candidate.exists():
+            return candidate
+    die(f"could not find available path near {path}")
+
+
+def backup_path(path: Path) -> Path:
+    return available_path(path.with_name(f"{path.name}.bak-{timestamp()}"))
+
+
+def candidate_path(path: Path) -> Path:
+    return available_path(path.with_name(f"{path.name}.candidate-{timestamp()}"))
+
+
+def verify_with_pykeepass(path: Path, password: str) -> None:
+    PyKeePass, _ = import_keepass()
+    try:
+        PyKeePass(str(path), password=password)
+    except Exception as exc:
+        die(f"pykeepass could not reopen candidate KeePass DB {path}: {exc}")
+
+
+def verify_with_keepassxc(path: Path, password: str) -> None:
+    cli = shutil.which("keepassxc-cli")
+    if cli is None:
+        die("keepassxc-cli is required to independently verify the exported KeePass DB")
+    cp = run_cmd([cli, "db-info", "-q", str(path)], input_text=password + "\n")
+    if cp.returncode != 0:
+        detail = (cp.stderr or cp.stdout).strip() or f"exit status {cp.returncode} with no output"
+        die(f"keepassxc-cli could not open candidate KeePass DB {path}: {detail}")
+
+
+def copy_file_in_place(src: Path, dst: Path) -> None:
+    with src.open("rb") as source, dst.open("wb") as target:
+        shutil.copyfileobj(source, target)
+        target.flush()
+        os.fsync(target.fileno())
+
+
+def keepassxc_cli() -> str:
+    cli = shutil.which("keepassxc-cli")
+    if cli is None:
+        die("keepassxc-cli is required for KeePass export")
+    return cli
+
+
+def run_keepassxc(cmd: list[str], password: str, *, extra_input: str = "", allow_existing_group: bool = False) -> subprocess.CompletedProcess[str]:
+    cp = run_cmd([keepassxc_cli(), *cmd], input_text=password + "\n" + extra_input)
+    if cp.returncode == 0:
+        return cp
+    combined = f"{cp.stdout}\n{cp.stderr}".strip()
+    if allow_existing_group and "already exists" in combined:
+        return cp
+    detail = combined or f"exit status {cp.returncode} with no output"
+    die(f"keepassxc-cli {' '.join(shlex.quote(part) for part in cmd)} failed: {detail}")
+    raise AssertionError
+
+
+def keepassxc_entry_exists(db: Path, password: str, entry_path: str) -> bool:
+    cp = run_cmd([keepassxc_cli(), "show", "-q", str(db), entry_path], input_text=password + "\n")
+    return cp.returncode == 0
+
+
+def ensure_keepassxc_groups(db: Path, password: str, parts: list[str]) -> None:
+    group_parts: list[str] = []
+    for part in parts:
+        group_parts.append(part)
+        run_keepassxc(["mkdir", "-q", str(db), "/".join(group_parts)], password, allow_existing_group=True)
+
+
+def keepassxc_notes(secret: Secret) -> str:
+    notes = secret.notes
+    extra: list[str] = []
+    if secret.otp:
+        extra.append(f"otpauth: {secret.otp}")
+    for key, value in sorted(secret.fields.items()):
+        extra.append(f"{key}: {value}")
+    if extra:
+        if notes:
+            notes += "\n\n"
+        notes += "\n".join(extra)
+    return notes
+
+
+def upsert_keepassxc_entry(db: Path, password: str, secret: Secret) -> str:
+    parts = [p for p in PurePosixPath(secret.path).parts if p not in {"", "."}]
+    if not parts:
+        die("empty pass path cannot be exported")
+    ensure_keepassxc_groups(db, password, parts[:-1])
+    entry_path = "/".join(parts)
+    notes = keepassxc_notes(secret)
+    common = ["-q", "-u", secret.username, "--url", secret.url, "--notes", notes, "-p", str(db), entry_path]
+    password_input = secret.password + "\n" + secret.password + "\n"
+    if keepassxc_entry_exists(db, password, entry_path):
+        run_keepassxc(["edit", *common], password, extra_input=password_input)
+        return "update"
+    run_keepassxc(["add", *common], password, extra_input=password_input)
+    return "add"
+
+
+def create_keepassxc_database(path: Path, password: str) -> None:
+    cp = run_cmd([keepassxc_cli(), "db-create", "-q", "-p", str(path)], input_text=password + "\n" + password + "\n")
+    if cp.returncode != 0:
+        detail = (cp.stderr or cp.stdout).strip() or f"exit status {cp.returncode} with no output"
+        die(f"keepassxc-cli db-create failed: {detail}")
+
+
+def string_field_element(entry, key: str):
+    for field in entry._element.findall("String"):
+        key_element = field.find("Key")
+        if key_element is not None and key_element.text == key:
+            return field
+    return None
+
+
+def string_field_value(entry, key: str) -> str:
+    field = string_field_element(entry, key)
+    if field is None:
+        return ""
+    value = field.find("Value")
+    return value.text if value is not None and value.text is not None else ""
+
+
+def set_string_field(entry, key: str, value: str, *, protected: bool | None = None) -> None:
+    existing = string_field_element(entry, key)
+    protected_str = None
+    if protected is None and existing is not None:
+        existing_value = existing.find("Value")
+        if existing_value is not None:
+            protected_str = existing_value.attrib.get("Protected")
+    elif protected is not None:
+        protected_str = str(protected)
+
+    if existing is not None:
+        entry._element.remove(existing)
+
+    if protected_str is None:
+        entry._element.append(E.String(E.Key(key), E.Value(value)))
+    else:
+        entry._element.append(E.String(E.Key(key), E.Value(value, Protected=protected_str)))
+
+
+def get_prop(entry, key: str) -> str:
+    return string_field_value(entry, key)
+
+
+def set_prop(entry, key: str, value: str) -> None:
+    if key in RESERVED_KEEPASS_STRING_KEYS:
+        die(f"{key!r} is a reserved KeePass field name and cannot be exported as a custom field")
+    set_string_field(entry, key, value, protected=False)
+
+
+def custom_properties(entry) -> dict[str, str]:
+    props: dict[str, str] = {}
+    for field in entry._element.findall("String"):
+        key_element = field.find("Key")
+        value_element = field.find("Value")
+        key = key_element.text if key_element is not None else None
+        if key and key not in RESERVED_KEEPASS_STRING_KEYS:
+            props[key] = value_element.text if value_element is not None and value_element.text is not None else ""
+    return props
+
+
+def ensure_group(kp, parts: list[str]):
+    group = kp.root_group
+    for part in parts:
+        found = next((subgroup for subgroup in group.subgroups if subgroup.name == part), None)
+        if found is None:
+            group = kp.add_group(group, part)
+        else:
+            group = found
+    return group
+
+
+def add_kdbx_entry(kp, group, secret: Secret, title: str):
+    from pykeepass.entry import Entry
+
+    entry = Entry(
+        title=title,
+        username=secret.username,
+        password=secret.password,
+        url=secret.url,
+        notes=secret.notes,
+        kp=kp,
+    )
+    group.append(entry)
+    return entry
+
+
+def upsert_kdbx_entry(kp, secret: Secret) -> str:
+    parts = [p for p in PurePosixPath(secret.path).parts if p not in {"", "."}]
+    if not parts:
+        die("empty pass path cannot be exported")
+    group = ensure_group(kp, parts[:-1])
+    title = parts[-1]
+
+    existing = None
+    for candidate in group.entries:
+        if candidate.title != title:
+            continue
+        candidate_path = get_prop(candidate, PROP_PASS_PATH)
+        if candidate_path in {"", secret.path}:
+            existing = candidate
+            break
+
+    if existing is None:
+        entry = add_kdbx_entry(kp, group, secret, title)
+        action = "add"
+    else:
+        entry = existing
+        entry.username = secret.username
+        entry.password = secret.password
+        entry.url = secret.url
+        entry.notes = secret.notes
+        action = "update"
+
+    set_prop(entry, PROP_PASS_PATH, secret.path)
+    set_prop(entry, PROP_SYNC_SOURCE, SYNC_TAG)
+    if secret.otp:
+        set_string_field(entry, "otp", secret.otp, protected=True)
+    for key, value in secret.fields.items():
+        set_prop(entry, key, value)
+    return action
+
+
+def synced_kdbx_entries(kp):
+    for entry in kp.entries:
+        if get_prop(entry, PROP_SYNC_SOURCE) == SYNC_TAG or get_prop(entry, PROP_PASS_PATH):
+            yield entry
+
+
+def entry_group_path(entry) -> str:
+    parts = [entry.title]
+    group = entry.group
+    while group is not None and getattr(group, "name", None) not in {None, "Root"}:
+        parts.append(group.name)
+        group = group.parentgroup
+    return "/".join(reversed(parts))
+
+
+def kdbx_entry_to_secret(entry) -> Secret:
+    path = get_prop(entry, PROP_PASS_PATH) or entry_group_path(entry)
+    fields: dict[str, str] = {}
+    otp = string_field_value(entry, "otp")
+    for key, value in custom_properties(entry).items():
+        if key in {PROP_PASS_PATH, PROP_SYNC_SOURCE}:
+            continue
+        if key.lower() in OTP_KEYS:
+            otp = value
+        else:
+            fields[key] = value
+    return Secret(
+        path=path,
+        password=entry.password or "",
+        username=entry.username or "",
+        url=entry.url or "",
+        otp=otp,
+        notes=entry.notes or "",
+        fields=fields,
+    )
+
+
+def print_config(title: str, rows: dict[str, object]) -> None:
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="bold")
+    table.add_column()
+    for key, value in rows.items():
+        table.add_row(key, str(value))
+    console.print(Panel(table, title=title, border_style="cyan"))
+
+
+def print_summary(title: str, data: dict[str, int]) -> None:
+    table = Table(title=title)
+    table.add_column("Action")
+    table.add_column("Count", justify="right")
+    for key, value in data.items():
+        table.add_row(key, str(value))
+    console.print(table)
+
+
+@app.command()
+def doctor(
+    store: StoreOpt = None,
+    ignore_file: IgnoreOpt = IGNORE_FILE,
+    password_tool: ToolOpt = "auto",
+) -> None:
+    """Show resolved paths, defaults, tools, and exportable-entry count."""
+    try:
+        cfg = make_config(store, ignore_file, password_tool, dry_run=False, verbose=False)
+        spec = load_ignore(cfg.store, cfg.ignore_file) if cfg.store.exists() else pathspec.PathSpec.from_lines("gitwildmatch", [])
+        entries = iter_store_entries(cfg.store, spec) if cfg.store.exists() else []
+        print_config(
+            "Doctor",
+            {
+                "Store": cfg.store,
+                "Store exists": cfg.store.is_dir(),
+                "Ignore file": cfg.store / cfg.ignore_file,
+                "Ignore file exists": (cfg.store / cfg.ignore_file).is_file(),
+                "Password tool": cfg.tool,
+                "Password tool path": shutil.which(cfg.tool) or "missing",
+                "Default export DB": cfg.store / EXPORT_KDBX_NAME,
+                "Default Android import DB": cfg.store / IMPORT_KDBX_NAME,
+                "Exportable entries": len(entries),
+                "PASSWORD_STORE_DIR": os.environ.get("PASSWORD_STORE_DIR", ""),
+            },
+        )
+        if entries:
+            table = Table(title="First exportable entries")
+            table.add_column("Path")
+            for entry in entries[:25]:
+                table.add_row(entry)
+            if len(entries) > 25:
+                table.add_row(f"… {len(entries) - 25} more")
+            console.print(table)
+    except SyncError as exc:
+        console.print(f"[bold red]error:[/bold red] {exc}")
+        raise typer.Exit(1) from exc
+
+
+@app.command("init-ignore")
+def init_ignore(
+    store: StoreOpt = None,
+    ignore_file: IgnoreOpt = IGNORE_FILE,
+    force: Annotated[bool, typer.Option("--force", help="Overwrite existing ignore file.")] = False,
+    dry_run: DryRunOpt = False,
+) -> None:
+    """Create a starter .keepass-sync-ignore."""
+    try:
+        root = resolve_store(store, ignore_file)
+        path = root / ignore_file
+        content = f"""# {APP_NAME} ignore file
+# Paths are relative to the password-store root.
+# Syntax is gitignore-style.
+
+# KeePass sync artifacts
+{EXPORT_KDBX_NAME}
+{IMPORT_KDBX_NAME}
+*.kdbx
+*.kdbx-import-conflict
+
+# Examples:
+# work/**
+# ssh/**
+# gpg/**
+# banking/super-sensitive/**
+"""
+        if dry_run:
+            dry(f"would create directory {root}")
+            dry(f"would write ignore file {path}")
+            console.print(content)
+            return
+        root.mkdir(parents=True, exist_ok=True)
+        if path.exists() and not force:
+            die(f"ignore file already exists: {path}; use --force to overwrite")
+        path.write_text(content, encoding="utf-8")
+        console.print(f"[green]created[/green] {path}")
+    except SyncError as exc:
+        console.print(f"[bold red]error:[/bold red] {exc}")
+        raise typer.Exit(1) from exc
+
+
+@app.command("export")
+def export_cmd(
+    store: StoreOpt = None,
+    kdbx: Annotated[Optional[Path], typer.Option("--kdbx", "-k", help=f"KeePass DB to write. Default: <store>/{EXPORT_KDBX_NAME}", resolve_path=True)] = None,
+    base_kdbx: Annotated[Optional[Path], typer.Option("--base-kdbx", help="KeePass DB to read as the export base/template. Default: same as --kdbx.", resolve_path=True)] = None,
+    ignore_file: IgnoreOpt = IGNORE_FILE,
+    password_tool: ToolOpt = "auto",
+    kdbx_password_env: Annotated[str, typer.Option("--kdbx-password-env", help="Env var containing KeePass DB password.")] = "KEEPASS_SYNC_KDBX_PASSWORD",
+    kdbx_password_command: Annotated[Optional[str], typer.Option("--kdbx-password-command", help="Command that prints KeePass DB password.")] = None,
+    create: Annotated[bool, typer.Option("--create/--no-create", help="Create KeePass DB if missing.")] = True,
+    delete_missing: Annotated[bool, typer.Option("--delete-missing", help="Delete exported KeePass entries that no longer exist in password-store.")] = False,
+    dry_run: DryRunOpt = False,
+    verbose: VerboseOpt = False,
+) -> None:
+    """Export password-store entries into the generated KeePass DB."""
+    try:
+        cfg = make_config(store, ignore_file, password_tool, dry_run, verbose)
+        if not cfg.store.is_dir():
+            die(f"password-store directory not found: {cfg.store}")
+        spec = load_ignore(cfg.store, cfg.ignore_file)
+        entries = iter_store_entries(cfg.store, spec)
+        kdbx_path = (kdbx.expanduser().resolve() if kdbx else (cfg.store / EXPORT_KDBX_NAME).resolve())
+        base_kdbx_path = (base_kdbx.expanduser().resolve() if base_kdbx else kdbx_path)
+
+        print_config("Export plan", {
+            "Store": cfg.store,
+            "KeePass export DB": kdbx_path,
+            "KeePass base DB": base_kdbx_path,
+            "Password tool": cfg.tool,
+            "Ignore file": cfg.store / cfg.ignore_file,
+            "Entries after ignore rules": len(entries),
+            "Delete missing": delete_missing,
+            "Mode": "dry-run" if dry_run else "write",
+        })
+
+        if dry_run:
+            dry(f"would load ignore rules from {cfg.store / cfg.ignore_file}")
+            dry(f"would scan {cfg.store} for *.gpg entries")
+            for entry in entries:
+                dry(f"would decrypt/read password-store entry: {entry}")
+                dry(f"would parse fields and upsert KeePass entry: {entry}")
+            if not base_kdbx_path.exists():
+                if create:
+                    dry("would create KeePass database candidate with keepassxc-cli")
+                else:
+                    dry(f"would fail because KeePass base DB does not exist: {base_kdbx_path}")
+            else:
+                dry(f"would copy KeePass database base to candidate: {base_kdbx_path}")
+                dry("would verify candidate with keepassxc-cli before export")
+            if delete_missing:
+                dry("would fail because --delete-missing is not supported by the keepassxc-cli export writer")
+            dry(f"would add/update entries in candidate using keepassxc-cli")
+            dry("would verify candidate with pykeepass and keepassxc-cli")
+            if kdbx_path.exists():
+                dry(f"would create timestamped backup of {kdbx_path}")
+                dry(f"would copy verified candidate over {kdbx_path} in-place")
+            else:
+                dry(f"would install verified candidate at {kdbx_path}")
+            print_summary("Dry-run export summary", {"would upsert": len(entries), "would maybe delete missing": int(delete_missing)})
+            return
+
+        password = get_password("KeePass export DB", kdbx_password_env, kdbx_password_command, dry_run=False)
+        candidate = candidate_path(kdbx_path)
+        if not base_kdbx_path.exists():
+            if not create:
+                die(f"KeePass base DB does not exist: {base_kdbx_path}")
+            step(f"create KeePass database candidate {candidate}")
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            create_keepassxc_database(candidate, password)
+        else:
+            step(f"copy KeePass base DB {base_kdbx_path} to candidate {candidate}")
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(base_kdbx_path, candidate)
+        step(f"verify KeePass database candidate before export {candidate}")
+        verify_with_keepassxc(candidate, password)
+        if delete_missing:
+            die("--delete-missing is not supported by the keepassxc-cli export writer")
+
+        stats = {"added": 0, "updated": 0, "deleted": 0, "errors": 0}
+        seen: set[str] = set()
+        with Progress(SpinnerColumn(), TextColumn("{task.description}"), TimeElapsedColumn(), console=console) as progress:
+            task = progress.add_task("exporting", total=None)
+            for entry in entries:
+                progress.update(task, description=f"exporting {entry}")
+                raw = read_pass_entry(cfg, entry)
+                secret = parse_secret(entry, raw)
+                action = upsert_keepassxc_entry(candidate, password, secret)
+                seen.add(entry)
+                stats["added" if action == "add" else "updated"] += 1
+                if verbose:
+                    step(f"{action} KeePass entry {entry}")
+
+        step(f"verify candidate with pykeepass {candidate}")
+        verify_with_pykeepass(candidate, password)
+        step(f"verify candidate with keepassxc-cli {candidate}")
+        verify_with_keepassxc(candidate, password)
+
+        if kdbx_path.exists():
+            backup = backup_path(kdbx_path)
+            step(f"backup KeePass database {kdbx_path} to {backup}")
+            shutil.copy2(kdbx_path, backup)
+            step(f"copy verified candidate over {kdbx_path} in-place")
+            copy_file_in_place(candidate, kdbx_path)
+        else:
+            step(f"install verified candidate at {kdbx_path}")
+            shutil.copy2(candidate, kdbx_path)
+        step(f"verify final KeePass database with keepassxc-cli {kdbx_path}")
+        verify_with_keepassxc(kdbx_path, password)
+        candidate.unlink()
+        print_summary("Export summary", stats)
+    except SyncError as exc:
+        console.print(f"[bold red]error:[/bold red] {exc}")
+        raise typer.Exit(1) from exc
+
+
+@app.command("import")
+def import_cmd(
+    store: StoreOpt = None,
+    import_kdbx: Annotated[Optional[Path], typer.Option("--import-kdbx", "-i", help=f"Android/writeback KeePass DB to read. Default: <store>/{IMPORT_KDBX_NAME}", resolve_path=True)] = None,
+    ignore_file: IgnoreOpt = IGNORE_FILE,
+    password_tool: ToolOpt = "auto",
+    import_kdbx_password_env: Annotated[str, typer.Option("--import-kdbx-password-env", help="Env var containing Android import DB password.")] = "KEEPASS_IMPORT_KDBX_PASSWORD",
+    import_kdbx_password_command: Annotated[Optional[str], typer.Option("--import-kdbx-password-command", help="Command that prints Android import DB password.")] = None,
+    force: Annotated[bool, typer.Option("--force", help="Overwrite existing password-store entries instead of writing conflict files.")] = False,
+    dry_run: DryRunOpt = False,
+    verbose: VerboseOpt = False,
+) -> None:
+    """Import entries from the Android/writeback KeePass DB into password-store."""
+    try:
+        cfg = make_config(store, ignore_file, password_tool, dry_run, verbose)
+        spec = load_ignore(cfg.store, cfg.ignore_file)
+        db_path = (import_kdbx.expanduser().resolve() if import_kdbx else (cfg.store / IMPORT_KDBX_NAME).resolve())
+
+        print_config("Import plan", {
+            "Store": cfg.store,
+            "Android import DB": db_path,
+            "Password tool": cfg.tool,
+            "Ignore file": cfg.store / cfg.ignore_file,
+            "Conflict mode": "overwrite" if force else "write *.kdbx-import-conflict",
+            "Mode": "dry-run" if dry_run else "write",
+        })
+
+        if dry_run:
+            dry(f"would open Android/writeback KeePass database: {db_path}")
+            dry("would read every KeePass entry")
+            dry("would map KeePass title/group/custom PassPath into password-store paths")
+            dry(f"would skip paths ignored by {cfg.store / cfg.ignore_file}")
+            if force:
+                dry("would overwrite changed password-store entries")
+            else:
+                dry("would write conflicts as *.kdbx-import-conflict files")
+            dry("would insert new/changed entries using pass/gopass")
+            return
+
+        if not db_path.exists():
+            die(f"Android import DB does not exist: {db_path}")
+        password = get_password("KeePass Android import DB", import_kdbx_password_env, import_kdbx_password_command, dry_run=False)
+        PyKeePass, _ = import_keepass()
+        step(f"open Android/writeback KeePass database {db_path}")
+        kp = PyKeePass(str(db_path), password=password)
+        cfg.store.mkdir(parents=True, exist_ok=True)
+
+        stats = {"imported": 0, "skipped": 0, "conflicts": 0, "errors": 0}
+        for entry in kp.entries:
+            if not entry.title:
+                continue
+            secret = kdbx_entry_to_secret(entry)
+            if is_ignored(spec, secret.path) or is_ignored(spec, f"{secret.path}.gpg"):
+                stats["skipped"] += 1
+                if verbose:
+                    step(f"skip ignored import entry {secret.path}")
+                continue
+
+            new_text = secret.to_pass_text()
+            cp = run_cmd(pass_show_cmd(cfg.tool, secret.path))
+            exists = cp.returncode == 0
+            if exists and cp.stdout != new_text and not force:
+                conflict_file = cfg.store / f"{secret.path}.kdbx-import-conflict"
+                conflict_file.parent.mkdir(parents=True, exist_ok=True)
+                conflict_file.write_text(new_text, encoding="utf-8")
+                stats["conflicts"] += 1
+                console.print(f"[yellow]conflict[/yellow] {secret.path} -> {conflict_file}")
+                continue
+
+            write_pass_entry(cfg, secret.path, new_text)
+            stats["imported"] += 1
+            if verbose:
+                step(f"imported {secret.path}")
+
+        print_summary("Import summary", stats)
+        if stats["conflicts"]:
+            console.print("[yellow]Conflicts were not imported. Review *.kdbx-import-conflict or rerun with --force.[/yellow]")
+    except SyncError as exc:
+        console.print(f"[bold red]error:[/bold red] {exc}")
+        raise typer.Exit(1) from exc
+
+
+if __name__ == "__main__":
+    app()
