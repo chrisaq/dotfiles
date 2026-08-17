@@ -1,0 +1,47 @@
+/* Catppuccin Macchiato Colors Palette */
+@define-color base      #24273a;
+@define-color mantle    #1e2030;
+@define-color crust     #181926;
+@define-color text      #cad3f5;
+@define-color subtext0  #a5adcb;
+@define-color surface0  #363a4f;
+@define-color surface1  #494d64;
+@define-color lavender  #b7bdf8;
+@define-color blue      #8aadf4;
+
+window {
+    background: transparent;
+}
+
+/* Main OSD Window Box */
+#osd {
+    background-color: alpha(@base, 0.85);
+    border: 2px solid @lavender;
+    border-radius: 12px;
+    padding: 14px;
+}
+
+/* The Progress Bar Slider */
+progressbar progress {
+    background-color: @blue;
+    border-radius: 6px;
+}
+
+/* The Background Track of the Progress Bar */
+progressbar trough {
+    background-color: @surface0;
+    border-radius: 6px;
+}
+
+/* OSD Text Percentage */
+label {
+    color: @text;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+/* OSD Icon styling */
+image {
+    color: @text;
+}
+

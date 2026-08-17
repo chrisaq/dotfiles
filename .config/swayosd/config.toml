@@ -1,0 +1,20 @@
+[server]
+# The maximum volume percentage allowed
+max_volume = 150
+
+# The minimum brightness percentage allowed
+min_brightness = 5
+
+# Set OSD height position on the screen (0.0 is top, 1.0 is bottom)
+top_margin = 0.85
+
+# Show percentage numbers on the right side of the bar
+show_percentage = true
+
+
+# Custom stylesheet path override
+style = "~/.config/swayosd/style.css"
+
+[client]
+# Time the OSD stays visible in milliseconds
+# duration = 1000
