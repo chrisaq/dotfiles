@@ -1,7 +1,7 @@
 * {
     font-family: "JetBrains Mono Nerd Font";
     /*font-family: "JetBrainsMono Nerd Font";*/
-    font-weight: bold; 
+    font-weight: bold;
     font-size: 15px;
 }
 
@@ -13,7 +13,7 @@
 }
 
 window#waybar {
-    background: #0F0F17; 
+    background: #0F0F17;
   /*  border-radius: 15px; */
  /*  border: 2px solid #124323; */
 /* border: 0px solid #A1BDCE; */
@@ -60,9 +60,9 @@ background: rgba(23, 23, 23, 0.0);
 
 #workspaces button.active {
 
- 
+
   /* background-image: url("/home/anik/Documents/bar1.png");*/
-    color: #A1BDCE;   
+    color: #A1BDCE;
     transition: all 0.3s ease;
     padding-left: 4px;
     padding-right: 4px;
@@ -100,7 +100,7 @@ background: rgba(23, 23, 23, 0.0);
     margin-right: 3px;
     animation: tb_active 20s ease-in-out 1;
     transition: all 0.4s cubic-bezier(.55,-0.68,.48,1.682);
-    min-height: 9px; 
+    min-height: 9px;
 }
 
 #taskbar button:hover {
@@ -154,7 +154,7 @@ background:  #161320;
     margin: 1px 0px 0px 0px;
     padding-left: 0px;
     padding-right: 2px;
- 
+
 }
 #bluetooth,
 #custom-cliphist{
@@ -164,7 +164,7 @@ background:  #161320;
     margin: 4px 0px 4px 0px;
     padding-left: 4px;
     padding-right: 4px;
- 
+
 }
 #battery{
     font-weight: normal;
@@ -175,7 +175,7 @@ background:  #161320;
     margin: 0px 0px 0px 0px;
     padding-left: 0px;
     padding-right: 0px;
- 
+
 }
 
 #idle_inhibitor{
@@ -198,7 +198,7 @@ background: @bar-bg;
     padding-left: 10px;
     padding-right: 10px;
     border: none;
-    
+
 }
 #pulseaudio{
 font-weight: normal;
@@ -245,7 +245,7 @@ animation: repeat;
 @keyframes blink {
     to {
         color: #4a4a4a;
-        
+
     }
 }
 #network{
@@ -305,7 +305,7 @@ font-weight: normal;
     padding-left: 4px;
     padding-right: 4px;
   ;
-    
+
 }
 
 #backlight-slider slider,
@@ -334,7 +334,7 @@ font-weight: normal;
 
 #battery.charging, #battery.plugged {
 	color: #E8EDF0;
-	
+
 }
 
 
