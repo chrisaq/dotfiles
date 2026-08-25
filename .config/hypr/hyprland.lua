@@ -3,43 +3,6 @@
 -- local.conf is a per-machine configuration file for monitors and input devices.
 require("local")
 
--- make 1–8 persistent so they always exist (optional)
-
-hl.workspace_rule({
-    workspace = 1,
-    layout = "master",
-})
-
-hl.workspace_rule({
-    workspace = 2,
-    layout = "master",
-})
-
-hl.workspace_rule({
-    workspace = 3,
-    layout = "master",
-})
-
-hl.workspace_rule({
-    workspace = 4,
-})
-
-hl.workspace_rule({
-    workspace = 5,
-})
-
-hl.workspace_rule({
-    workspace = 6,
-})
-
-hl.workspace_rule({
-    workspace = 7,
-})
-
-hl.workspace_rule({
-    workspace = 8,
-})
-
 local w1 = "hyprctl hyprpaper wallpaper ,~/Sync/Wiki/wallpapers/catpucc.png"
 
 local w2 = "hyprctl hyprpaper wallpaper ,~/Sync/Wiki/wallpapers/arch-black-4k.png"

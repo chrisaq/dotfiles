@@ -5,6 +5,8 @@
 set -euo pipefail
 
 # Requires: jq, hyprctl
+command -v hyprctl >/dev/null || { echo "hyprctl not found in PATH." >&2; exit 127; }
+command -v jq >/dev/null || { echo "jq not found in PATH." >&2; exit 127; }
 
 # Discover monitors
 mon_json="$(hyprctl -j monitors)"
@@ -19,31 +21,88 @@ if [[ -z "${lap:-}" ]]; then
   exit 1
 fi
 
-# Ensure workspaces exist (Hyprland creates on demand)
-create_ws() {
-  for ws in "$@"; do
-    hyprctl dispatch workspace "$ws" >/dev/null 2>&1 || true
-  done
+initial_ws="$(hyprctl -j activeworkspace | jq -r '.id // empty' || true)"
+
+declare -A desired=()
+
+restore_initial_workspace() {
+  if [[ "${initial_ws:-}" =~ ^[1-9]$ ]]; then
+    hyprctl dispatch "hl.dsp.focus({ workspace = $initial_ws })" >/dev/null 2>&1 || true
+  fi
+}
+
+trap restore_initial_workspace EXIT
+
+focus_workspace() {
+  local ws="$1"
+  local lua_expr
+  local output
+
+  lua_expr="hl.dsp.focus({ workspace = $ws })"
+
+  if ! output="$(hyprctl dispatch "$lua_expr" 2>&1)"; then
+    printf 'hyprctl dispatch %s failed:\n%s\n' "$lua_expr" "$output" >&2
+    return 1
+  fi
+}
+
+move_workspace_to_monitor() {
+  local mon="$1"
+  local lua_mon
+  local lua_expr
+  local output
+
+  lua_mon="$(jq -Rn --arg mon "$mon" '$mon | @json')"
+  lua_expr="hl.dsp.workspace.move({ monitor = $lua_mon })"
+
+  if ! output="$(hyprctl dispatch "$lua_expr" 2>&1)"; then
+    printf 'hyprctl dispatch %s failed:\n%s\n' "$lua_expr" "$output" >&2
+    return 1
+  fi
 }
 
 move_ws_to() {
   local mon="$1"; shift
   for ws in "$@"; do
-    # Ensure it exists, then move
-    hyprctl dispatch workspace "$ws" >/dev/null 2>&1 || true
-    hyprctl dispatch moveworkspacetomonitor "$ws" "$mon" >/dev/null 2>&1 || true
+    desired["$ws"]="$mon"
+    focus_workspace "$ws"
+    move_workspace_to_monitor "$mon"
   done
+}
+
+verify_assignment() {
+  local ws_json
+  local failures=0
+
+  ws_json="$(hyprctl -j workspaces)"
+
+  for ws in "${!desired[@]}"; do
+    local expected="${desired[$ws]}"
+    local actual
+
+    actual="$(jq -r --argjson ws "$ws" '.[] | select(.id == $ws) | .monitor' <<<"$ws_json" | head -n1)"
+
+    if [[ -z "$actual" || "$actual" == "null" ]]; then
+      printf 'Workspace %s was not found after assignment; expected monitor %s.\n' "$ws" "$expected" >&2
+      failures=$((failures + 1))
+    elif [[ "$actual" != "$expected" ]]; then
+      printf 'Workspace %s is on %s; expected %s.\n' "$ws" "$actual" "$expected" >&2
+      failures=$((failures + 1))
+    fi
+  done
+
+  (( failures == 0 ))
 }
 
 if [[ -n "${ext:-}" ]]; then
   # External present → 1–4 to external, 5–9 to laptop
-  create_ws 1 2 3 4 5 6 7 8 9
   move_ws_to "$ext" 1 2 3 4
   move_ws_to "$lap" 5 6 7 8 9
+  verify_assignment
   echo "Assigned: WS 1–4 → $ext, WS 5–9 → $lap"
 else
   # No external → everything to laptop
-  create_ws 1 2 3 4 5 6 7 8 9
   move_ws_to "$lap" 1 2 3 4 5 6 7 8 9
+  verify_assignment
   echo "Assigned: WS 1–9 → $lap (no external)"
 fi
