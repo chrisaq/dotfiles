@@ -319,45 +319,28 @@ for key, direction in pairs(move_window) do
 end
 
 -- Move focus with mainMod + arrow keys
---
--- hl.bind(mainMod .. " + " .. "left", hl.dsp.focus({ direction = "left" }))
---
--- hl.bind(mainMod .. " + " .. "right", hl.dsp.focus({ direction = "right" }))
---
--- hl.bind(mainMod .. " + " .. "up", hl.dsp.focus({ direction = "up" }))
---
--- hl.bind(mainMod .. " + " .. "down", hl.dsp.focus({ direction = "down" }))
---
--- -- alternative vim-style keys
---
--- -- bind = $mainMod, h, movefocus, l
---
--- -- bind = $mainMod, j, movefocus, d
---
--- -- bind = $mainMod, k, movefocus, u
---
--- -- bind = $mainMod, l, movefocus, r
---
--- -- Move focused window with $mainMod+Shift+Arrows
---
--- hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "left", { direction = "l" })
---
--- hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "right", { direction = "r" })
---
--- hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "up", { direction = "u" })
---
--- hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "down", { direction = "d" })
---
--- -- also with vim-style keys
---
--- hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "h", { direction = "l" })
---
--- hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "j", { direction = "d" })
---
--- hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "k", { direction = "u" })
---
--- hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "l", { direction = "r" })
---
+hl.bind(mainMod .. " + " .. "left", hl.dsp.focus({ direction = "left" }))
+hl.bind(mainMod .. " + " .. "right", hl.dsp.focus({ direction = "right" }))
+hl.bind(mainMod .. " + " .. "up", hl.dsp.focus({ direction = "up" }))
+hl.bind(mainMod .. " + " .. "down", hl.dsp.focus({ direction = "down" }))
+
+-- alternative vim-style keys
+hl.bind(mainMod .. " + " .. "h", hl.dsp.focus({ direction = "left" }))
+hl.bind(mainMod .. " + " .. "l", hl.dsp.focus({ direction = "right" }))
+hl.bind(mainMod .. " + " .. "k", hl.dsp.focus({ direction = "up" }))
+hl.bind(mainMod .. " + " .. "j", hl.dsp.focus({ direction = "down" }))
+
+-- Move focused window with $mainMod+Shift+Arrows
+hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "left", { direction = "l" })
+hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "right", { direction = "r" })
+hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "up", { direction = "u" })
+hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "down", { direction = "d" })
+-- also with vim-style keys
+hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "h", { direction = "l" })
+hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "j", { direction = "d" })
+hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "k", { direction = "u" })
+hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "l", { direction = "r" })
+
 -- Switch workspaces with mainMod + [0-9]
 
 hl.bind(mainMod .. " + " .. 1, hl.dsp.focus({ workspace = 1 }))
