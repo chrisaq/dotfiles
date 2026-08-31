@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "usage: $0 <version>" >&2
+    echo "example: $0 8.2.1" >&2
+    exit 1
+fi
+
+version="${1#v}"
+pkgname="concourse-fly-cli"
+builddir="${PWD}/${pkgname}-${version}"
+
+mkdir -p "$builddir"
+cd "$builddir"
+
+cat > PKGBUILD <<'EOF'
+pkgname=concourse-fly-cli
+pkgver=VERSION_PLACEHOLDER
+pkgrel=1
+pkgdesc="Concourse CI fly command-line client"
+arch=('x86_64')
+url="https://concourse-ci.org"
+license=('Apache-2.0')
+conflicts=('fly-cli' 'concourse-fly' 'concourse-fly-bin')
+provides=('fly-cli')
+
+source=(
+  "fly-${pkgver}-linux-amd64.tgz::https://github.com/concourse/concourse/releases/download/v${pkgver}/fly-${pkgver}-linux-amd64.tgz"
+)
+
+sha256sums=('SKIP')
+
+package() {
+    install -Dm755 "${srcdir}/fly" "${pkgdir}/usr/bin/fly"
+}
+EOF
+
+sed -i "s/VERSION_PLACEHOLDER/${version}/" PKGBUILD
+
+echo "==> Build directory: $builddir"
+
+makepkg --nobuild
+
+echo "==> Calculating checksums..."
+updpkgsums
+
+echo "==> Building package..."
+makepkg -f
+
+echo
+echo "Built:"
+find . -maxdepth 1 -name '*.pkg.tar.*' -print
