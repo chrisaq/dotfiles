@@ -852,7 +852,7 @@ cq_wg_reset() {
   : "#:usage: cq_wg_reset [iface]"
   : "#:no-args: false"
   local iface="${1:-wg-home}"
-  local netdev="/etc/systemd/network/11-${iface}.netdev"
+  local netdev="/etc/systemd/network/31-${iface}.netdev"
   local ep host port
   [[ -f "$netdev" ]] || {
     echo "Missing netdev file: $netdev" >&2
@@ -888,6 +888,64 @@ cq_wg_reset() {
   echo
   echo "Route to endpoint host:"
   ip route get "$host" 2>/dev/null || true
+}
+cq_wg_reset2() {
+    : "#:desc: re-resolve WireGuard endpoint and reset peer endpoint"
+    : "#:usage: cq_wg_reset [iface]"
+    local iface="${1:-wg-home}"
+    local netdev ep host port ip peer
+    netdev="$(
+    sudo awk -v iface="$iface" '
+        FNR == 1 { file=FILENAME }
+        /^[[:space:]]*Name[[:space:]]*=/ {
+            line=$0
+            sub(/^[^=]*=/, "", line)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+            if (line == iface) {
+                print file
+                exit
+            }
+        }
+    ' /etc/systemd/network/*.netdev
+    )"
+    [[ -n "$netdev" ]] || {
+        echo "Could not find netdev for $iface" >&2
+        return 1
+    }
+    ep="$(sudo awk -F= '
+        $1 ~ /^[[:space:]]*Endpoint[[:space:]]*$/ {
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
+            print $2
+            exit
+        }
+    ' "$netdev")"
+    [[ -n "$ep" ]] || {
+        echo "Could not read Endpoint= from $netdev" >&2
+        return 1
+    }
+    host="${ep%:*}"
+    port="${ep##*:}"
+    # Drop resolved/system DNS cache before resolving it again.
+    sudo resolvectl flush-caches 2>/dev/null || true
+    ip="$(getent ahostsv4 "$host" | awk 'NR == 1 {print $1}')"
+    [[ -n "$ip" ]] || {
+        echo "Could not resolve $host" >&2
+        return 1
+    }
+    echo "iface:      $iface"
+    echo "netdev:     $netdev"
+    echo "configured: $ep"
+    echo "resolved:   $ip:$port"
+    while read -r peer; do
+        [[ -n "$peer" ]] || continue
+        sudo wg set "$iface" peer "$peer" endpoint "$ip:$port" || return 1
+    done < <(sudo wg show "$iface" peers)
+    echo
+    echo "WireGuard status:"
+    sudo wg show "$iface"
+    echo
+    echo "Route to endpoint:"
+    ip route get "$ip"
 }
 cq_wg_off() {
   : "#:desc: disable all WireGuard tunnels"
