@@ -1198,6 +1198,9 @@ cq_rspamd_stop() {
     : "#:no-args: true"
     pkill -f "ssh -f -N -L 11334:localhost:11334"
 }
+cq_eik_rdp() {
+    xfreerdp3 /v:cgd-co-login1.eikplatform.io /u:EIK\\cqvigsta '/auth-pkg-list:none,ntlm' /dynamic-resolution /clipboard
+}
 # k8s aliases and functions
 kq_eks_drain_nodes() {
   if [ "$#" -eq 0 ]; then
