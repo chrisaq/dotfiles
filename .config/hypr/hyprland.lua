@@ -294,9 +294,9 @@ hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "P", hl.dsp.exec_cmd("zsh -c 'cq
 
 -- Cycle workspaces on the current monitor
 
-hl.bind(mainMod .. " + " .. "Tab", hl.dsp.exec_cmd("~/.local/bin/cq_hypr_next-on-output"))
+hl.bind(mainMod .. " + " .. "Tab", hl.dsp.focus({ workspace = "m+1" }))
 
-hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "Tab", hl.dsp.exec_cmd("~/.local/bin/cq_hypr_prev-on-output"))
+hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "Tab", hl.dsp.focus({ workspace = "m-1" }))
 
 --# Windows and workspace management keybinds
 
@@ -329,17 +329,6 @@ hl.bind(mainMod .. " + " .. "h", hl.dsp.focus({ direction = "left" }))
 hl.bind(mainMod .. " + " .. "l", hl.dsp.focus({ direction = "right" }))
 hl.bind(mainMod .. " + " .. "k", hl.dsp.focus({ direction = "up" }))
 hl.bind(mainMod .. " + " .. "j", hl.dsp.focus({ direction = "down" }))
-
--- Move focused window with $mainMod+Shift+Arrows
-hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "left", { direction = "l" })
-hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "right", { direction = "r" })
-hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "up", { direction = "u" })
-hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "down", { direction = "d" })
--- also with vim-style keys
-hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "h", { direction = "l" })
-hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "j", { direction = "d" })
-hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "k", { direction = "u" })
-hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "l", { direction = "r" })
 
 -- Switch workspaces with mainMod + [0-9]
 
