@@ -15,7 +15,7 @@
     "reload_style_on_change": true,
 
     // positions generated based on config.ctl //
-    "modules-left": ["custom/smallspacer","custom/smallspacer","custom/wsnum","custom/smallspacer","hyprland/workspaces","custom/spacer","custom/submap-options","custom/spacer","mpris"],
+    "modules-left": ["custom/smallspacer","custom/smallspacer","ext/workspaces","custom/spacer","custom/submap-options","custom/spacer","mpris"],
     "modules-center": ["custom/padd","custom/l_end","custom/r_end","hyprland/window","custom/padd"],
     "modules-right": ["custom/padd","custom/l_end","group/expand","network","group/expand-3","group/expand-2","group/expand-4","power-profiles-daemon","custom/smallspacer","memory","cpu","clock","custom/smallspacer","custom/notification","custom/padd"],
 
@@ -26,13 +26,6 @@
         "format-alt": "󰍿 <span color='#bbc2c7'></span> ",
         "on-click": "~/mouse.sh",
         "tooltip": false,
-    },
-
-    "custom/wsnum": {
-        "exec": "hyprctl activeworkspace -j | jq -r '.id'",
-        "interval": 1,
-        "format": "{} ",
-        "tooltip": false
     },
 
     "upower": {
@@ -170,14 +163,25 @@
         "format": "|"
     },
 
-    "hyprland/workspaces": {
-        "format": "{icon}",
-        "format-icons": {
-            "default": "",
-            "active": "",
-        //"default": "○",
-        //"default": "●"
-        },
+    // Workspace circles. Uses ext/workspaces (ext-workspace layer-shell protocol)
+    // instead of hyprland/workspaces.
+    //
+    // Why not hyprland/workspaces: that module activates workspaces by sending the
+    // legacy IPC text "dispatch workspace <id>" to Hyprland. Since Hyprland 0.54
+    // (and this machine's Lua config at ~/.config/hypr/hyprland.lua) that text is
+    // evaluated as Lua, so the click dies with:
+    //   error: [string "return hl.dispatch(workspace 3)"]:1: ')' expected near '3'
+    // waybar 0.15.0 has no Lua IPC support (added upstream only after 0.15.0) and
+    // the module consumes the click, so `on-click` cannot override it.
+    // ext/workspaces sends ext_workspace_handle_v1.activate() instead, which
+    // Hyprland honours. Both modules use the #workspaces CSS name, so style.css
+    // needs no changes. Revert by upgrading waybar past 0.15.0.
+    "ext/workspaces": {
+        // Tokens available in 0.15.0: {name} {id} {icon}.
+        // {name} is the workspace number reported by Hyprland; the active one is
+        // distinguished in style.css (#workspaces button.active: pill + underline).
+        "format": "{name}",
+        "on-click": "activate",
     },
 
     "custom/submap-options": {

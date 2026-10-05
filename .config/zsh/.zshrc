@@ -101,6 +101,7 @@ export GOPATH="$XDG_DATA_HOME"/go
 export TASKDATA="$XDG_DATA_HOME"/task
 export TASKRC="$XDG_CONFIG_HOME"/task/taskrc
 export MBSYNCRC="$XDG_DATA_HOME"/isync/mbsyncrc
+export PI_CODING_AGENT_DIR="$HOME/.config/pi/agent"
 export KUBECONFIG="$XDG_CONFIG_HOME"/kube/config
 # if [[ -f  "$XDG_CONFIG_HOME"/k3s/k3s-home.yaml ]]; then
 #     export KUBECONFIG=$KUBECONFIG:"$XDG_CONFIG_HOME"/k3s/k3s-home.yaml
@@ -338,6 +339,9 @@ bindkey -M viins '\e/' vi-search-fix
 export EDITOR=nvim
 # PAGER
 export PAGER=bat
+# BROWSER: XDG already defaults to zen.desktop; this covers tools that read
+# $BROWSER instead of xdg-open (git web--browse, python -m webbrowser, ...)
+export BROWSER=zen-browser
 ### ENDS: Input ################################################################
 
 

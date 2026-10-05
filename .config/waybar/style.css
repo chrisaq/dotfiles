@@ -40,40 +40,42 @@ background: rgba(23, 23, 23, 0.0);
     transition: 0.2s ease;
     padding-left: 4px;
     padding-right: 4px;
-    padding-top: 1px;
+    padding-top: 0px;
 }
 
 
 #workspaces button {
-background: rgba(23, 23, 23, 0.0);
-    color: #A1BDCE;
+    background: rgba(23, 23, 23, 0.0);
+    color: #6C7A89;            /* inactive workspace number */
     box-shadow: none;
-	text-shadow: none;
+    text-shadow: none;
     border-radius: 9px;
     transition: 0.2s ease;
-    padding-left: 4px;
-    padding-right: 4px;
- /*   animation: ws_normal 20s ease-in-out 1; */
+    padding-left: 7px;
+    padding-right: 7px;
+    min-width: 22px;
+    /* Underline track: transparent until active, so no layout shift. */
+    border-bottom: 2px solid transparent;
 }
 
-
-
+/* Active workspace: bright number + pill background + underline indicator. */
 #workspaces button.active {
-
-
-  /* background-image: url("/home/anik/Documents/bar1.png");*/
-    color: #A1BDCE;
+    color: #E8EDF0;
+    background: rgba(161, 189, 206, 0.16);
+    border-bottom: 2px solid #A1BDCE;
     transition: all 0.3s ease;
-    padding-left: 4px;
-    padding-right: 4px;
-  /*  transition: all 0.4s cubic-bezier(.55,0.68,.48,1.682); */
+}
+
+/* Workspace with an urgent window. */
+#workspaces button.urgent {
+    color: #E78284;
+    border-bottom: 2px solid #E78284;
 }
 
 #workspaces button:hover {
-    background: none;
+    background: rgba(114, 215, 146, 0.14);
     color: #72D792;
-    animation: ws_hover 20s ease-in-out 1;
-    transition: all 0.5s cubic-bezier(.55,-0.68,.48,1.682);
+    transition: all 0.3s ease;
 }
 
 #taskbar button {

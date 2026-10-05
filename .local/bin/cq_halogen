@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+IMAGE="ghcr.io/peonist-ai/halogen-flash-server:0.14.2"
+NAME="halogen"
+MODELS="/srv/halogen/models"
+PORT="8731"
+
+show_help() {
+  cat <<EOF
+Usage: cq_halogen COMMAND
+
+Manage the Halogen Flash Server Podman container.
+
+Configured image:
+  $IMAGE
+
+Configured model directory:
+  $MODELS
+
+Commands:
+  start
+      Start Halogen using the configured IMAGE.
+
+  stop
+      Stop the running Halogen container.
+
+  restart
+      Stop and start Halogen using the currently configured IMAGE.
+
+  update
+      Pull the configured IMAGE and recreate the Halogen container.
+
+      IMPORTANT:
+        This command does NOT automatically discover the newest Halogen
+        version.
+
+        Before running 'cq_halogen update', edit this script and change:
+
+          IMAGE="ghcr.io/peonist-ai/halogen-flash-server:<version>"
+
+        Example:
+
+          IMAGE="ghcr.io/peonist-ai/halogen-flash-server:0.14.2"
+
+        Then run:
+
+          cq_halogen update
+
+      The model files in $MODELS are preserved because they are stored
+      outside the container and mounted read-only at /models.
+
+  logs
+      Follow the Halogen container logs.
+
+  status
+      Show the Halogen container status.
+
+  health
+      Query the Halogen health endpoint at:
+        http://localhost:$PORT/health
+
+  help
+      Show this help.
+
+Options:
+  -h, --help
+      Show this help.
+
+Examples:
+  cq_halogen start
+  cq_halogen status
+  cq_halogen logs
+  cq_halogen health
+  cq_halogen restart
+  cq_halogen update
+EOF
+}
+
+case "${1:-}" in
+  start)
+    if podman container exists "$NAME"; then
+      echo "Container '$NAME' already exists." >&2
+      echo "Use: cq_halogen restart" >&2
+      exit 1
+    fi
+
+    podman run -d --rm \
+      --name "$NAME" \
+      -p "$PORT:$PORT" \
+      --device /dev/kfd \
+      --device /dev/dri \
+      --group-add keep-groups \
+      --ipc=host \
+      --ulimit memlock=-1:-1 \
+      -v "$MODELS:/models:ro" \
+      "$IMAGE"
+    ;;
+
+  stop)
+    if podman container exists "$NAME"; then
+      podman stop "$NAME"
+    else
+      echo "Container '$NAME' is not running."
+    fi
+    ;;
+
+  restart)
+    if podman container exists "$NAME"; then
+      podman stop "$NAME"
+    fi
+
+    "$0" start
+    ;;
+
+  update)
+    cat <<EOF
+Updating Halogen using:
+
+  $IMAGE
+
+This command only pulls the version configured in cq_halogen.
+
+If you want to upgrade to a newer release, edit:
+
+  ~/.local/bin/cq_halogen
+
+and change the IMAGE variable first.
+
+EOF
+
+    podman pull "$IMAGE"
+
+    if podman container exists "$NAME"; then
+      podman stop "$NAME"
+    fi
+
+    "$0" start
+    ;;
+
+  logs)
+    podman logs -f "$NAME"
+    ;;
+
+  status)
+    podman ps -a --filter "name=$NAME"
+    ;;
+
+  health)
+    curl -fsS "http://localhost:$PORT/health"
+    echo
+    ;;
+
+  help|-h|--help)
+    show_help
+    ;;
+
+  "")
+    show_help
+    ;;
+
+  *)
+    echo "Unknown command: $1" >&2
+    echo >&2
+    show_help >&2
+    exit 1
+    ;;
+esac
