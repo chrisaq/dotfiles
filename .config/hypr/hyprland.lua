@@ -502,9 +502,14 @@ hl.define_submap("system", function()
     hl.bind("E", hl.dsp.exec_cmd("bash -lc 'hyprctl dispatch exit'"))
     -- exit Hyprland
     hl.bind("L", hl.dsp.exec_cmd("bash -lc 'hyprlock & disown; hyprctl dispatch submap reset'"))
+    -- D = toggle the idle auto-lock (hypridle) on/off. Manual L still locks.
+    hl.bind("D", hl.dsp.exec_cmd("bash -lc 'idle-lock toggle; hyprctl dispatch submap reset'"))
     hl.bind("return", hl.dsp.submap("reset"))
     hl.bind("escape", hl.dsp.submap("reset"))
 end)
+
+-- One-press toggle for the idle auto-lock (super + SHIFT + 0)
+hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. 0, hl.dsp.exec_cmd("bash -lc 'idle-lock toggle'"))
 
 
 --# Multimedia keybinds

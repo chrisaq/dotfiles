@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# idle-lock — control hypridle (auto lock / dpms-off / auto-suspend)
+#
+#   idle-lock on        start hypridle   -> auto-lock is active
+#   idle-lock off       stop  hypridle   -> nothing auto-locks or auto-suspends
+#   idle-lock toggle    flip between the two
+#   idle-lock status    print "on" or "off"   (handy for waybar)
+#   idle-lock check     exit 0 if locking is allowed (for use inside hypridle.conf)
+#   idle-lock waybar    print a waybar custom-module JSON line (text/class/tooltip)
+#
+# The systemd unit state is the source of truth, so a reboot always restores
+# locking (hypridle.service is enabled). A flag file is written as well, so the
+# "guard" variant in hypridle.conf works too if you prefer keeping the suspend
+# timer while skipping only the lock.
+#
+# Manual locking (super+0 -> L) is never affected.
+
+set -uo pipefail
+
+UNIT="hypridle.service"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/idle-lock"
+STATE_FILE="$STATE_DIR/allow-lock"
+
+is_on() { systemctl --user is-active --quiet "$UNIT"; }
+
+notify() {
+    command -v notify-send >/dev/null 2>&1 && notify-send -t 4000 -a idle-lock "$1" "$2"
+}
+
+turn_on() {
+    mkdir -p "$STATE_DIR" && echo 1 >"$STATE_FILE"
+    systemctl --user start "$UNIT"
+    notify "Auto-lock ON" "Timers: $(hypridle_timers)"
+}
+
+turn_off() {
+    mkdir -p "$STATE_DIR" && echo 0 >"$STATE_FILE"
+    systemctl --user stop "$UNIT"
+    notify "Auto-lock OFF" "No auto-lock, no DPMS-off, no auto-suspend"
+}
+
+# Render the timers currently configured in hypridle.conf, e.g. "5m  7m  20m".
+# Purely cosmetic for the tooltip; silently empty if the config can't be read.
+hypridle_timers() {
+    local conf="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hypridle.conf"
+    [ -r "$conf" ] || return 0
+    awk 'BEGIN{FS="="}
+         /^[[:space:]]*listener/ { blk = 1; t = ""; next }
+         blk && /^[[:space:]]*timeout[[:space:]]*=/ { gsub(/[[:space:]]/, "", $2); t = $2 + 0 }
+         blk && /^[[:space:]]*}/ {
+             if (t) { m = int(t / 60); s = t % 60
+                      printf "%s  ", (m == 0 ? s "s" : (s == 0 ? m "m" : m "m" s "s")) }
+             blk = 0
+         }' "$conf"
+}
+
+# One waybar custom-module JSON line. Requires jq.
+waybar_json() {
+    local text class tip timers
+    timers="$(hypridle_timers)"
+    if is_on; then
+        text="$(printf '\U000F033E')"          # nf-md-lock
+        class="idlelock-on"
+        tip=$(printf 'Auto-lock ON\n\nTimers: %s\n\nClick or super+shift+0 to disable' "$timers")
+    else
+        text="$(printf '\U000F033F')"          # nf-md-lock_open
+        class="idlelock-off"
+        tip=$(printf 'Auto-lock OFF\n\nNo auto-lock, no DPMS-off, no auto-suspend.\nsuper+0 -> L still locks manually.\n\nClick or super+shift+0 to re-enable')
+    fi
+    jq -cn --arg text "$text" --arg class "$class" --arg tooltip "$tip" \
+        '{text: $text, class: $class, tooltip: $tooltip}'
+}
+
+case "${1:-toggle}" in
+    on | enable)
+        turn_on
+        ;;
+    off | disable)
+        turn_off
+        ;;
+    toggle)
+        if is_on; then turn_off; else turn_on; fi
+        ;;
+    status)
+        if is_on; then echo on; else echo off; fi
+        ;;
+    check)
+        # used by hypridle.conf: on-timeout = bash -c 'idle-lock check && loginctl lock-session'
+        [ "$(cat "$STATE_FILE" 2>/dev/null || echo 1)" = "1" ]
+        ;;
+    waybar)
+        waybar_json
+        ;;
+    *)
+        echo "usage: idle-lock {on|off|toggle|status|check|waybar}" >&2
+        exit 2
+        ;;
+esac

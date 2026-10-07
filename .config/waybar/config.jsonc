@@ -17,7 +17,21 @@
     // positions generated based on config.ctl //
     "modules-left": ["custom/smallspacer","custom/smallspacer","ext/workspaces","custom/spacer","custom/submap-options","custom/spacer","mpris"],
     "modules-center": ["custom/padd","custom/l_end","custom/r_end","hyprland/window","custom/padd"],
-    "modules-right": ["custom/padd","custom/l_end","group/expand","network","group/expand-3","group/expand-2","group/expand-4","power-profiles-daemon","custom/smallspacer","memory","cpu","clock","custom/smallspacer","custom/notification","custom/padd"],
+    "modules-right": ["custom/padd","custom/l_end","group/expand","network","custom/idlelock","group/expand-3","group/expand-2","group/expand-4","power-profiles-daemon","custom/smallspacer","memory","cpu","clock","custom/smallspacer","custom/notification","custom/padd"],
+
+
+    // Auto-lock (hypridle) indicator + toggle.
+    // Green closed padlock = armed. Orange open padlock = disabled.
+    // Same toggle as super+shift+0 and super+0 -> D.
+    "custom/idlelock": {
+        "exec": "/home/chrisq/.local/bin/idle-lock waybar",
+        "return-type": "json",
+        "interval": 2,
+        "format": "{}",
+        "tooltip": true,
+        "on-click": "/home/chrisq/.local/bin/idle-lock toggle",
+        "on-click-right": "/home/chrisq/.local/bin/idle-lock on"
+    },
 
 
     // sourced from modules based on config.ctl //

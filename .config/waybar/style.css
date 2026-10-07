@@ -189,6 +189,24 @@ background: @bar-bg;
     padding-right: 4px;
 
 }
+
+/* Auto-lock (hypridle) indicator. `class` from the JSON picks the variant. */
+#custom-idlelock {
+    color: #24966e;
+    background: rgba(23, 23, 23, 0.0);
+    font-size: 19px;
+    font-weight: normal;
+    margin: 0px 0px 0px 0px;
+    padding-left: 4px;
+    padding-right: 4px;
+}
+#custom-idlelock.idlelock-off {
+    color: #e78a4e;
+}
+#custom-idlelock:hover {
+    color: #ffffff;
+}
+
 #clock{
     color: #A1BDCE;
     font-size: 15px;
