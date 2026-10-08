@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Ansible managed - do not edit by hand.
+# /usr/local/bin/wg-policy
+#
+# Chooses which WireGuard tunnel should be up based on the WiFi SSID we are
+# currently associated with. Driven by wg-policy.timer, NOT by networkd
+# ExecUp/ExecDown - those fire before association, so the SSID is still empty.
+#
+# Idempotent: compares the SSID against the last state in /run and exits early
+# when nothing changed, so the timer costs essentially nothing.
+
+set -uo pipefail
+
+STATE_FILE=/run/wg-policy.state
+
+# Rendered from vars/network.yml
+NEVER_VPN_SSIDS=({{ wg_policy_never_vpn | map('to_json') | join(' ') }})
+HOME_TUNNEL_SSIDS=({{ wg_policy_home_tunnel | map('to_json') | join(' ') }})
+FULL_TUNNEL_SSIDS=({{ wg_policy_full_tunnel | map('to_json') | join(' ') }})
+DEFAULT_TUNNEL="{{ wg_policy_default }}"
+
+in_list() {
+  local needle="$1"; shift
+  local x
+  for x in "$@"; do
+    [[ "$x" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
+down_all() {
+  networkctl down wg-home 2>/dev/null || true
+  networkctl down wg-full 2>/dev/null || true
+}
+
+up_home() {
+  networkctl status wg-full >/dev/null 2>&1 && networkctl down wg-full 2>/dev/null || true
+  networkctl up wg-home 2>/dev/null || true
+}
+
+up_full() {
+  networkctl status wg-home >/dev/null 2>&1 && networkctl down wg-home 2>/dev/null || true
+  networkctl up wg-full 2>/dev/null || true
+}
+
+iface="$(iw dev 2>/dev/null | awk '$1=="Interface"{print $2; exit}' || true)"
+if [[ -z "$iface" ]]; then
+  echo "wg-policy: no wireless interface found"
+  exit 0
+fi
+
+ssid="$(iw dev "$iface" link 2>/dev/null | awk -F': ' '/SSID:/{print $2; exit}' || true)"
+
+# Not associated yet. Leave the tunnels exactly as they are rather than
+# flapping them down and back up while iwd roams.
+if [[ -z "$ssid" ]]; then
+  exit 0
+fi
+
+if in_list "$ssid" "${NEVER_VPN_SSIDS[@]}"; then
+  action="down"
+elif in_list "$ssid" "${FULL_TUNNEL_SSIDS[@]}"; then
+  action="full"
+elif in_list "$ssid" "${HOME_TUNNEL_SSIDS[@]}"; then
+  action="home"
+else
+  action="$DEFAULT_TUNNEL"
+fi
+
+previous="$(cat "$STATE_FILE" 2>/dev/null || echo '')"
+if [[ "$previous" == "$ssid|$action" ]]; then
+  exit 0
+fi
+
+echo "wg-policy: SSID='$ssid' -> $action (was '${previous:-none}')"
+
+case "$action" in
+  down) down_all ;;
+  home) up_home ;;
+  full) up_full ;;
+  *)    down_all ;;
+esac
+
+echo "$ssid|$action" > "$STATE_FILE"

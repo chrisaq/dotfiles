@@ -8,6 +8,9 @@
 #   "pathspec>=0.12.1",
 # ]
 # ///
+#:desc: sync a pass/gopass password-store with KeePass .kdbx files
+#:usage: cq_pass-sync {doctor|init-ignore|export|import} [--store PATH]
+#:no-args: false
 """
 Sync a pass/gopass password-store with KeePass .kdbx files.
 

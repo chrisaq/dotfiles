@@ -1,0 +1,24 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# Ansible managed - do not edit by hand.
+# /etc/systemd/network/{{ t.file_prefix }}-{{ t.link }}.netdev
+#
+# The private key is NOT in this file. It lives in the file referenced by
+# PrivateKeyFile= (systemd.netdev(5)), which keeps the secret out of the netdev,
+# out of `networkctl status` output, and out of any accidental commit.
+
+[NetDev]
+Name={{ t.link }}
+Kind=wireguard
+
+[WireGuard]
+PrivateKeyFile={{ wg_key_file }}
+ListenPort={{ wg_port }}
+
+{% for peer in t.peers %}
+[WireGuardPeer]
+PublicKey={{ peer.public_key }}
+Endpoint={{ peer.endpoint }}
+AllowedIPs={{ peer.allowed_ips | join(', ') }}
+PersistentKeepalive={{ wg_keepalive }}
+
+{% endfor %}

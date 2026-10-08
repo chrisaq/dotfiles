@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#:desc: bring WireGuard tunnels up or down based on the current WiFi SSID
+#:usage: cq_wg_policy {up|down}
+#:no-args: false
 set -euo pipefail
 
 # Automatically connect to wireguard VPN based on SSIDs

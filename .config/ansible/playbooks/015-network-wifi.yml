@@ -1,152 +1,68 @@
 ---
+# playbooks/015-network-wifi.yml
+#
+# WiFi: iwd for association + systemd-networkd for addressing + resolved for DNS.
+#
+# The SSID->VPN policy lives in 105-wg-policy.yml, NOT here. It used to be
+# installed via ExecUp=/ExecDown= on this .network file, which never worked:
+# ExecUp fires when the link comes up, before iwd has associated with any AP,
+# so the script read an empty SSID and exited. See 105 for the working design.
+
 - hosts: localhost
   become: true
+  vars_files:
+    - ../vars/network.yml
+
   tasks:
-    - name: Install necessary packages (systemd-networkd, iwd, and systemd-resolved)
-      pacman:
+    - name: Install WiFi packages
+      ansible.builtin.pacman:
         name:
-          - systemd
           - iw
           - iwd
         state: present
 
-    - name: Create network configuration for Wi-Fi interface (wlp* or wlan*)
-      ini_file:
-        path: /etc/systemd/network/25-wifi.network
-        section: "{{ item.section }}"
-        option: "{{ item.option }}"
-        value: "{{ item.value }}"
-      loop:
-        - { section: 'Match', option: 'Name', value: 'wl*' }
-        - { section: 'Network', option: 'DHCP', value: 'yes' }
-        - { section: 'Network', option: 'Metric', value: '200' }
-        - { section: 'Network', option: 'RequiredForOnline', value: 'no' }
-        - { section: 'Network', option: 'ExecUp',   value: '/usr/local/bin/wg-policy up' }
-        - { section: 'Network', option: 'ExecDown', value: '/usr/local/bin/wg-policy down' }
+    - name: Render WiFi network file
+      ansible.builtin.template:
+        src: templates/wifi.network.j2
+        dest: /etc/systemd/network/25-wifi.network
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart systemd-networkd
 
-    - name: Enable and start systemd-networkd
-      systemd:
-        name: systemd-networkd
-        enabled: true
-        state: started
+    - name: Configure iwd
+      ansible.builtin.copy:
+        dest: /etc/iwd/main.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          # Ansible managed - do not edit by hand.
 
-    - name: Enable and start systemd-resolved
-      systemd:
-        name: systemd-resolved
-        enabled: true
-        state: started
+          [General]
+          # iwd must NOT configure addresses/DNS. networkd owns addressing and
+          # resolved owns DNS; if iwd also does it we get two writers and DNS
+          # that networkd knows nothing about.
+          EnableNetworkConfiguration=false
 
-    - name: Symlink /etc/resolv.conf to systemd-resolved's stub resolver
-      file:
-        src: /run/systemd/resolve/stub-resolv.conf
-        dest: /etc/resolv.conf
-        state: link
+          [Network]
+          NameResolvingService=none
+      notify: Restart iwd
 
-    - name: Configure systemd-resolved with custom DNS settings
-      ini_file:
-        path: /etc/systemd/resolved.conf
-        section: 'Resolve'
-        option: 'DNS'
-        value: '8.8.8.8'
-
-    - name: Configure fallback DNS
-      ini_file:
-        path: /etc/systemd/resolved.conf
-        section: 'Resolve'
-        option: 'FallbackDNS'
-        value: '1.1.1.1'
-
-    - name: Enable and start iwd (Wi-Fi daemon)
-      systemd:
+    - name: Enable and start iwd
+      ansible.builtin.systemd:
         name: iwd
         enabled: true
         state: started
 
-    - name: Configure iwd to NOT manage Wi-Fi, it lacks integration with systemd-resolved for dns per link etc.
-      ini_file:
-        path: /etc/iwd/main.conf
-        section: 'General'
-        option: 'EnableNetworkConfiguration'
-        value: 'false'
-
-    - name: Install wg-policy hook for systemd-networkd ExecUp/ExecDown
-      copy:
-        dest: /usr/local/bin/wg-policy
-        owner: root
-        group: root
-        mode: '0755'
-        content: |
-          #!/usr/bin/env bash
-          set -euo pipefail
-
-          ACTION="${1:-}"
-          # IFACE="wlan0"   # adjust if you want wlp* detection
-          IFACE="$(iw dev 2>/dev/null | awk '$1=="Interface"{print $2; exit}' || true)"
-          [[ -n "$IFACE" ]] || exit 0
-
-          # Get SSID (empty if not associated)
-          SSID="$(iw dev "$IFACE" link 2>/dev/null | awk -F': ' '/SSID:/{print $2; exit}' || true)"
-
-          # Buckets (edit)
-          NEVER_VPN_SSIDS=("nv2g" "nv5g" "hiournet" "hiournet_5G")
-          ALWAYS_HOME_TUNNEL_SSIDS=("posten.guest")
-          ALWAYS_FULL_TUNNEL_SSIDS=("QDFam" "QDFam-5G")
-
-          in_list() {
-            local needle="$1"; shift
-            local x
-            for x in "$@"; do [[ "$x" == "$needle" ]] && return 0; done
-            return 1
-          }
-
-          down_all() {
-            networkctl down wg-home 2>/dev/null || true
-            networkctl down wg-full 2>/dev/null || true
-          }
-
-          up_home() {
-            networkctl down wg-full 2>/dev/null || true
-            networkctl up wg-home 2>/dev/null || true
-          }
-
-          up_full() {
-            networkctl down wg-home 2>/dev/null || true
-            networkctl up wg-full 2>/dev/null || true
-          }
-
-          case "$ACTION" in
-            up)
-              # If we don't know SSID yet, do nothing (avoid flapping)
-              [[ -n "$SSID" ]] || exit 0
-
-              if in_list "$SSID" "${NEVER_VPN_SSIDS[@]}"; then
-                down_all
-                exit 0
-              fi
-
-              if in_list "$SSID" "${ALWAYS_FULL_TUNNEL_SSIDS[@]}"; then
-                up_full
-                exit 0
-              fi
-
-              if in_list "$SSID" "${ALWAYS_HOME_TUNNEL_SSIDS[@]}"; then
-                up_home
-                exit 0
-              fi
-
-              # Default behavior: bring up wg-home when on “unknown” networks
-              up_home
-              ;;
-            down)
-              down_all
-              ;;
-            *)
-              exit 0
-              ;;
-          esac
-
-    - name: Restart systemd-resolved to apply custom configuration
-      systemd:
-        name: systemd-resolved
+  handlers:
+    - name: Restart systemd-networkd
+      ansible.builtin.systemd:
+        name: systemd-networkd
         state: restarted
+        daemon_reload: true
 
+    - name: Restart iwd
+      ansible.builtin.systemd:
+        name: iwd
+        state: restarted

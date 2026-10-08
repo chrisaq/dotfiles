@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#:desc: manage the Halogen Flash Server Podman container
+#:usage: cq_halogen {start|stop|restart|update|logs|status}
+#:no-args: false
 set -euo pipefail
 
 IMAGE="ghcr.io/peonist-ai/halogen-flash-server:0.17.2"

@@ -1,0 +1,29 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# Ansible managed - do not edit by hand.
+# /etc/systemd/network/{{ t.file_prefix }}-{{ t.link }}.network
+#
+# NOTE ON PERMISSIONS: this file MUST be world-readable (0644). systemd-networkd
+# runs as user "systemd-network" (uid 979); a 0640 root:root file here is
+# silently skipped and you get "No matching .network found" in the journal.
+
+[Match]
+Name={{ t.link }}
+
+[Network]
+Address={{ t.address }}
+DNS={{ t.dns | join(' ') }}
+Domains={{ t.domains | join(' ') }}
+LLMNR=no
+MulticastDNS=no
+
+[Link]
+ActivationPolicy=manual
+
+{% for r in t.routes %}
+[Route]
+Destination={{ r.destination }}
+{% if r.metric is defined %}
+Metric={{ r.metric }}
+{% endif %}
+
+{% endfor %}

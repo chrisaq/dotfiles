@@ -1,6 +1,8 @@
 ---
 - name: Configure user desktop settings
-  hosts: workstation
+  # Was `hosts: workstation`, but no such group exists in inventory/hosts.yml,
+  # so this playbook silently matched zero hosts and never ran.
+  hosts: localhost
   become: false
 
   tasks:

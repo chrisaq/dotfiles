@@ -1,24 +1,53 @@
 #!/bin/env bash
+#
+# Bootstrap a fresh Arch install.
+#
+#   curl -sL https://kotelett.no/installer | bash
+#
+# Installs ansible, pulls the dotfiles, and prints the stage files to run.
+# Stages are deliberately not run automatically - stage 01 needs a reboot
+# before stage 02 can build AUR packages as a normal user.
 
-# This script is used to bootstrap an installation on a new machine
-# Place on an machine available on the internet and run using curl -sL https://whatever.com/new-install.sh | bash
-echo "Installing required packages required by further installation scripts"
-pacman -Suy git gnupg unzip openssh ansible unzip
+set -euo pipefail
 
-systemctl enable sshd --now
+DOTFILES_REPO="https://github.com/chrisaq/dotfiles"
+DOTFILES_BRANCH="master"
 
-# get ansible
-# curl -L https://github.com/your-username/your-repo/archive/refs/heads/main.zip -o dotfiles-master.zip
-curl -L https://github.com/chrisaq/dotfiles/archive/refs/heads/master.zip -o dotfiles-master.zip
-unzip dotfiles-master.zip
-cd dotfiles-master/.config/ansible
+echo "==> Installing ansible and prerequisites"
+pacman -Syu --noconfirm git unzip openssh ansible
 
-ansible-galaxy collection install kewlfft.aur
+echo "==> Enabling sshd"
+systemctl enable --now sshd
 
-echo "Available playbooks:"
-echo "ansible-playbook playbooks/005-install-basics.yml"
-echo "ansible-playbook playbooks/010-network-wired.yml"
-echo "ansible-playbook playbooks/015-network-wifi.yml"
-echo "ansible-playbook playbooks/020-create-user.yml"
-echo "after reboot:"
-echo "ansible-playbook playbooks/050-user-install-aur.yml"
+echo "==> Fetching dotfiles"
+workdir="$(mktemp -d)"
+trap 'rm -rf "$workdir"' EXIT
+
+curl -L "${DOTFILES_REPO}/archive/refs/heads/${DOTFILES_BRANCH}.zip" -o "${workdir}/dotfiles.zip"
+unzip -q "${workdir}/dotfiles.zip" -d "${workdir}"
+cd "${workdir}/dotfiles-${DOTFILES_BRANCH}/.config/ansible"
+
+echo "==> Installing ansible collections"
+ansible-galaxy collection install -r requirements.yml
+
+cat <<'EOF'
+
+Dotfiles are fetched. Run the stages in order:
+
+  # 1. As root, from the install environment or a fresh boot:
+  ansible-playbook install/workstation-stage-01.yml
+  #    -> base packages, network (DHCP + WiFi), user account
+
+  # 2. Reboot, log in as your normal user:
+  ansible-playbook install/workstation-stage-02.yml
+  #    -> workstation packages, AUR, WireGuard tunnels, SSID policy
+
+  # 3. Optional extras:
+  ansible-playbook install/workstation-stage-03.yml
+
+Individual playbooks can be run on their own from this directory, e.g.:
+
+  ansible-playbook playbooks/015-network-wifi.yml
+  ansible-playbook playbooks/100-wireguard.yml
+
+EOF

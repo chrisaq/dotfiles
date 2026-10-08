@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#:desc: WireGuard + systemd-networkd + routing diagnostic snapshot
+#:usage: sudo cq_wg_check [iface...]
+#:no-args: false
 set -euo pipefail
 
 # wg-diag: WireGuard + systemd-networkd + routing snapshot

@@ -1,14 +1,12 @@
 ---
 # install/workstation-stage-03.yml
-# Self hosted apps etc
-- name: MiddleClick
+# Optional per-machine extras. Add what a given box actually needs.
+
+- name: Middle click / desktop settings
   import_playbook: ../playbooks/060-user-desktop-settings.yml
 
-- name: MKDocs
-  import_playbook: ../playbooks/305-mkdocs-setup.yml
-
-- name: Xiaomi Weight
+- name: Xiaomi Scale
   import_playbook: ../playbooks/306-xiaomi-weight.yml
 
-- name: Ollama
-  import_playbook: ../playbooks/307-ollama.yml
+- name: MkDocs
+  import_playbook: ../playbooks/308-mkdocs.yml

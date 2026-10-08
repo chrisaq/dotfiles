@@ -1,64 +1,92 @@
 ---
+# playbooks/011-network-wired-static.yml
+#
+# Static wired configuration. Prompts for every value it needs - previously it
+# asked only for the IP while hardcoding the gateway to 10.1.0.1 and DNS to
+# 10.1.1.1, which was wrong on any network that wasn't yours.
+#
+# Also writes to 20-wired-static.network. The old file was "wired.network" with
+# no numeric prefix, so it sorted AFTER the DHCP playbook's 20-wired.network.
+# networkd applies EVERY matching .network file, so the interface ended up with
+# DHCP and static config fighting over it. The DHCP file is removed here.
+
 - hosts: localhost
   become: true
+  vars_files:
+    - ../vars/network.yml
+
   vars_prompt:
-    - name: "static_ip"
-      prompt: "Enter the static IP address with CIDR (e.g., 192.168.1.100/24)"
+    - name: static_ip
+      prompt: "Static IP with CIDR (e.g. 10.1.0.50/24)"
+      private: false
+
+    - name: static_gateway
+      prompt: "Gateway (e.g. 10.1.0.1)"
+      private: false
+
+    - name: static_dns
+      prompt: "DNS servers, space separated (e.g. 10.1.1.1 1.1.1.1)"
+      private: false
+
+    - name: static_domains
+      prompt: "Search/route domains, space separated (blank for none)"
+      private: false
+
+    - name: static_interface
+      prompt: "Interface match pattern"
+      default: "{{ wired_match }}"
       private: false
 
   tasks:
-    - name: Install systemd-networkd and systemd-resolved (if needed)
-      pacman:
-        name: systemd
-        state: present
-
-    - name: Create network configuration for systemd-networkd using ini_file
-      ini_file:
-        path: /etc/systemd/network/wired.network
-        section: "{{ item.section }}"
-        option: "{{ item.option }}"
-        value: "{{ item.value }}"
+    - name: Remove the DHCP wired config so it cannot conflict
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
       loop:
-        - { section: 'Match', option: 'Name', value: 'enp*' }
-        - { section: 'Network', option: 'Address', value: '{{ static_ip }}' }
-        - { section: 'Network', option: 'Gateway', value: '10.1.0.1' }
-        - { section: 'Network', option: 'DNS', value: '10.1.1.1' }
-        - { section: 'Network', option: 'Metric', value: '100' }
+        - /etc/systemd/network/20-wired.network
+        - /etc/systemd/network/wired.network
+      notify: Restart systemd-networkd
+
+    - name: Render static wired network file
+      ansible.builtin.copy:
+        dest: /etc/systemd/network/20-wired-static.network
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          # Ansible managed - do not edit by hand.
+
+          [Match]
+          Name={{ static_interface }}
+
+          [Network]
+          Address={{ static_ip }}
+          Gateway={{ static_gateway }}
+          DNS={{ static_dns }}
+          {% if static_domains | length > 0 %}
+          Domains={{ static_domains }}
+          {% endif %}
+          LLMNR=no
+          MulticastDNS=no
+      notify: Restart systemd-networkd
 
     - name: Enable and start systemd-networkd
-      systemd:
+      ansible.builtin.systemd:
         name: systemd-networkd
         enabled: true
         state: started
 
-    - name: Enable and start systemd-resolved
-      systemd:
-        name: systemd-resolved
-        enabled: true
-        state: started
+    - name: Configure systemd-resolved
+      ansible.builtin.include_tasks: tasks/resolved.yml
 
-    - name: Ensure /etc/resolv.conf is not immutable
-      command: chattr -i /etc/resolv.conf
-      args:
-        warn: false
-      ignore_errors: yes
+  handlers:
+    - name: Restart systemd-networkd
+      ansible.builtin.systemd:
+        name: systemd-networkd
+        state: restarted
+        daemon_reload: true
 
-    - name: Symlink /etc/resolv.conf to systemd-resolved's stub resolver
-      file:
-        src: /run/systemd/resolve/stub-resolv.conf
-        dest: /etc/resolv.conf
-        state: link
-        force: true
-
-    - name: Configure fallback DNS
-      ini_file:
-        path: /etc/systemd/resolved.conf
-        section: 'Resolve'
-        option: 'FallbackDNS'
-        value: '1.1.1.1'
-
-    - name: Restart systemd-resolved to apply custom configuration
-      systemd:
+    - name: Restart systemd-resolved
+      ansible.builtin.systemd:
         name: systemd-resolved
         state: restarted
-

@@ -1,0 +1,24 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# Ansible managed - do not edit by hand.
+# /etc/systemd/network/20-wired.network
+
+[Match]
+Name={{ wired_match }}
+
+[Network]
+DHCP=yes
+Metric={{ wired_metric }}
+IPv6PrivacyExtensions=yes
+# See the note in wifi.network.j2 - without this, UseDomains=route disqualifies
+# the link from being the default DNS link and unmatched queries hit FallbackDNS.
+DNSDefaultRoute=yes
+
+[DHCPv4]
+UseDNS=yes
+UseDomains=route
+SendHostname=yes
+ClientIdentifier=mac
+
+[IPv6AcceptRA]
+UseDNS=yes
+UseDomains=route

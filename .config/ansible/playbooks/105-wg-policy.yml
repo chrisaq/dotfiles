@@ -1,0 +1,90 @@
+---
+# playbooks/105-wg-policy.yml
+#
+# SSID-aware WireGuard tunnel selection.
+#
+# Runs as a oneshot service on a timer. This replaces the old ExecUp=/ExecDown=
+# approach in 015, which could never work: networkd fires ExecUp when the link
+# comes up, before iwd has associated with an AP, so the script always saw an
+# empty SSID and exited without doing anything.
+#
+# Requires 100-wireguard.yml to have created wg-home / wg-full first.
+
+- hosts: localhost
+  become: true
+  vars_files:
+    - ../vars/network.yml
+
+  tasks:
+    - name: Install wg-policy script
+      ansible.builtin.template:
+        src: templates/wg-policy.sh.j2
+        dest: /usr/local/bin/wg-policy
+        owner: root
+        group: root
+        mode: "0755"
+      notify: Run wg-policy now
+
+    - name: Install wg-policy.service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/wg-policy.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Select WireGuard tunnel based on WiFi SSID
+          After=network-online.target iwd.service systemd-networkd.service
+          Wants=network-online.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/bin/wg-policy
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Reload systemd
+
+    - name: Install wg-policy.timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/wg-policy.timer
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Re-evaluate WireGuard tunnel selection
+
+          [Timer]
+          # Give iwd time to associate after boot before the first run.
+          OnBootSec=30s
+          OnUnitActiveSec=20s
+          AccuracySec=5s
+          # If we missed a window (suspend/resume), run immediately on return.
+          WakeSystem=false
+
+          [Install]
+          WantedBy=timers.target
+      notify: Reload systemd
+
+    - name: Enable and start wg-policy.timer
+      ansible.builtin.systemd:
+        name: wg-policy.timer
+        enabled: true
+        state: started
+
+    - name: Enable wg-policy.service (pulled in by the timer)
+      ansible.builtin.systemd:
+        name: wg-policy.service
+        enabled: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Run wg-policy now
+      ansible.builtin.systemd_service:
+        name: wg-policy.service
+        state: started
+        daemon_reload: true

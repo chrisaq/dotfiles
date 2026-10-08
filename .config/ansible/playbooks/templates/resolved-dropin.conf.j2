@@ -1,0 +1,23 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# Ansible managed - do not edit by hand.
+# /etc/systemd/resolved.conf.d/10-ansible.conf
+#
+# A drop-in is used instead of editing /etc/systemd/resolved.conf so that
+# package updates never leave you with a .pacnew that silently re-enables
+# a global DNS server.
+
+[Resolve]
+# Assigning an empty value CLEARS the inherited list. This is deliberate:
+# it guarantees per-link DNS (DHCP, or DNS= in our .network files) always
+# wins, and nothing is ever queried against a global server in parallel.
+DNS=
+
+# The only global resolver. Used solely when no per-link DNS is known.
+FallbackDNS={{ dns_fallback_servers | join(' ') }}
+
+LLMNR={{ 'yes' if dns_llmnr else 'no' }}
+MulticastDNS={{ 'yes' if dns_mdns else 'no' }}
+DNSStubListener=yes
+Cache=yes
+StaleRetentionSec={{ dns_stale_retention }}
+ResolveUnicastSingleLabel=no

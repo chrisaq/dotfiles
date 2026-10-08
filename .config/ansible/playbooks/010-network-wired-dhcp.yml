@@ -1,57 +1,38 @@
 ---
+# playbooks/010-network-wired-dhcp.yml
+
 - hosts: localhost
   become: true
-  tasks:
-    - name: Install systemd-networkd and systemd-resolved (if needed)
-      pacman:
-        name: systemd
-        state: present
+  vars_files:
+    - ../vars/network.yml
 
-    - name: Create network configuration for systemd-networkd using ini_file
-      ini_file:
-        path: /etc/systemd/network/20-wired.network
-        section: "{{ item.section }}"
-        option: "{{ item.option }}"
-        value: "{{ item.value }}"
-      loop:
-        - { section: 'Match', option: 'Name', value: 'enp*' }
-        - { section: 'Network', option: 'DHCP', value: 'yes' }
-        - { section: 'Network', option: 'Metric', value: '100' }
+  tasks:
+    - name: Render wired DHCP network file
+      ansible.builtin.template:
+        src: templates/wired.network.j2
+        dest: /etc/systemd/network/20-wired.network
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart systemd-networkd
 
     - name: Enable and start systemd-networkd
-      systemd:
+      ansible.builtin.systemd:
         name: systemd-networkd
         enabled: true
         state: started
 
-    - name: Enable and start systemd-resolved
-      systemd:
-        name: systemd-resolved
-        enabled: true
-        state: started
+    - name: Configure systemd-resolved
+      ansible.builtin.include_tasks: tasks/resolved.yml
 
-    - name: Symlink /etc/resolv.conf to systemd-resolved's stub resolver
-      file:
-        src: /run/systemd/resolve/stub-resolv.conf
-        dest: /etc/resolv.conf
-        state: link
+  handlers:
+    - name: Restart systemd-networkd
+      ansible.builtin.systemd:
+        name: systemd-networkd
+        state: restarted
+        daemon_reload: true
 
-    # - name: Configure systemd-resolved with custom DNS settings
-    #   ini_file:
-    #     path: /etc/systemd/resolved.conf
-    #     section: 'Resolve'
-    #     option: 'DNS'
-    #     value: '8.8.8.8'
-
-    - name: Configure fallback DNS
-      ini_file:
-        path: /etc/systemd/resolved.conf
-        section: 'Resolve'
-        option: 'FallbackDNS'
-        value: '1.1.1.1'
-
-    - name: Restart systemd-resolved to apply custom configuration
-      systemd:
+    - name: Restart systemd-resolved
+      ansible.builtin.systemd:
         name: systemd-resolved
         state: restarted
-

@@ -1061,6 +1061,8 @@ class PassTUI(App):
         self.reveal = settings.reveal_by_default
         self.entries: list[str] = []
         self._tree_nodes: dict[str, TreeNode] = {}
+        self._preview_target: Optional[str] = None
+        self._preview_timer = None
         self._pending_g: float = 0.0
         self._clip_task: Optional[asyncio.Task] = None
         self._current: Optional[Secret] = None
@@ -1156,10 +1158,10 @@ class PassTUI(App):
 
         self._tree_nodes = nodes
 
-        # Folder-only hits: show the folder itself, collapsed, so the user opts in
-        # to seeing its contents instead of having them dumped into the results.
-        folder_only_keys: set[str] = set()
-        for fp in sorted(set(folder_paths)):
+        # Folder hits are shown collapsed with their real contents loaded but
+        # hidden, so the user browses into them deliberately.
+        folder_only_keys = set(folder_paths)
+        for fp in sorted(folder_only_keys):
             if fp in nodes:
                 continue
             parent = root
@@ -1173,15 +1175,16 @@ class PassTUI(App):
                     label = f"{part}/" if j == len(parts) - 1 else part
                     node = parent.add(label, data=None)
                     nodes[acc] = node
-                    if j == len(parts) - 1:
-                        folder_only_keys.add(acc)
                 parent = node
 
         if expand_matches:
             # Open every ancestor of a match so matched entries are actually
-            # visible — but leave folder-only hits collapsed on purpose.
+            # visible — but leave folder-only hits (and their subtrees) collapsed
+            # so the user browses into them deliberately.
             for key, node in nodes.items():
-                if key in folder_only_keys:
+                if key in folder_only_keys or any(
+                    key.startswith(f + "/") for f in folder_only_keys
+                ):
                     node.collapse()
                 else:
                     node.expand()
@@ -1256,11 +1259,24 @@ class PassTUI(App):
             return
 
         leaf_paths, folder_paths = self._match(q)
-        self._build_tree(leaf_paths, expand_matches=True, folder_paths=folder_paths)
-        total = len(leaf_paths) + len(folder_paths)
-        if total:
-            extra = f" (+{len(folder_paths)} folders)" if folder_paths else ""
-            self._status(f"{len(leaf_paths)} entries{extra} match", "ok")
+
+        # A matched folder must still be browsable, so pull its real contents into
+        # the tree too. They stay collapsed under the folder-only node until the
+        # user expands it — otherwise searching "google" would hide the entry
+        # named after the address behind it.
+        contents = [
+            e
+            for e in self.entries
+            if any(e.startswith(f + "/") for f in folder_paths)
+            and not any(lp == e for lp in leaf_paths)
+        ]
+        paths = list(dict.fromkeys(leaf_paths + contents))
+
+        self._build_tree(paths, expand_matches=True, folder_paths=folder_paths)
+
+        if paths:
+            extra = f" + {len(folder_paths)} folder(s)" if folder_paths else ""
+            self._status(f"{len(leaf_paths)} match{extra}", "ok")
         else:
             self._status(f"no entries match {q!r}", "warn")
 
@@ -1273,6 +1289,27 @@ class PassTUI(App):
             self.query_one("#tree", Tree).focus()
 
     # -- selection ------------------------------------------------------
+
+    @on(Tree.NodeHighlighted, "#tree")
+    def on_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
+        """Live-preview the entry under the cursor.
+
+        Debounced so holding down j/k does not fire a gopass call per keystroke.
+        """
+        path = event.node.data
+        if not path:
+            return
+        self._preview_target = path
+        if self._preview_timer is not None:
+            self._preview_timer.stop()
+        self._preview_timer = self.set_timer(0.1, self._flush_preview)
+
+    async def _flush_preview(self) -> None:
+        self._preview_timer = None
+        path = self._preview_target
+        if not path or (self._current and self._current.path == path):
+            return
+        await self.load_detail(path)
 
     @on(Tree.NodeSelected, "#tree")
     async def on_node_selected(self, event: Tree.NodeSelected) -> None:

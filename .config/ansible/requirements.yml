@@ -1,0 +1,12 @@
+---
+# ansible-galaxy requirements.
+#   ansible-galaxy collection install -r requirements.yml
+#
+# kewlfft.aur provides the aur module used by 055-user-install-aur.yml.
+# The collection is also vendored in ./collections so an offline run still works;
+# installing it explicitly keeps the version pinned and reproducible.
+collections:
+  - name: kewlfft.aur
+    version: "0.13.0"
+  # pacman is NOT in ansible.builtin - it lives in community.general.
+  - name: community.general

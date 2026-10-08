@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#:desc: build an Arch package for the Concourse fly CLI at a given version
+#:usage: cq_fly_build_package <version>
+#:no-args: false
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then

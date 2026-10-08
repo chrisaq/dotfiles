@@ -1162,6 +1162,9 @@ cq_rspamd_stop() {
     pkill -f "ssh -f -N -L 11334:localhost:11334"
 }
 cq_eik_rdp() {
+: "#:desc: connect to the EIK cloud desktop (cgd-co-login1) via FreeRDP"
+: "#:usage: cq_eik_rdp"
+: "#:no-args: true"
     xfreerdp3 /v:cgd-co-login1.eikplatform.io /u:EIK\\cqvigsta '/auth-pkg-list:none,ntlm' /dynamic-resolution /clipboard
 }
 # k8s aliases and functions

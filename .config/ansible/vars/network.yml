@@ -1,0 +1,107 @@
+---
+# vars/network.yml
+# Single source of truth for all network/DNS/WireGuard settings.
+# Consumed by the templates in playbooks/templates/.
+
+# ─── DNS ─────────────────────────────────────────────────────────────────────
+# IMPORTANT: resolved.conf's DNS= is NOT a fallback. From resolved.conf(5):
+#   "DNS requests are sent to one of the listed DNS servers *in parallel to*
+#    suitable per-link DNS servers acquired from systemd-networkd.service(8)"
+# So a global DNS= fires on *every* query, alongside whatever DHCP gave you.
+#
+# FallbackDNS= is the real fallback:
+#   "This setting is hence only used if no other DNS server information is known."
+#
+# We therefore leave DNS= empty (cleared) and only set FallbackDNS=.
+# Result: DHCP / .network-file DNS always wins; public DNS only when nothing else
+# is known (captive portal with no DNS handed out, cable unplugged, etc).
+dns_fallback_servers:
+  - 1.1.1.1
+  - 8.8.8.8
+
+dns_llmnr: false
+dns_mdns: false
+dns_stale_retention: 1h
+
+# ─── Wired ───────────────────────────────────────────────────────────────────
+wired_match: "enp* eth*"
+wired_metric: 100
+
+# ─── WiFi ────────────────────────────────────────────────────────────────────
+wifi_match: "wl*"
+wifi_metric: 200
+
+# ─── WireGuard ───────────────────────────────────────────────────────────────
+# Private keys are NEVER stored in this repo. They are generated once per machine
+# into wg_key_dir and referenced via PrivateKeyFile= (systemd.netdev(5)).
+# The task prints the matching PUBLIC key so you can paste it into the peer.
+wg_key_file: /etc/systemd/network/keys/wg-private.key
+
+# Shared port for both the local ListenPort and the peer endpoint port.
+# NOTE: both tunnels share this port, so only one may be up at a time.
+# wg-policy enforces that mutual exclusion.
+wg_port: 54321
+wg_endpoint: "home.vannmelon.no:{{ wg_port }}"
+wg_keepalive: 25
+
+wg_home:
+  link: wg-home
+  address: 10.100.0.51/32
+  dns:
+    - 10.1.0.1
+  # Route-only (~) = these suffixes are pinned to the tunnel and NEVER leak.
+  # Suffix matching means ~int.kotelett.no already covers k8s.int.kotelett.no,
+  # but listing both keeps the intent explicit and survives later re-parenting.
+  domains:
+    - "~int.kotelett.no"
+    - "~k8s.int.kotelett.no"
+  allowed_ips:
+    - 10.1.0.0/16
+  # AllowedIPs governs what the tunnel ACCEPTS. The kernel only sends traffic
+  # into the tunnel if a matching route exists, so every AllowedIPs entry that
+  # should actually be reachable needs a corresponding [Route] here.
+  routes:
+    - { destination: 10.1.0.0/16, metric: 50 }
+  peer_public_key: "9gsT++D0Wm8UGM0gTFjJlKB8wrCSYdQiHW/WXRsuhl8="
+  endpoint: "{{ wg_endpoint }}"
+
+wg_full:
+  link: wg-full
+  address: 10.100.0.51/16
+  dns:
+    - 10.1.1.1
+  # "~." = route ALL DNS through this tunnel. Required for a real full tunnel;
+  # without it only the default *route* changes and DNS keeps leaking upstream.
+  domains:
+    - "~."
+  allowed_ips:
+    - 0.0.0.0/0
+    - "::/0"
+  # Metric 50 beats the WiFi link's 200, so this tunnel takes the default
+  # route when it comes up. Without the 0.0.0.0/0 entry below, wg-full is
+  # NOT a full tunnel no matter what AllowedIPs says.
+  routes:
+    - { destination: 0.0.0.0/0, metric: 50 }
+    - { destination: 10.1.0.0/16, metric: 50 }
+  peer_public_key: "p/d8IwOvuJzP3LqYd7yDkYlyyEY9jDD9yUk6k6cq0lg="
+  endpoint: "{{ wg_endpoint }}"
+
+# ─── SSID → tunnel policy (consumed by templates/wg-policy.sh.j2) ────────────
+wg_policy_never_vpn:
+  - nv2g
+  - nv5g
+  - hiournet
+  - hiournet_5G
+  - CQD-Guest
+  - CQD-P21
+  - CQD-Kids
+
+wg_policy_home_tunnel:
+  - posten.guest
+
+wg_policy_full_tunnel:
+  - QDFam
+  - QDFam-5G
+
+# Unknown SSID → bring up this tunnel ("home", "full" or "none")
+wg_policy_default: home

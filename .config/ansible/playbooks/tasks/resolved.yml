@@ -1,0 +1,53 @@
+---
+# playbooks/tasks/resolved.yml
+#
+# Included by every network playbook so DNS is configured identically.
+#
+# The whole point: we clear resolved's global DNS= and only set FallbackDNS=.
+#
+#   DNS=          -> queried IN PARALLEL with per-link DNS on every query.
+#                   Not a fallback. This is what 015 used to set to 8.8.8.8,
+#                   which meant Google answered everything regardless of
+#                   what DHCP or the VPN handed out.
+#   FallbackDNS=  -> "only used if no other DNS server information is known".
+#                   This is the actual fallback behaviour we want.
+#
+# Result: DHCP-provided DNS and the DNS= lines in our .network files always
+# win. Public DNS appears only on a network that gives us nothing.
+
+- name: Ensure resolved drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render resolved drop-in
+  ansible.builtin.template:
+    src: templates/resolved-dropin.conf.j2
+    dest: /etc/systemd/resolved.conf.d/10-ansible.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart systemd-resolved
+
+- name: Remove the legacy global DNS= from the main resolved.conf
+  ansible.builtin.replace:
+    path: /etc/systemd/resolved.conf
+    regexp: '^\s*DNS\s*=.*$'
+    replace: '# DNS= (cleared by /etc/systemd/resolved.conf.d/10-ansible.conf)'
+  notify: Restart systemd-resolved
+
+- name: Enable and start systemd-resolved
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    enabled: true
+    state: started
+
+- name: Point /etc/resolv.conf at the resolved stub
+  ansible.builtin.file:
+    src: /run/systemd/resolve/stub-resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+    force: true

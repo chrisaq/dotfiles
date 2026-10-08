@@ -1,0 +1,28 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# Ansible managed - do not edit by hand.
+# /etc/systemd/network/25-wifi.network
+
+[Match]
+Name={{ wifi_match }}
+
+[Network]
+DHCP=yes
+Metric={{ wifi_metric }}
+IPv6PrivacyExtensions=yes
+# Explicit, not automatic. resolved's automatic mode only makes this link the
+# default DNS link when it has NO routing-only domains - but UseDomains=route
+# below gives it exactly that (~int.kotelett.no), which silently disqualified
+# the router and pushed all unmatched queries to FallbackDNS. Setting it to yes
+# keeps DHCP DNS preferred for everything not claimed by a more specific
+# route-only domain on a tunnel.
+DNSDefaultRoute=yes
+
+[DHCPv4]
+UseDNS=yes
+UseDomains=route
+SendHostname=yes
+ClientIdentifier=mac
+
+[IPv6AcceptRA]
+UseDNS=yes
+UseDomains=route
