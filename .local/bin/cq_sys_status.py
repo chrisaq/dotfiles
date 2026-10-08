@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #:usage: cq_sys_status.py
 #:no-args: true
 #:desc: Show GTK window with PRIMARY and CLIPBOARD contents.

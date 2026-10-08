@@ -18,7 +18,7 @@ len=${#ws[@]}
 for i in "${!ws[@]}"; do
   if [[ "${ws[$i]}" == "$cur" ]]; then
     idx=$(( (i - 1 + len) % len ))   # wraps 0 → len-1
-    hyprctl dispatch workspace "${ws[$idx]}"
+    hyprctl dispatch "hl.dsp.focus({ workspace = ${ws[$idx]} })"
     exit 0
   fi
 done

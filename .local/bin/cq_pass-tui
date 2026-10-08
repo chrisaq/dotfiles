@@ -1,0 +1,1868 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "typer>=0.12.5",
+#   "textual>=8.0",
+#   "pydantic>=2.8",
+#   "pyyaml>=6.0",
+# ]
+# ///
+#:usage: cq_pass-tui [ENTRY] [--store PATH] [--reveal]
+#:no-args: true
+#:desc: Browse, create, edit and manage gopass secrets in a modern TUI.
+
+"""
+cq_pass-tui — a modern TUI browser/manager for a gopass password store.
+
+Design notes
+------------
+* All reads/writes shell out to `gopass` so encryption, git auto-commit, mounts
+  and `fsck` behaviour stay consistent with the rest of the cq_pass toolset.
+* Secret bodies in a real-world store are NOT valid YAML (a free-text title line
+  followed by `key: value` pairs, unquoted colons, JSON fragments, ...). We never
+  re-serialise. We render the raw text with a YAML lexer (pygments does not
+  validate, so it still looks good) and parse *leniently* only to extract fields
+  for copy/preview.
+* The password (first line) and secret-looking fields are masked by default.
+  Press `v` to reveal.
+* Editing goes through $EDITOR when set, otherwise a built-in editor. Both paths
+  write to a temp file and commit with `gopass insert --force`.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Iterable, Optional
+
+import typer
+import yaml
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from rich.console import Group
+from rich.rule import Rule
+from rich.syntax import Syntax
+from rich.table import Table
+from rich.text import Text
+
+from textual import on, work
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Horizontal, Vertical
+from textual.screen import ModalScreen
+from textual.widgets import Button, Footer, Header, Input, Label, ListItem, ListView, Static
+from textual.widgets import TextArea, Tree
+from textual.widgets._tree import TreeNode
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+APP_NAME = "cq_pass-tui"
+CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "cq_pass"
+TEMPLATE_DIR = CONFIG_DIR / "templates"
+SETTINGS_FILE = CONFIG_DIR / "settings.yml"
+
+MASK = "•"
+MASK_MIN = 8
+
+# Placeholder leaf used to materialise a folder (gopass has no mkdir).
+FOLDER_MARKER = ".folder"
+
+# Keys whose values are treated as secret when masking.
+SECRET_KEY_RE = re.compile(
+    r"(password|passwd|pass|secret|token|api[_-]?key|apikey|access[_-]?key|"
+    r"private[_-]?key|pat|pin|otp|totp|code|credential|auth)",
+    re.IGNORECASE,
+)
+
+# A `---` document separator on its own line.
+DOC_SEP_RE = re.compile(r"^\s*---\s*$")
+
+# A lenient `key: value` line (key is a sane identifier-ish thing).
+KV_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9 ._/-]{0,60}):\s?(.*)$")
+
+# Keys that are safe to show while MASKED. This is an allowlist on purpose: the old
+# denylist approach (mask only secret-looking keys) leaked recovery codes, tokens
+# and any other content that was not a plain top-level `key: value` line.
+# Everything not listed here is hidden until revealed.
+SAFE_KEY_RE = re.compile(
+    r"^(user|users|user_?name|login|log_?in|account|account_?name|email|e-?mail|"
+    r"url|uri|link|website|href|host|host_?name|domain|port|path|site|site_?name|"
+    r"name|title|display_?name|comment|created|updated|modified|created_?at|"
+    r"updated_?at|expires|environment|env|region|location|type|category)$",
+    re.IGNORECASE,
+)
+
+
+def mask_token(value: str) -> str:
+    """Dot out a value, roughly preserving its visible length."""
+    return MASK * max(MASK_MIN, min(len(value), 40))
+
+
+def mask_doc(doc_text: str, fields: list[SecretField], *, mask_first_line: bool = False) -> str:
+    """Return a display-safe version of a document.
+
+    Only keys matching SAFE_KEY_RE are shown. Bare `label:` lines are shown as
+    labels (they carry no value). Everything else — secret keys, indented list
+    items, free text — is dotted out.
+    """
+    lines = doc_text.splitlines()
+    out: list[str] = []
+    for i, line in enumerate(lines):
+        if i == 0 and mask_first_line and line.strip():
+            out.append(mask_token(line.strip()))
+            continue
+        if not line.strip():
+            out.append(line)
+            continue
+
+        indent = line[: len(line) - len(line.lstrip())]
+        stripped = line.strip()
+        m = KV_RE.match(stripped)
+        if m:
+            key = m.group(1).strip()
+            val = m.group(2).strip()
+            if not val:
+                out.append(f"{indent}{key}:")
+            elif SAFE_KEY_RE.match(key):
+                out.append(line)
+            else:
+                out.append(f"{indent}{key}: {mask_token(val)}")
+            continue
+        # Unstructured content (list items, prose, codes) -> hidden.
+        out.append(f"{indent}{mask_token(stripped)}")
+    return "\n".join(out)
+
+GENERATOR_CHARSETS = {
+    "alphanumeric": "abcdefghijklmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789",
+    "numeric": "0123456789",
+}
+
+
+# ---------------------------------------------------------------------------
+# Errors
+# ---------------------------------------------------------------------------
+
+
+class CqPassError(Exception):
+    """Base error; message is safe to show in the UI."""
+
+
+class GopassError(CqPassError):
+    pass
+
+
+class TemplateError(CqPassError):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
+
+
+class TemplateField(BaseModel):
+    """One prompt in the 'new secret' form."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    prompt: Optional[str] = None
+    required: bool = True
+    default: str = ""
+
+    @property
+    def label(self) -> str:
+        return self.prompt or self.name.replace("_", " ").title()
+
+
+class Template(BaseModel):
+    """A secret template: suggested path + initial content.
+
+    `content` is the full initial secret text. `{{ placeholder }}` tokens are
+    filled from the form values plus `{{ password }}`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    description: str = ""
+    prefix: str = ""
+    fields: list[TemplateField] = Field(default_factory=list)
+    content: str = "{{ password }}"
+    filename: str = ""
+
+    @property
+    def is_empty(self) -> bool:
+        return self.content.strip() == "{{ password }}"
+
+
+class Settings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    store: Optional[str] = None
+    clip_timeout: int = 15
+    reveal_by_default: bool = False
+    editor: Optional[str] = None
+    browser: Optional[str] = None
+    # gopass 1.16 always makes a local commit on write and exposes no per-command
+    # way to skip it (there is no `git.auto_commit` key). We keep the commit — it is
+    # the only undo for a botched secret edit — but let the message be labelled.
+    commit_message: Optional[str] = None
+
+
+class SecretField(BaseModel):
+    """A field extracted from a secret body by the lenient parser."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    key: str
+    value: str
+    is_secret: bool = False
+
+
+@dataclass
+class SecretDoc:
+    """One `---` separated document of a secret."""
+
+    raw: str
+    index: int
+    fields: list[SecretField] = field(default_factory=list)
+    is_plain: bool = False  # no key/value structure at all
+
+
+@dataclass
+class Secret:
+    path: str
+    name: str
+    docs: list[SecretDoc] = field(default_factory=list)
+    raw: str = ""
+
+    @property
+    def password(self) -> str:
+        line = self.raw.splitlines()[0] if self.raw else ""
+        return line.strip()
+
+    def first_value(self, *keys: str) -> Optional[str]:
+        wanted = {k.lower() for k in keys}
+        for doc in self.docs:
+            for f in doc.fields:
+                if f.key.lower() in wanted:
+                    return f.value
+        return None
+
+    @property
+    def username(self) -> Optional[str]:
+        return self.first_value("username", "user", "login", "account", "email", "mail")
+
+    @property
+    def url(self) -> Optional[str]:
+        return self.first_value("url", "uri", "link", "website", "site", "host")
+
+
+# ---------------------------------------------------------------------------
+# Store / gopass layer
+# ---------------------------------------------------------------------------
+
+
+def resolve_store(explicit: Optional[str] = None, settings: Optional[Settings] = None) -> Path:
+    for candidate in (
+        explicit,
+        (settings.store if settings else None),
+        os.environ.get("PASSWORD_STORE_DIR"),
+        str(Path.home() / ".password-store"),
+    ):
+        if not candidate:
+            continue
+        p = Path(candidate).expanduser()
+        if p.is_dir():
+            return p.resolve()
+    raise CqPassError(
+        "No password store found.\n"
+        "Set $PASSWORD_STORE_DIR, pass --store, or configure settings.yml"
+    )
+
+
+def gopass(*args: str, stdin: Optional[str] = None, timeout: int = 120) -> str:
+    """Run gopass, return stdout. Raise GopassError with a UI-safe message."""
+    if shutil.which("gopass") is None:
+        raise GopassError("gopass is not installed or not on $PATH")
+    try:
+        proc = subprocess.run(
+            ["gopass", *args],
+            input=stdin,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise GopassError(f"gopass {' '.join(args)} timed out") from exc
+
+    if proc.returncode != 0:
+        msg = (proc.stderr or proc.stdout or "").strip()
+        # Never echo secret material that gopass may have printed.
+        msg = "\n".join(msg.splitlines()[:4])
+        raise GopassError(msg or f"gopass {' '.join(args[:1])} failed")
+    return proc.stdout
+
+
+def list_entries() -> list[str]:
+    out = gopass("ls", "--flat")
+    return sorted({line.strip() for line in out.splitlines() if line.strip()})
+
+
+def read_secret(path: str) -> Secret:
+    raw = gopass("show", "--noparsing", "--force", path)
+    return build_secret(path, raw)
+
+
+def write_secret(path: str, content: str, commit_message: Optional[str] = None) -> None:
+    args = ["insert", "--force"]
+    if commit_message:
+        args += ["--commit-message", commit_message]
+    args.append(path)
+    gopass(*args, stdin=content)
+
+
+# ---------------------------------------------------------------------------
+# Lenient parsing + masking
+# ---------------------------------------------------------------------------
+
+
+def split_docs(raw: str) -> list[tuple[int, str]]:
+    """Split raw secret text on standalone `---` lines, keeping order."""
+    docs: list[tuple[int, str]] = []
+    buf: list[str] = []
+    idx = 0
+    for line in raw.splitlines():
+        if DOC_SEP_RE.match(line):
+            docs.append((idx, "\n".join(buf)))
+            buf = []
+            idx += 1
+        else:
+            buf.append(line)
+    docs.append((idx, "\n".join(buf)))
+    return docs
+
+
+def parse_fields(doc_text: str) -> list[SecretField]:
+    """Extract key/value pairs without requiring valid YAML."""
+    fields: list[SecretField] = []
+    # Fast path: strict YAML when it happens to be valid.
+    try:
+        loaded = yaml.safe_load(doc_text)
+        if isinstance(loaded, dict):
+            for k, v in loaded.items():
+                sval = v if isinstance(v, str) else yaml.safe_dump(v, default_flow_style=True).strip()
+                fields.append(
+                    SecretField(key=str(k), value=sval, is_secret=bool(SECRET_KEY_RE.search(str(k))))
+                )
+            return fields
+    except Exception:
+        pass
+
+    # Lenient path: line scan.
+    for line in doc_text.splitlines():
+        if not line.strip() or line.startswith((" ", "\t", "#")):
+            continue
+        m = KV_RE.match(line)
+        if m:
+            key, value = m.group(1).strip(), m.group(2).strip()
+            if key and len(key.split()) <= 4:
+                fields.append(
+                    SecretField(key=key, value=value, is_secret=bool(SECRET_KEY_RE.search(key)))
+                )
+    return fields
+
+
+def build_secret(path: str, raw: str) -> Secret:
+    name = path.rsplit("/", 1)[-1] if "/" in path else path
+    docs: list[SecretDoc] = []
+    for idx, text in split_docs(raw):
+        fields = parse_fields(text)
+        docs.append(
+            SecretDoc(raw=text, index=idx, fields=fields, is_plain=not fields and bool(text.strip()))
+        )
+    return Secret(path=path, name=name, docs=docs, raw=raw)
+
+
+# ---------------------------------------------------------------------------
+# Fuzzy matching
+# ---------------------------------------------------------------------------
+
+
+def fuzzy_score(query: str, text: str) -> Optional[float]:
+    """Cheap fzf-ish subsequence score. Higher is better; None means no match."""
+    if not query:
+        return 0.0
+    q, t = query.lower(), text.lower()
+    if q in t:
+        return 1000.0 - t.index(q) - len(t) * 0.01
+    score = 0.0
+    pos = 0
+    for ch in q:
+        found = t.find(ch, pos)
+        if found == -1:
+            return None
+        if found == 0 or t[found - 1] in "/._- @:":
+            score += 8
+        else:
+            score += 1
+        pos = found + 1
+    return score - len(t) * 0.01
+
+
+# ---------------------------------------------------------------------------
+# Templates
+# ---------------------------------------------------------------------------
+
+DEFAULT_TEMPLATES: list[dict[str, Any]] = [
+    {
+        "name": "Empty",
+        "description": "Just a password. No body.",
+        "prefix": "",
+        "fields": [],
+        "content": "{{ password }}\n",
+    },
+    {
+        "name": "Website login",
+        "description": "Username + password + URL, under Accounts/.",
+        "prefix": "Accounts",
+        "fields": [
+            {"name": "domain", "prompt": "Domain", "default": ""},
+            {"name": "username", "prompt": "Username", "default": ""},
+        ],
+        "content": (
+            "{{ password }}\n"
+            "---\n"
+            "username: {{ username }}\n"
+            "url: https://{{ domain }}\n"
+        ),
+    },
+    {
+        "name": "API token",
+        "description": "Service + token (+ optional URL).",
+        "prefix": "Accounts/api",
+        "fields": [
+            {"name": "service", "prompt": "Service", "default": ""},
+            {"name": "url", "prompt": "API URL", "required": False, "default": ""},
+        ],
+        "content": (
+            "{{ password }}\n"
+            "---\n"
+            "service: {{ service }}\n"
+            "url: {{ url }}\n"
+        ),
+    },
+    {
+        "name": "Server / SSH",
+        "description": "Host, user, port and password.",
+        "prefix": "SelfHosted",
+        "fields": [
+            {"name": "host", "prompt": "Host", "default": ""},
+            {"name": "user", "prompt": "User", "default": "root"},
+            {"name": "port", "prompt": "Port", "default": "22"},
+        ],
+        "content": (
+            "{{ password }}\n"
+            "---\n"
+            "host: {{ host }}\n"
+            "user: {{ user }}\n"
+            "port: {{ port }}\n"
+        ),
+    },
+    {
+        "name": "PIN code",
+        "description": "Numeric PIN with authority + application.",
+        "prefix": "pin",
+        "fields": [
+            {"name": "authority", "prompt": "Authority", "default": ""},
+            {"name": "application", "prompt": "Application", "default": ""},
+        ],
+        "content": (
+            "{{ password }}\n"
+            "---\n"
+            "authority: {{ authority }}\n"
+            "application: {{ application }}\n"
+        ),
+    },
+]
+
+
+def ensure_config() -> None:
+    """Create the config dir and default templates on first run."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    TEMPLATE_DIR.mkdir(parents=True, exist_ok=True)
+    if not SETTINGS_FILE.exists():
+        SETTINGS_FILE.write_text(
+            yaml.safe_dump(
+                {
+                    "clip_timeout": 15,
+                    "reveal_by_default": False,
+                    "# editor": "defaults to $EDITOR, then nvim",
+                },
+                sort_keys=False,
+            )
+        )
+    if not any(TEMPLATE_DIR.glob("*.yml")) and not any(TEMPLATE_DIR.glob("*.yaml")):
+        for tpl in DEFAULT_TEMPLATES:
+            slug = re.sub(r"[^a-z0-9]+", "-", tpl["name"].lower()).strip("-")
+            path = TEMPLATE_DIR / f"{slug}.yml"
+            payload = {k: v for k, v in tpl.items()}
+            path.write_text(
+                "# cq_pass-tui secret template\n" + yaml.safe_dump(payload, sort_keys=False),
+            )
+
+
+def load_templates() -> list[Template]:
+    ensure_config()
+    templates: list[Template] = []
+    for path in sorted(list(TEMPLATE_DIR.glob("*.yml")) + list(TEMPLATE_DIR.glob("*.yaml"))):
+        try:
+            data = yaml.safe_load(path.read_text()) or {}
+            if not isinstance(data, dict):
+                continue
+            data.setdefault("name", path.stem)
+            data["filename"] = path.name
+            templates.append(Template.model_validate(data))
+        except (ValidationError, yaml.YAMLError) as exc:
+            # A broken template must not take the whole app down.
+            templates.append(
+                Template(
+                    name=f"{path.stem} (invalid: {str(exc).splitlines()[0][:60]})",
+                    description="This template failed to parse and cannot be used.",
+                    content="{{ password }}",
+                    filename=path.name,
+                )
+            )
+    if not templates:
+        templates = [Template.model_validate({**t, "filename": "<builtin>"}) for t in DEFAULT_TEMPLATES]
+    # Empty template first — it is the default.
+    templates.sort(key=lambda t: (not t.is_empty, t.name.lower()))
+    return templates
+
+
+def render_template(tpl: Template, values: dict[str, str], password: str) -> str:
+    ctx = {f.name: values.get(f.name, "") for f in tpl.fields}
+    ctx["password"] = password
+
+    def sub(match: re.Match[str]) -> str:
+        key = match.group(1).strip()
+        return str(ctx.get(key, match.group(0)))
+
+    text = re.sub(r"\{\{\s*([\w_]+)\s*\}\}", sub, tpl.content)
+    if not text.endswith("\n"):
+        text += "\n"
+    return text
+
+
+def suggest_path(tpl: Template, values: dict[str, str]) -> str:
+    parts: list[str] = []
+    if tpl.prefix:
+        parts.append(tpl.prefix.strip("/"))
+    for key in ("domain", "service", "host", "authority", "application", "name"):
+        v = values.get(key, "").strip()
+        if v:
+            parts.append(v.strip("/"))
+            break
+    user = values.get("username", "").strip()
+    if user:
+        parts.append(user.strip("/"))
+    return "/".join(p for p in parts if p)
+
+
+# ---------------------------------------------------------------------------
+# Clipboard
+# ---------------------------------------------------------------------------
+
+
+def clip_tool() -> Optional[tuple[str, list[str]]]:
+    """Return (tool, args) able to copy, or None."""
+    if os.environ.get("WAYLAND_DISPLAY") and shutil.which("wl-copy"):
+        return ("wl-copy", ["wl-copy"])
+    for name in ("wl-copy", "xclip", "xsel"):
+        if shutil.which(name):
+            if name == "xclip":
+                return (name, [name, "-selection", "clipboard"])
+            if name == "xsel":
+                return (name, [name, "--clipboard", "--input"])
+            return (name, [name])
+    return None
+
+
+def copy_text(text: str, *, primary: bool = False) -> None:
+    if os.environ.get("WAYLAND_DISPLAY") and shutil.which("wl-copy"):
+        args = ["wl-copy", "--primary"] if primary else ["wl-copy"]
+        subprocess.run(args, input=text, text=True, check=False)
+        return
+    for name in ("xclip", "xsel"):
+        if shutil.which(name):
+            args = (
+                [name, "-selection", "primary"]
+                if primary
+                else ([name, "--primary", "--input"] if name == "xsel" else [name, "-selection", "clipboard"])
+            )
+            subprocess.run(args, input=text, text=True, check=False)
+            return
+    raise CqPassError("No clipboard tool found (need wl-copy, xclip or xsel)")
+
+
+def clear_clipboard() -> None:
+    try:
+        if shutil.which("wl-copy"):
+            subprocess.run(["wl-copy", "-c"], check=False)
+        elif shutil.which("xclip"):
+            subprocess.run(["xclip", "-selection", "clipboard", "-i", "/dev/null"], check=False)
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# UI helpers
+# ---------------------------------------------------------------------------
+
+
+def doc_renderable(doc: SecretDoc, reveal: bool) -> Any:
+    """Nice-looking rendering of one document."""
+    text = doc.raw if (reveal or not doc.raw.strip()) else mask_doc(
+        doc.raw, doc.fields, mask_first_line=(doc.index == 0)
+    )
+    if not text.strip():
+        return Text("(empty)", style="dim italic")
+    return Syntax(
+        text,
+        "yaml",
+        theme="monokai" if not reveal else "dracula",
+        word_wrap=True,
+        background_color="default",
+        line_numbers=False,
+    )
+
+
+def secret_renderable(secret: Secret, reveal: bool) -> Any:
+    parts: list[Any] = []
+    for i, doc in enumerate(secret.docs):
+        if i:
+            parts.append(Text(""))
+            parts.append(Rule(style="grey37", characters="─"))
+            parts.append(Text(f"  document {i + 1}", style="bold cyan"))
+        parts.append(doc_renderable(doc, reveal))
+    return Group(*parts)
+
+
+# ---------------------------------------------------------------------------
+# Modal screens
+# ---------------------------------------------------------------------------
+
+
+class PromptScreen(ModalScreen[Optional[str]]):
+    """Generic single-line prompt."""
+
+    CSS = """
+    PromptScreen { align: center middle; }
+    #prompt-box {
+        width: 72; min-width: 52; max-width: 92; height: auto;
+        border: round $accent; background: $surface; padding: 1 2;
+    }
+    #prompt-title { text-style: bold; margin-bottom: 1; }
+    #prompt-help { color: $text-muted; margin-top: 1; }
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, title: str, *, default: str = "", placeholder: str = "", help: str = "") -> None:
+        super().__init__()
+        self._title = title
+        self._default = default
+        self._placeholder = placeholder
+        self._help = help
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="prompt-box"):
+            yield Label(self._title, id="prompt-title")
+            yield Input(value=self._default, placeholder=self._placeholder, id="prompt-input")
+            if self._help:
+                yield Label(self._help, id="prompt-help")
+
+    def on_mount(self) -> None:
+        self.query_one(Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        value = event.value.strip()
+        self.dismiss(value or None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class ConfirmScreen(ModalScreen[bool]):
+    CSS = """
+    ConfirmScreen { align: center middle; }
+    #confirm-box {
+        width: 68; min-width: 48; height: auto;
+        border: round $error; background: $surface; padding: 1 2;
+    }
+    #confirm-title { text-style: bold; }
+    #confirm-body { margin: 1 0; }
+    #confirm-buttons { height: auto; content-align: center middle; }
+    #confirm-buttons Button { margin: 0 1; }
+    """
+
+    BINDINGS = [
+        Binding("escape", "no", "No"),
+        Binding("y", "yes", "Yes"),
+        Binding("n", "no", "No"),
+    ]
+
+    def __init__(self, title: str, body: str, *, danger: bool = True) -> None:
+        super().__init__()
+        self._title = title
+        self._body = body
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="confirm-box"):
+            yield Label(self._title, id="confirm-title")
+            yield Label(self._body, id="confirm-body")
+            with Horizontal(id="confirm-buttons"):
+                yield Button("Yes", variant="error", id="yes")
+                yield Button("No", variant="primary", id="no")
+
+    def on_mount(self) -> None:
+        self.query_one("#no", Button).focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "yes")
+
+    def action_yes(self) -> None:
+        self.dismiss(True)
+
+    def action_no(self) -> None:
+        self.dismiss(False)
+
+
+class TemplatePickerScreen(ModalScreen[Optional[Template]]):
+    """Pick a template; shows a live preview of the rendered content."""
+
+    CSS = """
+    TemplatePickerScreen { align: center middle; }
+    #tpl-box {
+        width: 3fr; min-width: 78; max-width: 110; height: 30;
+        border: round $accent; background: $surface; padding: 1 2;
+    }
+    #tpl-title { text-style: bold; margin-bottom: 1; }
+    #tpl-list { height: 1fr; border: round $panel; }
+    #tpl-preview { height: 8; margin-top: 1; border: round $panel; overflow-y: auto; padding: 0 1; }
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, templates: list[Template]) -> None:
+        super().__init__()
+        self._templates = templates
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="tpl-box"):
+            yield Label("New secret — choose a template", id="tpl-title")
+            yield ListView(
+                *[
+                    ListItem(
+                        Label(
+                            Text.assemble(
+                                (f"{t.name}", "bold"),
+                                (f"  —  {t.description}" if t.description else "", "dim"),
+                            )
+                        ),
+                        name=t.name,
+                    )
+                    for t in self._templates
+                ],
+                id="tpl-list",
+            )
+            yield Static("", id="tpl-preview")
+
+    def on_mount(self) -> None:
+        lv = self.query_one("#tpl-list")
+        if self._templates:
+            lv.index = 0
+            self._show(0)
+        lv.focus()
+
+    def _show(self, idx: int) -> None:
+        tpl = self._templates[idx]
+        preview = tpl.content
+        if "{{" in preview:
+            for f in tpl.fields:
+                preview = preview.replace("{{ " + f.name + " }}", f"<{f.name}>")
+            preview = preview.replace("{{ password }}", "<password>")
+        self.query_one("#tpl-preview", Static).update(
+            Syntax(preview, "yaml", theme="monokai", background_color="default")
+        )
+
+    @on(ListView.Selected, "#tpl-list")
+    def _selected(self, event) -> None:
+        if event.index is not None and 0 <= event.index < len(self._templates):
+            self.dismiss(self._templates[event.index])
+
+    def on_list_view_highlighted(self, event) -> None:
+        # ListView.Highlighted carries `.item`, not `.index`.
+        idx = event.list_view.index
+        if idx is not None:
+            self._show(idx)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class EditorScreen(ModalScreen[Optional[str]]):
+    """Built-in editor used when $EDITOR is unset/unavailable."""
+
+    CSS = """
+    EditorScreen { align: center middle; }
+    #ed-box {
+        width: 90%; height: 88%;
+        border: round $accent; background: $surface; padding: 1 1 0 1;
+    }
+    #ed-head { height: 1; }
+    #ed-area { height: 1fr; border: round $panel; }
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", priority=True),
+        Binding("ctrl+s", "save", "Save"),
+    ]
+
+    def __init__(self, text: str, *, title: str = "Edit secret") -> None:
+        super().__init__()
+        self._text = text
+        self._title = title
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="ed-box"):
+            yield Label(
+                Text.assemble(
+                    (self._title, "bold"),
+                    ("   Ctrl+S save · Esc cancel", "dim"),
+                ),
+                id="ed-head",
+            )
+            yield TextArea(self._text, language="yaml", id="ed-area")
+
+    def on_mount(self) -> None:
+        self.query_one(TextArea).focus()
+
+    def action_save(self) -> None:
+        self.dismiss(self.query_one(TextArea).text)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class HelpScreen(ModalScreen[None]):
+    """Key reference. Rendered as a table so columns always align."""
+
+    CSS = """
+    HelpScreen { align: center middle; }
+    #help-box {
+        width: 100; max-width: 118; height: auto;
+        border: round $accent; background: $surface; padding: 1 3;
+    }
+    #help-title { content-align: center middle; margin-bottom: 1; }
+    #help-foot { content-align: center middle; margin-top: 1; color: $text-muted; }
+    """
+
+    BINDINGS = [Binding("escape, q, question_mark", "close", "Close")]
+
+    SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
+        (
+            "Navigate",
+            [
+                ("j / ↓", "down"),
+                ("k / ↑", "up"),
+                ("h / ←", "collapse · parent"),
+                ("l / →", "expand folder"),
+                ("enter", "open · copy password"),
+                ("space", "toggle node"),
+                ("shift+space", "toggle all"),
+                ("tab", "switch pane"),
+            ],
+        ),
+        (
+            "Search",
+            [
+                ("/", "filter vault"),
+                ("esc", "clear filter"),
+            ],
+        ),
+        (
+            "Copy & open",
+            [
+                ("y", "copy password"),
+                ("Y", "copy username"),
+                ("u", "copy URL"),
+                ("o", "open URL in browser"),
+                ("t", "TOTP code"),
+                ("v", "toggle reveal"),
+            ],
+        ),
+        (
+            "Vault",
+            [
+                ("n", "new secret"),
+                ("d", "new folder"),
+                ("e", "edit ($EDITOR / built-in)"),
+                ("P", "generate password"),
+                ("r", "rename / move"),
+                ("D", "delete"),
+            ],
+        ),
+        (
+            "App",
+            [
+                ("ctrl+r", "rescan store"),
+                ("?", "this help"),
+                ("q", "quit"),
+            ],
+        ),
+    ]
+
+    def _build(self) -> Table:
+        table = Table(
+            box=None,
+            show_header=False,
+            pad_edge=False,
+            padding=(0, 2),
+            collapse_padding=True,
+            expand=True,
+        )
+        table.add_column(justify="right", style="bold bright_cyan", no_wrap=True, width=12)
+        table.add_column(style="grey78", no_wrap=True, ratio=1)
+        table.add_column(justify="right", style="bold bright_cyan", no_wrap=True, width=12)
+        table.add_column(style="grey78", no_wrap=True, ratio=1)
+
+        for title, pairs in self.SECTIONS:
+            table.add_row(Text(title, style="bold cyan", justify="left"), "", "", "")
+            half = (len(pairs) + 1) // 2
+            left, right = pairs[:half], pairs[half:]
+            for i in range(half):
+                lk, ld = left[i]
+                rk, rd = right[i] if i < len(right) else ("", "")
+                table.add_row(lk, ld, rk, rd)
+            table.add_section()
+
+        return table
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="help-box"):
+            yield Label(Text("cq_pass-tui  ·  keyboard", style="bold cyan"), id="help-title")
+            yield Static(self._build(), id="help-body")
+            yield Label(Text("esc / q to close", style="dim"), id="help-foot")
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+
+# ---------------------------------------------------------------------------
+# Main app
+# ---------------------------------------------------------------------------
+
+
+class PassTUI(App):
+    TITLE = APP_NAME
+
+    CSS = """
+    Screen { background: $surface; }
+
+    #top {
+        dock: top; height: 1; padding: 0 1;
+        background: $primary; color: $text;
+    }
+    #top .muted { color: $text; opacity: 0.75; }
+
+    #filter-bar { height: 3; padding: 0 1; }
+    #filter { width: 100%; }
+
+    #main { height: 1fr; }
+
+    #left {
+        width: 38%; min-width: 28; max-width: 56;
+        border: round $panel; margin: 0 1 0 0;
+    }
+    #right {
+        width: 1fr;
+        border: round $panel; padding: 0 1; overflow-y: auto;
+    }
+
+    #status {
+        dock: bottom; height: 1; padding: 0 1;
+        background: $panel; color: $text;
+    }
+    #status .ok { color: $success; }
+    #status .warn { color: $warning; }
+    #status .err { color: $error; }
+    #status .muted { color: $text-muted; }
+
+    #empty {
+        width: 1fr; height: 1fr; content-align: center middle;
+        color: $text-muted; text-style: italic;
+    }
+
+    Tree { height: 1fr; }
+    """
+
+    BINDINGS = [
+        Binding("q", "quit", "Quit", priority=True),
+        Binding("question_mark", "help", "Help", priority=True),
+        Binding("slash", "focus_filter", "Filter", priority=True),
+        Binding("ctrl_r", "rescan", "Rescan", priority=True),
+        Binding("v", "toggle_reveal", "Reveal"),
+        Binding("y", "copy_password", "Copy pass"),
+        Binding("Y", "copy_username", "Copy user"),
+        Binding("u", "copy_url", "Copy URL"),
+        Binding("o", "open_url", "Open URL"),
+        Binding("t", "totp", "TOTP"),
+        Binding("n", "new_secret", "New"),
+        Binding("d", "new_folder", "New dir"),
+        Binding("e", "edit_secret", "Edit"),
+        Binding("P", "generate", "Generate"),
+        Binding("r", "rename_move", "Rename"),
+        Binding("D", "delete_secret", "Delete"),
+        Binding("enter", "open_entry", "Open"),
+        # vi-style navigation (arrows are built into Tree already). These delegate
+        # explicitly: an App-level binding cannot resolve Tree's own actions.
+        Binding("j", "vi_down", show=False),
+        Binding("k", "vi_up", show=False),
+        Binding("h", "vi_left", show=False),
+        Binding("l", "vi_right", show=False),
+        # Tree only binds shift+left / shift+right; plain arrows are unbound.
+        Binding("left", "vi_left", show=False),
+        Binding("right", "vi_right", show=False),
+    ]
+
+    def __init__(
+        self,
+        store: Path,
+        settings: Settings,
+        templates: list[Template],
+        initial_entry: Optional[str] = None,
+    ) -> None:
+        super().__init__()
+        self.store = store
+        self.settings = settings
+        self.templates = templates
+        self.initial_entry = initial_entry
+        self.reveal = settings.reveal_by_default
+        self.entries: list[str] = []
+        self._tree_nodes: dict[str, TreeNode] = {}
+        self._pending_g: float = 0.0
+        self._clip_task: Optional[asyncio.Task] = None
+        self._current: Optional[Secret] = None
+
+    # -- layout ---------------------------------------------------------
+
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=False)
+        with Vertical(id="top"):
+            yield Label("", id="top-label")
+        with Vertical(id="filter-bar"):
+            yield Input(placeholder="Filter vault…  (Esc clears)", id="filter")
+        with Horizontal(id="main"):
+            with Vertical(id="left"):
+                yield Tree("Vault", id="tree")
+            with Vertical(id="right"):
+                yield Static("", id="detail")
+        with Vertical(id="status"):
+            yield Label("", id="status-label")
+        yield Footer()
+
+    async def on_mount(self) -> None:
+        self._paint_chrome()
+        tree = self.query_one("#tree", Tree)
+        tree.show_root = False
+        tree.guide_depth = 2
+        await self.rescan(select=self.initial_entry)
+        self.query_one("#detail", Static).update(
+            Text("Select an entry on the left.\n\nPress ? for keys.", style="dim italic")
+        )
+        # Action keys (y/e/n/D…) must land on the tree, not the filter Input.
+        self.query_one("#tree", Tree).focus()
+
+    # -- chrome ---------------------------------------------------------
+
+    def _paint_chrome(self) -> None:
+        reveal_txt = (
+            Text("REVEALED", style="bold bright_white on dark_red")
+            if self.reveal
+            else Text("masked", style="dim")
+        )
+        self.query_one("#top-label", Label).update(
+            Text.assemble(
+                (f" {APP_NAME} ", "bold"),
+                ("  store: ", "dim"),
+                (str(self.store), "white"),
+                ("   ", "dim"),
+                reveal_txt,
+            )
+        )
+
+    # Semantic status levels -> rich style strings (CSS class names are not rich styles).
+    _STATUS_STYLE = {
+        "ok": "bright_green",
+        "warn": "bright_yellow",
+        "err": "bright_red",
+        "muted": "dim",
+    }
+
+    def _status(self, msg: str, cls: str = "muted") -> None:
+        style = self._STATUS_STYLE.get(cls, "dim")
+        self.query_one("#status-label", Label).update(
+            Text.assemble((f" {msg}", style), ("   ? keys", "dim"))
+        )
+
+    # -- tree -----------------------------------------------------------
+
+    def _build_tree(
+        self,
+        paths: Iterable[str],
+        *,
+        expand_matches: bool = False,
+        folder_paths: Iterable[str] = (),
+    ) -> None:
+        tree = self.query_one("#tree", Tree)
+        tree.clear()
+        root = tree.root
+        root.remove_children()
+        nodes: dict[str, TreeNode] = {}
+
+        for path in sorted(paths):
+            parts = path.split("/")
+            parent = root
+            acc = ""
+            for part in parts[:-1]:
+                acc = f"{acc}/{part}" if acc else part
+                node = nodes.get(acc)
+                if node is None:
+                    node = parent.add(part, data=None)
+                    nodes[acc] = node
+                parent = node
+            parent.add_leaf(parts[-1], data=path)
+
+        self._tree_nodes = nodes
+
+        # Folder-only hits: show the folder itself, collapsed, so the user opts in
+        # to seeing its contents instead of having them dumped into the results.
+        folder_only_keys: set[str] = set()
+        for fp in sorted(set(folder_paths)):
+            if fp in nodes:
+                continue
+            parent = root
+            acc = ""
+            parts = fp.split("/")
+            for j, part in enumerate(parts):
+                acc = f"{acc}/{part}" if acc else part
+                node = nodes.get(acc)
+                if node is None:
+                    # Only the matched folder itself gets the trailing '/' marker.
+                    label = f"{part}/" if j == len(parts) - 1 else part
+                    node = parent.add(label, data=None)
+                    nodes[acc] = node
+                    if j == len(parts) - 1:
+                        folder_only_keys.add(acc)
+                parent = node
+
+        if expand_matches:
+            # Open every ancestor of a match so matched entries are actually
+            # visible — but leave folder-only hits collapsed on purpose.
+            for key, node in nodes.items():
+                if key in folder_only_keys:
+                    node.collapse()
+                else:
+                    node.expand()
+        else:
+            # Unfiltered view: everything collapsed for a calm starting point.
+            for child in root.children:
+                child.collapse()
+
+    def _match(self, q: str) -> tuple[list[str], list[str]]:
+        """Return (leaf_paths, folder_paths) for a filter query.
+
+        Leaf hits match on the entry's own name. Folder hits match an ancestor
+        folder's name and are returned collapsed so a folder query does not drag
+        every sibling entry into the results.
+        """
+        if not q:
+            return list(self.entries), []
+
+        leaf_hits: list[tuple[float, str]] = []
+        path_hits: list[tuple[float, str]] = []
+        folder_hits: list[str] = []
+
+        for p in self.entries:
+            leaf = p.rsplit("/", 1)[-1] if "/" in p else p
+            s_leaf = fuzzy_score(q, leaf)
+            if s_leaf is not None:
+                leaf_hits.append((s_leaf, p))
+                continue
+            if "/" in q:
+                s_path = fuzzy_score(q, p)
+                if s_path is not None:
+                    path_hits.append((s_path - 0.1, p))
+                    continue
+            parts = p.split("/")[:-1]
+            for i, part in enumerate(parts):
+                if fuzzy_score(q, part) is not None:
+                    folder_hits.append("/".join(parts[: i + 1]))
+                    break
+
+        merged = sorted(leaf_hits + path_hits, key=lambda x: -x[0])
+        leaf_paths = [p for _, p in merged[:400]]
+
+        # Skip folder hits whose contents are already shown via a leaf hit.
+        folder_only = [
+            f
+            for f in sorted(set(folder_hits))
+            if not any(lp.startswith(f + "/") for lp in leaf_paths)
+        ]
+        return leaf_paths, folder_only
+
+    def filter_query(self) -> str:
+        try:
+            return self.query_one("#filter", Input).value.strip()
+        except Exception:
+            return ""
+
+    async def rescan(self, select: Optional[str] = None) -> None:
+        try:
+            self.entries = await asyncio.to_thread(list_entries)
+        except CqPassError as exc:
+            self._status(f"rescan failed: {exc}", "err")
+            return
+        self._apply_filter()
+        self._status(f"{len(self.entries)} entries", "ok")
+        if select:
+            self._select_path(select)
+
+    def _apply_filter(self) -> None:
+        q = self.filter_query()
+        if not q:
+            self._build_tree(self.entries)
+            return
+
+        leaf_paths, folder_paths = self._match(q)
+        self._build_tree(leaf_paths, expand_matches=True, folder_paths=folder_paths)
+        total = len(leaf_paths) + len(folder_paths)
+        if total:
+            extra = f" (+{len(folder_paths)} folders)" if folder_paths else ""
+            self._status(f"{len(leaf_paths)} entries{extra} match", "ok")
+        else:
+            self._status(f"no entries match {q!r}", "warn")
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "filter":
+            self._apply_filter()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "filter":
+            self.query_one("#tree", Tree).focus()
+
+    # -- selection ------------------------------------------------------
+
+    @on(Tree.NodeSelected, "#tree")
+    async def on_node_selected(self, event: Tree.NodeSelected) -> None:
+        path = event.node.data
+        if not path:
+            return
+        await self.load_detail(path)
+
+    def _select_path(self, path: str) -> None:
+        tree = self.query_one("#tree", Tree)
+        parts = path.split("/")
+        parent = tree.root
+        for part in parts[:-1]:
+            found = None
+            for child in parent.children:
+                if str(child.label) == part:
+                    found = child
+                    break
+            if found is None:
+                return
+            found.expand()
+            parent = found
+        for leaf in parent.children:
+            if leaf.data == path:
+                tree.select_node(leaf)
+                tree.focus()
+                asyncio.create_task(self.load_detail(path))
+                return
+
+    async def load_detail(self, path: str) -> None:
+        detail = self.query_one("#detail", Static)
+        detail.update(Text("loading…", style="dim"))
+        try:
+            secret = await asyncio.to_thread(read_secret, path)
+        except CqPassError as exc:
+            self._current = None
+            detail.update(Text(f"Could not read {path}\n\n{exc}", style="red"))
+            self._status("read failed", "err")
+            return
+        self._current = secret
+        detail.update(secret_renderable(secret, self.reveal))
+        self._status(path, "ok")
+
+    def _require_entry(self) -> Optional[str]:
+        if self._current is None:
+            self._status("no entry selected", "warn")
+            return None
+        return self._current.path
+
+    # -- clipboard ------------------------------------------------------
+
+    async def _copy(self, text: str, label: str) -> None:
+        if not text:
+            self._status(f"no {label} on this entry", "warn")
+            return
+        try:
+            await asyncio.to_thread(copy_text, text)
+        except CqPassError as exc:
+            self._status(str(exc), "err")
+            return
+        timeout = self.settings.clip_timeout
+        if self._clip_task and not self._clip_task.done():
+            self._clip_task.cancel()
+        if timeout and timeout > 0:
+            self._clip_task = asyncio.create_task(self._clear_clip(timeout))
+            self._status(f"copied {label} — clears in {timeout}s", "ok")
+        else:
+            self._status(f"copied {label}", "ok")
+
+    async def _clear_clip(self, seconds: int) -> None:
+        try:
+            await asyncio.sleep(seconds)
+            await asyncio.to_thread(clear_clipboard)
+            self._status("clipboard cleared", "muted")
+        except asyncio.CancelledError:
+            pass
+
+    # -- actions --------------------------------------------------------
+
+    def action_toggle_reveal(self) -> None:
+        self.reveal = not self.reveal
+        self._paint_chrome()
+        if self._current:
+            self.query_one("#detail", Static).update(secret_renderable(self._current, self.reveal))
+        self._status(f"secrets {'revealed' if self.reveal else 'masked'}", "warn" if self.reveal else "ok")
+
+    def action_copy_password(self) -> None:
+        path = self._require_entry()
+        if not path:
+            return
+        asyncio.create_task(self._copy(self._current.password, "password"))
+
+    def action_copy_username(self) -> None:
+        path = self._require_entry()
+        if not path:
+            return
+        asyncio.create_task(self._copy(self._current.username or "", "username"))
+
+    def action_copy_url(self) -> None:
+        path = self._require_entry()
+        if not path:
+            return
+        asyncio.create_task(self._copy(self._current.url or "", "url"))
+
+    def action_open_url(self) -> None:
+        path = self._require_entry()
+        if not path:
+            return
+        url = self._current.url
+        if not url:
+            self._status("no URL on this entry", "warn")
+            return
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+        browser = self.settings.browser or os.environ.get("BROWSER")
+        cmd = [browser, url] if browser else (["xdg-open", url] if shutil.which("xdg-open") else None)
+        if cmd is None:
+            self._status("no browser found (xdg-open / $BROWSER)", "warn")
+            return
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self._status(f"opened {url}", "ok")
+
+    @work(thread=False, exclusive=True)
+    async def action_totp(self) -> None:
+        path = self._require_entry()
+        if not path:
+            return
+
+        async def run() -> None:
+            try:
+                out = await asyncio.to_thread(gopass, "otp", "--code", path)
+            except CqPassError as exc:
+                self._status(f"TOTP failed: {exc}", "err")
+                return
+            code = ""
+            for line in out.splitlines():
+                s = line.strip()
+                if re.fullmatch(r"[0-9]{6,8}", s):
+                    code = s
+                    break
+            if not code:
+                self._status("no TOTP secret on this entry", "warn")
+                return
+            await self._copy(code, "TOTP code")
+            if not self.reveal:
+                self.reveal = True
+                self._paint_chrome()
+                if self._current:
+                    self.query_one("#detail", Static).update(
+                        secret_renderable(self._current, self.reveal)
+                    )
+            self.notify(f"TOTP {code}", title="One-time code", timeout=15)
+
+        await run()
+
+    # -- vi navigation ------------------------------------------------
+
+    def _tree(self) -> Tree:
+        return self.query_one("#tree", Tree)
+
+    def action_vi_down(self) -> None:
+        t = self._tree()
+        t.focus()
+        t.action_cursor_down()
+
+    def action_vi_up(self) -> None:
+        t = self._tree()
+        t.focus()
+        t.action_cursor_up()
+
+    def action_vi_left(self) -> None:
+        t = self._tree()
+        t.focus()
+        node = t.cursor_node
+        if node is None:
+            return
+        if node.is_expanded:
+            node.collapse()
+        else:
+            t.action_cursor_parent()
+
+    def action_vi_right(self) -> None:
+        t = self._tree()
+        t.focus()
+        node = t.cursor_node
+        if node is not None and node.allow_expand:
+            node.expand()
+
+    def action_focus_filter(self) -> None:
+        self.query_one("#filter", Input).focus()
+
+    def action_help(self) -> None:
+        self.push_screen(HelpScreen())
+
+    def action_rescan(self) -> None:
+        asyncio.create_task(self.rescan())
+
+    # -- modify flows ---------------------------------------------------
+
+    def _editor_command(self) -> Optional[list[str]]:
+        editor = self.settings.editor or os.environ.get("EDITOR")
+        if not editor:
+            return None
+        parts = editor.split()
+        if not shutil.which(parts[0]):
+            return None
+        return parts
+
+    async def _edit_content(self, path: str, initial: str, *, creating: bool) -> Optional[str]:
+        """Open $EDITOR (or built-in) with `initial`; return new content or None."""
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".yaml", prefix="cq_pass_", delete=False
+        ) as fh:
+            fh.write(initial)
+            tmp = Path(fh.name)
+        try:
+            cmd = self._editor_command()
+            if cmd:
+                with self.suspend():
+                    subprocess.run([*cmd, str(tmp)], check=False)
+                new = tmp.read_text()
+            else:
+                result = await self.push_screen_wait(EditorScreen(tmp.read_text(), title=path))
+                new = result
+        finally:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+
+        if new is None:
+            return None
+        if new == initial and not creating:
+            return None
+        return new
+
+    @work(thread=False, exclusive=True)
+    async def action_new_folder(self) -> None:
+        """Create a folder in the vault.
+
+        gopass has no `mkdir` — a directory only exists once something lives
+        inside it, so we write a recognisable placeholder leaf to materialise it.
+        Delete the placeholder to remove an empty folder again.
+        """
+        current = self._current.path if self._current else ""
+        base = current.rsplit("/", 1)[0] + "/" if "/" in current else ""
+
+        folder = await self.push_screen_wait(
+            PromptScreen(
+                "New folder",
+                default=f"{base}new-folder",
+                placeholder="Accounts/new-folder",
+                help=f"under {base or '/'} · Enter to create · Esc to cancel",
+            )
+        )
+        if folder is None:
+            self._status("cancelled", "muted")
+            return
+
+        folder = folder.strip().strip("/")
+        if not folder or "/" not in folder:
+            self._status("folder needs at least one name", "err")
+            return
+
+        marker = f"{folder}/{FOLDER_MARKER}"
+        content = (
+            "placeholder\n"
+            "---\n"
+            f"folder: {folder}/\n"
+            "comment: placeholder created by cq_pass-tui (delete to remove the folder)\n"
+        )
+        try:
+            await asyncio.to_thread(write_secret, marker, content, self.settings.commit_message)
+        except CqPassError as exc:
+            self._status(f"could not create folder: {exc}", "err")
+            return
+
+        await self.rescan()
+        self._select_path(marker)
+        self._status(f"created {folder}/", "ok")
+
+    @work(thread=False, exclusive=True)
+    async def action_edit_secret(self) -> None:
+        path = self._require_entry()
+        if not path:
+            return
+
+        async def run() -> None:
+            try:
+                current = await asyncio.to_thread(read_secret, path)
+            except CqPassError as exc:
+                self._status(f"could not read: {exc}", "err")
+                return
+            new = await self._edit_content(path, current.raw, creating=False)
+            if new is None:
+                self._status("edit cancelled", "muted")
+                return
+            try:
+                await asyncio.to_thread(write_secret, path, new, self.settings.commit_message)
+            except CqPassError as exc:
+                self._status(f"save failed: {exc}", "err")
+                return
+            self._status(f"saved {path}", "ok")
+            self.notify(f"Saved {path}", timeout=5)
+            await self.load_detail(path)
+
+        await run()
+
+    @work(thread=False, exclusive=True)
+    async def action_new_secret(self) -> None:
+        async def run() -> None:
+            tpl = await self.push_screen_wait(TemplatePickerScreen(self.templates))
+            if tpl is None:
+                self._status("cancelled", "muted")
+                return
+            if "invalid" in tpl.name:
+                self._status("that template failed to parse", "err")
+                return
+
+            values: dict[str, str] = {}
+            for f in tpl.fields:
+                val = await self.push_screen_wait(
+                    PromptScreen(f.label, default=f.default, placeholder=f.name)
+                )
+                if val is None:
+                    if f.required:
+                        self._status("missing required field — cancelled", "warn")
+                        return
+                    val = f.default
+                values[f.name] = val
+
+            suggested = suggest_path(tpl, values)
+            path = await self.push_screen_wait(
+                PromptScreen(
+                    "Vault path",
+                    default=suggested,
+                    placeholder="Accounts/example.com/user",
+                    help="Enter to create · Esc to cancel",
+                )
+            )
+            if not path:
+                self._status("no path — cancelled", "warn")
+                return
+            path = path.strip().strip("/")
+            if not path:
+                self._status("invalid path", "warn")
+                return
+
+            # Ask for the secret itself: generated or typed.
+            choice = await self.push_screen_wait(
+                PromptScreen(
+                    "Password",
+                    default="generate:24",
+                    placeholder="generate:<length>  or  literal:<password>",
+                    help="'literal:foo' sets it directly; anything else is generated",
+                )
+            )
+            if choice is None:
+                self._status("cancelled", "muted")
+                return
+
+            try:
+                password = self._parse_password_choice(choice, 24)
+            except CqPassError as exc:
+                self._status(f"password: {exc}", "err")
+                return
+            if not password:
+                self._status("could not obtain a password", "err")
+                return
+
+            content = render_template(tpl, values, password)
+            final = await self._edit_content(path, content, creating=True)
+            if final is None:
+                self._status("creation cancelled", "muted")
+                return
+            try:
+                await asyncio.to_thread(write_secret, path, final, self.settings.commit_message)
+            except CqPassError as exc:
+                self._status(f"create failed: {exc}", "err")
+                return
+            self.notify(f"Created {path}", timeout=5)
+            self._status(f"created {path}", "ok")
+            await self.rescan(select=path)
+
+        await run()
+
+    @staticmethod
+    def _parse_password_choice(choice: str, default_len: int) -> str:
+        c = choice.strip()
+        if c.lower().startswith("literal:"):
+            literal = c[len("literal:") :]
+            if not literal:
+                raise CqPassError("empty password refused")
+            return literal
+        m = re.match(r"(?i)^generate:\s*(\d{4,128})$", c)
+        length = int(m.group(1)) if m else default_len
+        try:
+            out = gopass("generate", "--print", "--force", f"__cq_pass_tui_tmp__/{length}", str(length))
+        except CqPassError:
+            out = ""
+        # Fallback: local generation so the flow never dead-ends.
+        if not out.strip():
+            import secrets
+
+            alpha = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+            out = "".join(secrets.choice(alpha) for _ in range(length))
+        pw = out.strip().splitlines()[0]
+        # Guard: never store a truncated/empty generator result. A silently short
+        # password is worse than a failed operation.
+        if len(pw) < 8:
+            raise CqPassError(f"generated password looks invalid ({len(pw)} chars) — aborted")
+        return pw
+
+    @work(thread=False, exclusive=True)
+    async def action_generate(self) -> None:
+        path = self._require_entry()
+        if not path:
+            return
+
+        async def run() -> None:
+            choice = await self.push_screen_wait(
+                PromptScreen(
+                    "Generate new password",
+                    default="24",
+                    placeholder="<length>  or  symbols:<length>",
+                    help="Enter to generate and replace the first line",
+                )
+            )
+            if choice is None:
+                return
+            symbols = choice.strip().lower().startswith("symbols:")
+            digits = re.sub(r"(?i)^symbols:\s*", "", choice.strip())
+            length = int(digits) if digits.isdigit() and 4 <= int(digits) <= 128 else 24
+            args = ["generate", "--force", "--print", path, str(length)]
+            if symbols:
+                args.insert(1, "--symbols")
+            try:
+                out = await asyncio.to_thread(gopass, *args)
+            except CqPassError as exc:
+                self._status(f"generate failed: {exc}", "err")
+                return
+            new_pw = out.strip().splitlines()[-1] if out.strip() else ""
+            if len(new_pw) < 8:
+                self._status(
+                    f"generator returned an invalid password ({len(new_pw)} chars) — aborted", "err"
+                )
+                return
+            try:
+                current = await asyncio.to_thread(read_secret, path)
+                rest = current.raw.split("\n", 1)
+                new_raw = new_pw + ("\n" + rest[1] if len(rest) > 1 and rest[1].strip() else "\n")
+                await asyncio.to_thread(write_secret, path, new_raw, self.settings.commit_message)
+            except CqPassError as exc:
+                self._status(f"save failed: {exc}", "err")
+                return
+            await self._copy(new_pw, "new password")
+            self.notify(f"Regenerated password for {path}", timeout=5)
+            await self.load_detail(path)
+
+        await run()
+
+    @work(thread=False, exclusive=True)
+    async def action_rename_move(self) -> None:
+        path = self._require_entry()
+        if not path:
+            return
+
+        async def run() -> None:
+            new = await self.push_screen_wait(
+                PromptScreen("Move / rename", default=path, placeholder="new/vault/path")
+            )
+            if not new:
+                return
+            new = new.strip().strip("/")
+            if new == path or not new:
+                self._status("nothing to do", "muted")
+                return
+            try:
+                await asyncio.to_thread(gopass, "move", "--force", path, new)
+            except CqPassError as exc:
+                self._status(f"move failed: {exc}", "err")
+                return
+            self.notify(f"Moved to {new}", timeout=5)
+            self._status(f"moved → {new}", "ok")
+            await self.rescan(select=new)
+
+        await run()
+
+    @work(thread=False, exclusive=True)
+    async def action_delete_secret(self) -> None:
+        path = self._require_entry()
+        if not path:
+            return
+
+        async def run() -> None:
+            ok = await self.push_screen_wait(
+                ConfirmScreen("Delete secret", f"Permanently delete\n\n  {path}\n\nThis cannot be undone.")
+            )
+            if not ok:
+                self._status("delete cancelled", "muted")
+                return
+            try:
+                await asyncio.to_thread(gopass, "delete", "--force", path)
+            except CqPassError as exc:
+                self._status(f"delete failed: {exc}", "err")
+                return
+            self._current = None
+            self.query_one("#detail", Static).update(Text("deleted", style="dim italic"))
+            self.notify(f"Deleted {path}", severity="warning", timeout=5)
+            await self.rescan()
+
+        await run()
+
+    # -- key handling for gg / Esc-in-filter ----------------------------
+
+    async def on_key(self, event) -> None:
+        # gg => top of the tree
+        if event.key == "g":
+            now = asyncio.get_event_loop().time()
+            if now - self._pending_g < 0.8:
+                tree = self.query_one("#tree", Tree)
+                tree.move_cursor_to_line(0)
+                self._pending_g = 0.0
+                event.stop()
+                event.prevent_default()
+                return
+            self._pending_g = now
+
+        if event.key == "escape":
+            filt = self.query_one("#filter", Input)
+            if filt.has_focus and filt.value:
+                filt.value = ""
+                self._apply_filter()
+                event.stop()
+                event.prevent_default()
+                return
+            if filt.has_focus:
+                self.query_one("#tree", Tree).focus()
+                event.stop()
+                event.prevent_default()
+                return
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+cli = typer.Typer(
+    help="Browse, create and edit gopass secrets in a modern TUI.",
+    no_args_is_help=False,
+    add_completion=False,
+)
+
+
+@cli.command()
+def main(
+    entry: Optional[str] = typer.Argument(None, help="Entry to open on start."),
+    store: Optional[str] = typer.Option(None, "--store", "-s", help="Password store path."),
+    reveal: bool = typer.Option(False, "--reveal", "-r", help="Show secrets unmasked."),
+    templates_dir: Optional[str] = typer.Option(
+        None, "--templates-dir", "-t", help="Override the template directory."
+    ),
+    no_editor: bool = typer.Option(
+        False, "--builtin-editor", help="Ignore $EDITOR and use the built-in editor."
+    ),
+) -> None:
+    """Launch the vault browser."""
+    try:
+        settings = Settings()
+        if SETTINGS_FILE.exists():
+            data = yaml.safe_load(SETTINGS_FILE.read_text()) or {}
+            if isinstance(data, dict):
+                settings = Settings.model_validate(data)
+        if reveal:
+            settings.reveal_by_default = True
+        if no_editor:
+            settings.editor = ""
+        if templates_dir:
+            global TEMPLATE_DIR
+            TEMPLATE_DIR = Path(templates_dir).expanduser()
+
+        resolved = resolve_store(store, settings)
+        templates = load_templates()
+    except CqPassError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(1)
+
+    app = PassTUI(resolved, settings, templates, initial_entry=entry)
+    app.run()
+
+
+if __name__ == "__main__":
+    cli()

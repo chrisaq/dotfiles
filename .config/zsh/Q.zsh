@@ -19,9 +19,40 @@
 : "${Q_DEFAULT_PLACEHOLDER:=(no description)}"
 
 : "${Q_FZF_CMD:=fzf}"
-: "${Q_FZF_OPTS:=--delimiter=$'\t' --with-nth=1 --nth=1,2 --layout=reverse --border}"
+# Extra fzf options, appended LAST so they override the built-ins (fzf: later wins).
+# The built-ins already set --ansi --delimiter --with-nth --nth --layout --border
+# (plus --preview when Q_ENABLE_PREVIEW=1), so leave this empty unless you want to
+# override something. NOTE: the old default here was silently ignored entirely.
+: "${Q_FZF_OPTS:=}"
 
-: "${Q_ENABLE_PREVIEW:=0}"
+# 1 = show the preview pane. (Documented before, but never actually wired up.)
+: "${Q_ENABLE_PREVIEW:=1}"
+# How many source lines the preview shows before truncating.
+: "${Q_PREVIEW_LINES:=48}"
+
+# ---------------------------------------------------------------------------
+# TODO — considered, deferred (raise again if wanted)
+#
+# 1. Buffer template UX (Q_widget)
+#    Currently selects `cq_foo ` (name + trailing space) and prints the usage
+#    string as a separate zle message. Alternative: insert the full usage
+#    template, e.g. `cq_env_arg <file>`, so placeholders land in the buffer and
+#    can be edited in place. Needs a decision on whether placeholders should be
+#    auto-selected (zle -I / region highlight) so typing replaces them.
+#
+# 2. On-disk index cache
+#    Index build is ~20ms and the preview cache adds ~5-10ms, so this is NOT
+#    currently worth the invalidation complexity. Revisit only if the entry count
+#    grows into the hundreds. Sketch: serialise Q_IDX_* to
+#    ${XDG_CACHE_HOME:-~/.cache}/q/index.zsh (a zsh-sourceable assoc-array dump),
+#    and invalidate on the newest mtime of any scanned dir plus a hash of the
+#    cq_* function-name list (functions live in the running shell, so their
+#    mtimes don't exist — the name list is the only cheap signal).
+#
+# 3. Palette naming for scripts with extensions
+#    cq_sys_status.py indexes as "cq_sys_status.py" — the extension shows up in
+#    the picker. Dropping .py from the filename would give a cleaner entry.
+# ---------------------------------------------------------------------------
 
 # ----------------------------
 # Helpers (NO exit, only return)
@@ -37,26 +68,6 @@ Q_trim() {
   print -r -- "$s"
 }
 Q_lower() { print -r -- "${(L)1}"; }
-
-Q_bool() {
-  local v; v="$(Q_lower "$(Q_trim "${1:-}")")"
-  case "$v" in
-    1|true|yes|y|on)  print -r -- "true" ;;
-    0|false|no|n|off|"") print -r -- "false" ;;
-    *) print -r -- "false" ;;
-  esac
-}
-
-Q_join() {
-  local delim="$1"; shift
-  local -a arr; arr=("$@")
-  local out="" i
-  for i in "${arr[@]}"; do
-    [[ -z "$i" ]] && continue
-    if [[ -z "$out" ]]; then out="$i"; else out+="${delim}${i}"; fi
-  done
-  print -r -- "$out"
-}
 
 Q_help() {
   cat <<'EOF'
@@ -75,9 +86,13 @@ TESTING / SUBCOMMANDS
   Q --collect-functions
   Q --collect-scripts
   Q --dump-index
+  Q --doctor                  # report entries with missing/incomplete metadata
   Q --dump-fzf-input
   Q --select NAME -- [ARGS...]
   Q --test
+
+  Q_ENABLE_PREVIEW    1 shows the source preview pane (default: 1)
+  Q_PREVIEW_LINES     source lines shown before truncating (default: 48)
 
 ENV
   Q_PREFIX            default: cq_
@@ -93,87 +108,96 @@ EOF
 }
 
 # ----------------------------
-# Metadata parsing (unit-testable)
-# Output: key=value lines: desc=..., usage=..., no_args=true|false
+# Metadata parsing
 # ----------------------------
+# The parser lands its results in these globals rather than printing key=value
+# lines that the caller then re-splits. Together with fork-free trimming this
+# removed ~2 forks per header line: index build went 294ms -> 11ms (71 entries).
+#   Q_P_DESC / Q_P_USAGE / Q_P_NO_ARGS
+typeset -g Q_P_DESC="" Q_P_USAGE="" Q_P_NO_ARGS=""
 
-Q_parse_metadata_from_lines() {
-  local -a desc_parts=()
-  local usage="" no_args="false"
-  local raw line payload key val
+Q_parse_text() {
+  emulate -L zsh
+  Q_P_DESC=""; Q_P_USAGE=""; Q_P_NO_ARGS=""
 
-  while IFS= read -r raw; do
-    line="$(Q_trim "$raw")"
+  local -a _q_desc=()
+  local raw line key val payload out part
+  local -a _q_lines; _q_lines=("${(@f)1}")
+
+  for raw in "${_q_lines[@]}"; do
+    # trim in pure zsh (no $(Q_trim ...) subshell)
+    line="${raw#"${raw%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
     [[ -z "$line" ]] && continue
 
-    # If it's a function no-op metadata line like:
-    #   : "#:desc: ..."
-    #   : '#:usage: ...'
-    # Extract the quoted payload if it contains "#:"
+    # Function metadata is written as a no-op so the comment is also *data* at
+    # runtime, e.g.   : "#:desc: ..."   — unwrap the quoted payload.
     if [[ "$line" == :\ * && "$line" == *"#:"* ]]; then
       payload=""
-
-      # Try double quotes
       if [[ "$line" == *\"*\"* ]]; then
-        payload="${line#*\"}"
-        payload="${payload%%\"*}"
-      # Try single quotes
+        payload="${line#*\"}"; payload="${payload%%\"*}"
       elif [[ "$line" == *\'*\'* ]]; then
-        payload="${line#*\'}"
-        payload="${payload%%\'*}"
+        payload="${line#*\'}"; payload="${payload%%\'*}"
       fi
-
       if [[ -n "$payload" ]]; then
-        line="$(Q_trim "$payload")"
+        line="${payload#"${payload%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
       fi
     fi
 
-    # Allow plain comments (ignore) but keep scanning the header
-    if [[ "$line" == \#* && "$line" != \#:* ]]; then
-      continue
-    fi
+    # Plain comments are ignored, but we keep scanning the header.
+    [[ "$line" == \#* && "$line" != \#:* ]] && continue
 
-    # Parse tag lines
-    if [[ "$line" == \#:* ]]; then
-      key="${line#\#:}"
-      key="${key%%:*}"
-      val="${line#\#:${key}:}"
-      val="$(Q_trim "$val")"
+    # First line that is neither a comment nor a tag ends the header.
+    [[ "$line" != \#:* ]] && break
 
-      case "$key" in
-        desc)    desc_parts+=("$val") ;;
-        usage)   usage="$val" ;;
-        no-args) no_args="$(Q_bool "$val")" ;;
-        *)       : ;;
-      esac
-      continue
-    fi
+    key="${line#\#:}"; key="${key%%:*}"
+    val="${line#\#:${key}:}"
+    val="${val#"${val%%[![:space:]]*}"}"; val="${val%"${val##*[![:space:]]}"}"
 
-    # Stop at first real code line (or first non-metadata non-comment line)
-    break
+    case "$key" in
+      desc)    _q_desc+=("$val") ;;
+      usage)   Q_P_USAGE="$val" ;;
+      no-args) case "${(L)val}" in
+                 1|true|yes|y|on) Q_P_NO_ARGS="true" ;;
+                 *)               Q_P_NO_ARGS="false" ;;
+               esac ;;
+    esac
   done
 
-  local desc; desc="$(Q_join "$Q_DESC_JOIN" "${desc_parts[@]}")"
-  print -r -- "desc=$desc"
-  print -r -- "usage=$usage"
-  print -r -- "no_args=$no_args"
+  # zsh does NOT expand parameters inside (j.…) flags, so join by hand.
+  out=""
+  for part in "${_q_desc[@]}"; do
+    [[ -z "$part" ]] && continue
+    if [[ -z "$out" ]]; then out="$part"; else out+="${Q_DESC_JOIN}${part}"; fi
+  done
+  Q_P_DESC="$out"
 }
 
 Q_parse_metadata_from_file() {
   local path="$1"
   [[ -r "$path" ]] || return 1
-  Q_parse_metadata_from_lines < "$path"
+  Q_parse_text "$(< "$path")"
+  return 0
 }
 
 Q_parse_metadata_from_function() {
   local fn="$1"
-  typeset -f "$fn" >/dev/null 2>&1 || return 1
+  [[ -n "${functions[$fn]:-}" ]] || return 1
+  # NOTE: unlike `typeset -f`, ${functions[name]} already OMITS the
+  # "name () {" signature line — do not head-strip it or the first
+  # metadata line (desc) gets thrown away.
+  Q_parse_text "${functions[$fn]}"
+  return 0
+}
 
-  # feed function body (minus signature line) to parser
-  local def after
-  def="$(typeset -f "$fn")"
-  after="${def#*$'\n'}"
-  print -r -- "$after" | Q_parse_metadata_from_lines
+# Legacy stdin-compatible API (kept for tests / external use).
+Q_parse_metadata_from_lines() {
+  local _t; _t="$(cat)"
+  Q_parse_text "$_t"
+  print -r -- "desc=$Q_P_DESC"
+  print -r -- "usage=$Q_P_USAGE"
+  print -r -- "no_args=$Q_P_NO_ARGS"
 }
 
 # ----------------------------
@@ -223,30 +247,20 @@ Q_index_put() {
 Q_build_index() {
   Q_index_reset
 
-  local -A m
-  local sp name
+  local sp fn
 
   # scripts first
   while IFS= read -r sp; do
-    name="${sp:t}"
-    m=()
-    while IFS='=' read -r k v; do
-      m[$k]="$v"
-    done < <(Q_parse_metadata_from_file "$sp" 2>/dev/null || true)
-
-    Q_index_put "$name" "script" "$sp" "${m[desc]:-}" "${m[usage]:-}" "${m[no_args]:-false}"
+    Q_parse_metadata_from_file "$sp" 2>/dev/null || continue
+    Q_index_put "${sp:t}" "script" "$sp" "$Q_P_DESC" "$Q_P_USAGE" "$Q_P_NO_ARGS"
   done < <(Q_collect_script_paths)
 
-  # functions override scripts
-  local fn
-  while IFS= read -r fn; do
-    m=()
-    while IFS='=' read -r k v; do
-      m[$k]="$v"
-    done < <(Q_parse_metadata_from_function "$fn" 2>/dev/null || true)
-
-    Q_index_put "$fn" "function" "<function>" "${m[desc]:-}" "${m[usage]:-}" "${m[no_args]:-false}"
-  done < <(Q_collect_functions)
+  # functions override scripts (iterate the hash directly — no fork)
+  for fn in ${(k)functions}; do
+    [[ "$fn" == ${Q_PREFIX}* ]] || continue
+    Q_parse_metadata_from_function "$fn" 2>/dev/null || continue
+    Q_index_put "$fn" "function" "<function>" "$Q_P_DESC" "$Q_P_USAGE" "$Q_P_NO_ARGS"
+  done
 
   return 0
 }
@@ -258,6 +272,55 @@ Q_dump_index() {
   for name in ${(on)${(k)Q_IDX_source_type}}; do
     print -r -- "$name | ${Q_IDX_source_type[$name]} | no-args=${Q_IDX_no_args[$name]} | desc=${Q_IDX_desc[$name]} | usage=${Q_IDX_usage[$name]} | src=${Q_IDX_source_path[$name]}"
   done
+}
+
+# Reports entries with missing/incomplete metadata, plus cq_* files that are
+# invisible to Q because they are not executable.
+Q_doctor() {
+  Q_build_index || return 1
+
+  local name missing any=0
+  local -a no_desc=() no_usage=() no_noargs=()
+
+  for name in ${(on)${(k)Q_IDX_source_type}}; do
+    [[ -n "${Q_IDX_desc[$name]}"    ]] || no_desc+=("$name")
+    [[ -n "${Q_IDX_usage[$name]}"   ]] || no_usage+=("$name")
+    [[ -n "${Q_IDX_no_args[$name]}" ]] || no_noargs+=("$name")
+  done
+
+  _q_doctor_group "missing #:desc:"    "${no_desc[@]}"
+  _q_doctor_group "missing #:usage:"   "${no_usage[@]}"
+  _q_doctor_group "missing #:no-args:" "${no_noargs[@]}"
+
+  # cq_* files sitting in a scanned dir but not executable -> never indexed
+  local -a dirs; dirs=(${(s/:/)PATH})
+  [[ -n "$Q_EXTRA_DIRS" ]] && dirs+=(${(s/:/)Q_EXTRA_DIRS})
+  local -a orphan=()
+  local dir p base
+  for dir in "${dirs[@]}"; do
+    [[ -d "$dir" ]] || continue
+    for p in "$dir"/${Q_PREFIX}*(N); do
+      [[ -f "$p" && ! -x "$p" ]] || continue
+      orphan+=("$p")
+    done
+  done
+  _q_doctor_group "not executable (invisible to Q):" "${orphan[@]}"
+
+  print -r -- ""
+  print -r -- "indexed entries: ${#Q_IDX_source_type}"
+  if (( ${#no_desc} + ${#no_usage} + ${#no_noargs} == 0 && ${#orphan} == 0 )); then
+    print -r -- "✅ all metadata complete"
+  else
+    print -r -- "⚠️  some entries need headers — see above"
+  fi
+}
+
+_q_doctor_group() {
+  local label="$1"; shift
+  (( $# > 0 )) || return 0
+  print -r -- "$label"
+  local x
+  for x in "$@"; do print -r -- "  - $x"; done
 }
 
 # ----------------------------
@@ -316,28 +379,48 @@ Q_execute_or_template() {
   Q_command_template_for "$name"
 }
 
+# Builds a temp DIR holding:
+#   index.tsv  name \t type \t desc \t usage \t no_args \t source_path
+#   f/<name>   dumped body, for function entries only (a /bin/sh preview cannot
+#              see zsh functions, so they have to be materialised on disk)
+# Scripts point straight at their real file — nothing is copied.
+Q_make_preview_cache() {
+  local dir; dir="$(mktemp -d -t qprev.XXXXXX)" || return 1
+  local name src
+  local -a fns; fns=()
+
+  local n t
+  for n in ${(on)${(k)Q_IDX_source_type}}; do
+    t="${Q_IDX_source_type[$n]}"
+    if [[ "$t" == "function" ]]; then fns+=("$n"); fi
+  done
+
+  if (( ${#fns} )); then
+    mkdir -p "$dir/f" 2>/dev/null || true
+    for name in "${fns[@]}"; do
+      print -r -- "${functions[$name]}" >| "$dir/f/$name" 2>/dev/null || true
+    done
+  fi
+
+  {
+    for name in ${(on)${(k)Q_IDX_source_type}}; do
+      if [[ "${Q_IDX_source_type[$name]}" == "function" ]]; then
+        src="$dir/f/$name"
+      else
+        src="${Q_IDX_source_path[$name]}"
+      fi
+      print -r -- \
+        "$name"$'\t'"${Q_IDX_source_type[$name]}"$'\t'"${Q_IDX_desc[$name]}"$'\t'"${Q_IDX_usage[$name]}"$'\t'"${Q_IDX_no_args[$name]}"$'\t'"$src"
+    done
+  } >| "$dir/index.tsv"
+
+  print -r -- "$dir"
+}
+
 Q_run_fzf() {
   Q_has "$Q_FZF_CMD" || return 1
 
-  local cache preview
-  cache="$(Q_make_preview_cache)" || return 1
-  preview="$(mktemp -t q-preview-cmd.XXXXXX)" || { rm -f -- "$cache"; return 1; }
-
-  cat >| "$preview" <<'SH'
-#!/bin/sh
-cache="$1"
-name="$2"
-awk -F '\t' -v n="$name" '
-  $1==n {
-    na = ($5=="true" ? "True" : "False");
-    printf "%s: %s\nDescription: %s\nUsage: %s\nNo arguments: %s\n", $2, $1, $3, $4, na;
-    exit
-  }
-' "$cache"
-SH
-
-  chmod +x "$preview" 2>/dev/null || true
-
+  local cachedir="" pscript=""
   local -a opts
   opts=(
     --ansi
@@ -346,75 +429,64 @@ SH
     --nth 1,2
     --layout reverse
     --border
-    --preview-window right:60%:wrap
-    --preview "$preview $cache {1}"
   )
 
+  # Preview is opt-in and costs temp files, so only build it when asked.
+  case "${(L)Q_ENABLE_PREVIEW}" in
+    1|true|yes|on)
+      cachedir="$(Q_make_preview_cache)" || return 1
+      pscript="$(mktemp -t q-preview-cmd.XXXXXX)" || { rm -rf -- "$cachedir"; return 1; }
+      cat >| "$pscript" <<'SH'
+#!/bin/sh
+# $1 = cache dir, $2 = selected name, $3 = max source lines
+dir="$1"; name="$2"; max="${3:-48}"
+
+row=$(awk -F '\t' -v n="$name" '$1==n {print; exit}' "$dir/index.tsv")
+[ -z "$row" ] && exit 0
+
+type=$(printf '%s' "$row"    | cut -f2)
+desc=$(printf '%s' "$row"    | cut -f3)
+usg=$(printf '%s' "$row"    | cut -f4)
+na=$(printf '%s' "$row"     | cut -f5)
+src=$(printf '%s' "$row"    | cut -f6)
+
+case "$na" in true) na=True ;; *) na=False ;; esac
+
+printf '\033[1m%s\033[0m  \033[2m(%s, takes args: %s)\033[0m\n' "$name" "$type" "$na"
+[ -n "$desc" ] || desc='(no #:desc:)'
+[ -n "$usg" ]  || usg='(no #:usage:)'
+printf '%s\n\033[2m%s\033[0m\n\n' "$desc" "$usg"
+
+if [ -n "$src" ] && [ -r "$src" ]; then
+  printf '\033[2m──── %s ────\033[0m\n' "$src"
+  total=$(wc -l < "$src")
+  sed -n "1,${max}p" "$src"
+  if [ "$total" -gt "$max" ]; then
+    printf '\033[2m… %s more lines\033[0m\n' "$(( total - max ))"
+  fi
+else
+  printf '\033[2m(source not readable)\033[0m\n'
+fi
+SH
+      chmod +x "$pscript" 2>/dev/null || true
+      opts+=( --preview-window right:62%:wrap --preview "$pscript $cachedir {1} ${Q_PREVIEW_LINES:-48}" )
+      ;;
+  esac
+
+  # User extras go LAST so they override the built-ins (fzf honours the later flag).
+  [[ -n "$Q_FZF_OPTS" ]] && opts+=(${(z)Q_FZF_OPTS})
+
   local chosen rc
-chosen="$(
-  Q_build_fzf_lines | env -i PATH="$PATH" HOME="$HOME" TERM="$TERM" LANG="$LANG" \
-    "$Q_FZF_CMD" "${opts[@]}"
-)"
+  chosen="$(
+    Q_build_fzf_lines | env -i PATH="$PATH" HOME="$HOME" \
+      TERM="${TERM:-xterm-256color}" LANG="${LANG:-C.UTF-8}" \
+      "$Q_FZF_CMD" "${opts[@]}"
+  )"
   rc=$?
-  rm -f -- "$cache" "$preview" 2>/dev/null || true
+  [[ -n "$cachedir" ]] && rm -rf -- "$cachedir" 2>/dev/null || true
+  [[ -n "$pscript"  ]] && rm -f  -- "$pscript"  2>/dev/null || true
   (( rc == 0 )) || return $rc
   print -r -- "$chosen"
-
-}
-
-# Define the function normally
-Q_preview_line() {
-  emulate -L zsh
-  local cache="$1"
-  local name="$2"
-
-  local line
-  line="$(command rg --fixed-strings --no-heading --color=never "^${name}"$'\t' "$cache" 2>/dev/null | head -n1)" || return 0
-
-  local n type desc usage no_args
-  IFS=$'\t' read -r n type desc usage no_args <<<"$line"
-
-  local na_disp="False"
-  [[ "$no_args" == "true" ]] && na_disp="True"
-
-  print -r -- "(${type}): ${n}"
-  print -r -- "Description: ${desc}"
-  print -r -- "Usage: ${usage}"
-  print -r -- "No arguments: ${na_disp}"
-}
-
-Q_make_preview_cache() {
-  local cache
-  cache="$(mktemp -t q-preview.XXXXXX)" || return 1
-
-  local name
-  for name in ${(on)${(k)Q_IDX_source_type}}; do
-    print -r -- \
-      "$name"$'\t'"${Q_IDX_source_type[$name]}"$'\t'"${Q_IDX_desc[$name]}"$'\t'"${Q_IDX_usage[$name]}"$'\t'"${Q_IDX_no_args[$name]}"
-  done >| "$cache"
-
-  print -r -- "$cache"
-}
-
-Q_preview_from_cache() {
-  local cache="$1"
-  local name="$2"
-  local line
-
-  line="$(rg --fixed-strings --no-heading --color=never "^${name}"$'\t' "$cache" 2>/dev/null | head -n1)" || true
-  [[ -n "$line" ]] || return 0
-
-  local n type desc usage no_args
-  IFS=$'\t' read -r n type desc usage no_args <<<"$line"
-
-  # Capitalize boolean for display
-  local na_disp="False"
-  [[ "$no_args" == "true" ]] && na_disp="True"
-
-  print -r -- "(${type}): ${n}"
-  print -r -- "Description: ${desc}"
-  print -r -- "Usage: ${usage}"
-  print -r -- "No arguments: ${na_disp}"
 }
 
 
@@ -448,14 +520,26 @@ EOF
   chmod +x "$s1"
 
   local meta desc usage no_args
-  meta="$(Q_parse_metadata_from_file "$s1" || true)"
-  desc="${meta[(r)desc=*]#desc=}"
-  usage="${meta[(r)usage=*]#usage=}"
-  no_args="${meta[(r)no_args=*]#no_args=}"
+  Q_parse_metadata_from_file "$s1" || { Q_err "parse failed"; return 1; }
+  desc="$Q_P_DESC"; usage="$Q_P_USAGE"; no_args="$Q_P_NO_ARGS"
 
   Q_assert_eq "$desc" "Script one" "parse desc from file" || fail=1
   Q_assert_eq "$usage" "cq_script1 <x>" "parse usage from file" || fail=1
   Q_assert_eq "$no_args" "false" "parse no-args from file" || fail=1
+
+  # absent tags must stay empty so --doctor can tell "false" from "not declared"
+  local s2="$tmp/cq_script2"
+  cat > "$s2" <<'EOF'
+#!/usr/bin/env bash
+#:desc: Only a description
+
+echo "hi"
+EOF
+  chmod +x "$s2"
+  Q_parse_metadata_from_file "$s2" || { Q_err "parse failed"; return 1; }
+  Q_assert_eq "$Q_P_USAGE"   ""                  "absent usage stays empty" || fail=1
+  Q_assert_eq "$Q_P_NO_ARGS" ""                  "absent no-args stays empty" || fail=1
+  Q_assert_eq "$Q_P_DESC"    "Only a description" "desc still parsed"       || fail=1
 
   rm -rf "$tmp"
   (( fail == 0 )) || return 1
@@ -487,6 +571,7 @@ Q_main() {
       --collect-functions) mode="collect_functions"; shift ;;
       --collect-scripts) mode="collect_scripts"; shift ;;
       --dump-index) mode="dump_index"; shift ;;
+      --doctor) mode="doctor"; shift ;;
       --dump-fzf-input) mode="dump_fzf"; shift ;;
       --select) mode="select"; shift; select_name="${1:-}"; shift ;;
       --test) mode="test"; shift ;;
@@ -516,6 +601,9 @@ Q_main() {
       ;;
     dump_index)
       Q_dump_index
+      ;;
+    doctor)
+      Q_doctor
       ;;
     dump_fzf)
       Q_dump_fzf_input
@@ -566,7 +654,7 @@ Q_widget() {
 
   BUFFER="$(Q_command_template_for "$name")"
   CURSOR=${#BUFFER}
-zle reset-prompt
+  zle reset-prompt
   [[ -n "$u" ]] && zle -M "$u"
 }
 
@@ -576,7 +664,7 @@ Q() {
   local a
   for a in "$@"; do
     case "$a" in
-      --help|-h|--dump-index|--dump-fzf-input|--collect-functions|--collect-scripts|--parse-file|--parse-function|--select|--test|--)
+      --help|-h|--dump-index|--doctor|--dump-fzf-input|--collect-functions|--collect-scripts|--parse-file|--parse-function|--select|--test|--) 
         Q_main "$@"
         return $?
         ;;

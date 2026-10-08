@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE="ghcr.io/peonist-ai/halogen-flash-server:0.14.2"
+IMAGE="ghcr.io/peonist-ai/halogen-flash-server:0.17.2"
 NAME="halogen"
 MODELS="/srv/halogen/models"
 PORT="8731"

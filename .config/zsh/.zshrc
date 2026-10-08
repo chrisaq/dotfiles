@@ -852,50 +852,9 @@ cq_wg_full() {
   sudo networkctl reconfigure wg-full
 }
 cq_wg_reset() {
-  : "#:desc: reset WireGuard and show endpoint/route state"
-  : "#:usage: cq_wg_reset [iface]"
-  : "#:no-args: false"
-  local iface="${1:-wg-home}"
-  local netdev="/etc/systemd/network/31-${iface}.netdev"
-  local ep host port
-  [[ -f "$netdev" ]] || {
-    echo "Missing netdev file: $netdev" >&2
-    return 1
-  }
-  ep="$(sudo awk -F= '
-    $1 ~ /^[[:space:]]*Endpoint[[:space:]]*$/ {
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
-      print $2
-      exit
-    }
-  ' "$netdev")"
-  [[ -n "$ep" ]] || {
-    echo "Could not read Endpoint= from $netdev" >&2
-    return 1
-  }
-  host="${ep%:*}"
-  port="${ep##*:}"
-  echo "iface:    $iface"
-  echo "netdev:   $netdev"
-  echo "endpoint: $ep"
-  if ip link show "$iface" >/dev/null 2>&1; then
-    while read -r peer; do
-      [[ -n "$peer" ]] || continue
-      sudo wg set "$iface" peer "$peer" endpoint "$ep" || return 1
-    done < <(sudo wg show "$iface" peers)
-  fi
-  sudo resolvectl flush-caches 2>/dev/null || true
-  sudo networkctl reconfigure "$iface" 2>/dev/null || true
-  echo
-  echo "WireGuard status:"
-  sudo wg show "$iface" 2>/dev/null || true
-  echo
-  echo "Route to endpoint host:"
-  ip route get "$host" 2>/dev/null || true
-}
-cq_wg_reset2() {
     : "#:desc: re-resolve WireGuard endpoint and reset peer endpoint"
     : "#:usage: cq_wg_reset [iface]"
+    : "#:no-args: false"
     local iface="${1:-wg-home}"
     local netdev ep host port ip peer
     netdev="$(

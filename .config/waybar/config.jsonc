@@ -48,7 +48,7 @@
         "format-alt": "{}<span color='orange'>[{time}]</span>",
         "tooltip": true,
         "tooltip-spacing": 20,
-        "on-click-right": "pkill waybar & hyprctl dispatch exec waybar"
+        "on-click-right": "pkill waybar & hyprctl dispatch \"hl.dsp.exec_cmd('waybar')\""
     },
 
     "power-profiles-daemon": {
@@ -380,7 +380,7 @@
         "format-icons": ["󰝦","󰪞","󰪟","󰪠","󰪡","󰪢","󰪣","󰪤","󰪥"],
         //  "format-icons": ["","","","","","","",""],
         //"format-icons": ["󰂎", "󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],
-        "on-click-right": "pkill waybar & hyprctl dispatch exec waybar",
+        "on-click-right": "pkill waybar & hyprctl dispatch \"hl.dsp.exec_cmd('waybar')\"",
         //  "format-icons": [<i class='fa-solid fa-wifi-slash'></i>],
 
     },

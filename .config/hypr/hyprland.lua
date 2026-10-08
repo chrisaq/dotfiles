@@ -471,19 +471,24 @@ end)
 hl.bind(mainMod .. " + " .. 9, hl.dsp.submap("wmutils"))
 
 hl.define_submap("wmutils", function()
+    -- NOTE: reset the submap BEFORE running the command, not after. These commands
+    -- block on user interaction (region drag, window pick, rofi menu), so a trailing
+    -- `; cq_hypr_reset-submap` would leave us stuck in this submap for the whole
+    -- interaction — and forever if the command ever hangs.
     -- TODO: Random new wallpaper
     hl.bind("E", hl.dsp.exec_cmd(
-        [[bash -lc 'f=$(mktemp); env | sort > "$f"; zenity --text-info --title="Hyprland environment" --filename="$f" --width=900 --height=700; rm -f "$f"']]
+        [[bash -lc 'cq_hypr_reset-submap; f=$(mktemp); env | sort > "$f"; zenity --text-info --title="Hyprland environment" --filename="$f" --width=900 --height=700; rm -f "$f"']]
     ))
-    hl.bind("R", hl.dsp.exec_cmd("hyprctl reload"))
-    hl.bind("K", hl.dsp.exec_cmd("hyprctl kill"))
+    hl.bind("R", hl.dsp.exec_cmd("bash -lc 'cq_hypr_reset-submap; hyprctl reload'"))
+    hl.bind("K", hl.dsp.exec_cmd("bash -lc 'cq_hypr_reset-submap; hyprctl kill'"))
     hl.bind("N", hl.dsp.exec_cmd(
-        [[ghostty -e nvim ~/.config/hypr/hyprland.lua]]
+        [[bash -lc 'cq_hypr_reset-submap; ghostty -e nvim ~/.config/hypr/hyprland.lua']]
     ))
     hl.bind("H", hl.dsp.exec_cmd(
-        [[cliphist list | rofi -dmenu | cliphist decode | wl-copy]]
+        [[bash -lc 'cq_hypr_reset-submap; cliphist list | rofi -dmenu | cliphist decode | wl-copy']]
     ))
-    hl.bind("P", hl.dsp.exec_cmd("hyprshot -m region"))
+    -- screenshot: region capture
+    hl.bind("P", hl.dsp.exec_cmd("bash -lc 'cq_hypr_reset-submap; hyprshot -m region'"))
     hl.bind("return", hl.dsp.submap("reset"))
     hl.bind("escape", hl.dsp.submap("reset"))
 end)
@@ -497,13 +502,17 @@ hl.define_submap("system", function()
     -- TODO: Random new wallpaper
     -- TODO: visualize in waybar
     -- TODO: add a "environment debug" command that shows env vars in a notification (like in my i3)
-    hl.bind("S", hl.dsp.exec_cmd("bash -lc 'systemctl suspend; hyprctl dispatch submap reset'"))
+    -- NOTE: since Hyprland >= 0.54 the IPC dispatch text is evaluated as Lua, so
+    -- `hyprctl dispatch submap reset` is a syntax error that fails silently and
+    -- leaves you stuck in the submap. Use cq_hypr_reset-submap (or the Lua-quoted
+    -- form `hyprctl dispatch 'hl.dsp.submap("reset")'`) instead.
+    hl.bind("S", hl.dsp.exec_cmd("bash -lc 'systemctl suspend; cq_hypr_reset-submap'"))
     hl.bind("R", hl.dsp.exec_cmd("systemctl reboot"))
-    hl.bind("E", hl.dsp.exec_cmd("bash -lc 'hyprctl dispatch exit'"))
+    hl.bind("E", hl.dsp.exec_cmd("bash -lc 'hyprctl dispatch \"hl.dsp.exit()\"'"))
     -- exit Hyprland
-    hl.bind("L", hl.dsp.exec_cmd("bash -lc 'hyprlock & disown; hyprctl dispatch submap reset'"))
+    hl.bind("L", hl.dsp.exec_cmd("bash -lc 'hyprlock & disown; cq_hypr_reset-submap'"))
     -- D = toggle the idle auto-lock (hypridle) on/off. Manual L still locks.
-    hl.bind("D", hl.dsp.exec_cmd("bash -lc 'idle-lock toggle; hyprctl dispatch submap reset'"))
+    hl.bind("D", hl.dsp.exec_cmd("bash -lc 'idle-lock toggle; cq_hypr_reset-submap'"))
     hl.bind("return", hl.dsp.submap("reset"))
     hl.bind("escape", hl.dsp.submap("reset"))
 end)

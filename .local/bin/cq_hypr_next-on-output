@@ -10,7 +10,7 @@ mapfile -t ws < <(hyprctl -j workspaces | jq -r --arg m "$mon" '
 for i in "${!ws[@]}"; do
   if [[ "${ws[$i]}" == "$cur" ]]; then
     nxt=${ws[$(((i+1)%${#ws[@]}))]}
-    hyprctl dispatch workspace "$nxt"
+    hyprctl dispatch "hl.dsp.focus({ workspace = $nxt })"
     exit 0
   fi
 done
