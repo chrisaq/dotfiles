@@ -9,6 +9,31 @@ NAME="halogen"
 MODELS="/srv/halogen/models"
 PORT="8731"
 
+# --- NPU -------------------------------------------------------------------
+# Comma list of small models to serve on the Ryzen AI NPU, beside the Flash
+# model. Set to "" to disable the NPU entirely; the container is then built
+# exactly as before this feature.
+#
+# Available: decider-0.8b, qwen3-embedding-0.6b, qwen3-reranker-0.6b,
+#            qwen3guard-gen-0.6b, qwen3.5-2b
+# Opt-in larger sizes: decider-4b, qwen3-embedding-4b, qwen3-reranker-4b
+# Images on the NPU:   flux2-klein-4b (adds about 8 GiB resident)
+NPU_MODELS="decider-0.8b,qwen3-embedding-0.6b,qwen3-reranker-0.6b"
+
+# Where the distro installed XRT.
+#   Arch / CachyOS:  /usr/lib
+#   Ubuntu:          /usr/lib/x86_64-linux-gnu
+XRT_LIBDIR="/usr/lib"
+
+# 1 = accept images. Costs about 2 GiB of RAM, and roughly 5.5 / 11.8 / 25.3
+# seconds per 1280x800 / 1920x1080 / 2560x1440 image; a 1080p frame also
+# occupies about 2040 tokens of the context.
+VISION=0
+
+# Set DRYRUN=1 to print the podman command instead of running it.
+DRYRUN="${DRYRUN:-}"
+# ---------------------------------------------------------------------------
+
 show_help() {
   cat <<EOF
 Usage: cq_halogen COMMAND
@@ -36,22 +61,13 @@ Commands:
 
       IMPORTANT:
         This command does NOT automatically discover the newest Halogen
-        version.
-
-        Before running 'cq_halogen update', edit this script and change:
-
-          IMAGE="ghcr.io/peonist-ai/halogen-flash-server:<version>"
-
-        Example:
-
-          IMAGE="ghcr.io/peonist-ai/halogen-flash-server:0.14.2"
-
-        Then run:
+        version. Before running 'cq_halogen update', edit this script and
+        change the IMAGE variable, then run:
 
           cq_halogen update
 
       The model files in $MODELS are preserved because they are stored
-      outside the container and mounted read-only at /models.
+      outside the container and mounted at /models.
 
   logs
       Follow the Halogen container logs.
@@ -66,38 +82,102 @@ Commands:
   help
       Show this help.
 
-Options:
-  -h, --help
-      Show this help.
+NPU:
+  The small NPU models are listed in NPU_MODELS above. Set it to "" to
+  start without the NPU. The host needs XRT with its NPU plugin
+  (pacman -S xrt xrt-plugin-amdxdna) and the GPU fabric clock held at its
+  top speed, which rootless podman cannot do itself:
 
-Examples:
-  cq_halogen start
-  cq_halogen status
-  cq_halogen logs
-  cq_halogen health
-  cq_halogen restart
-  cq_halogen update
+    sudo systemctl enable --now halogen-fabric-clock.service
+    /usr/local/sbin/halogen-fabric-clock status
+
+  The first start with the NPU enabled fetches the named models into
+  $MODELS/npu, so that mount is read-write; once they are there you can
+  drop HALOGEN_DOWNLOAD and mount it read-only again.
+
+Images:
+  Set VISION=1 to load the vision sidecar (HALOGEN_VISION_TOWER=1).
+
+Testing:
+  DRYRUN=1 cq_halogen start
+      Print the podman command without running it.
 EOF
+}
+
+# The container needs three XRT libraries from the host. A distribution's XRT
+# keeps them in the system library directory and they look for each other
+# there, so each one is mounted twice: into the image's XRT path, and at its
+# own path. Appends into the global array XRT_ARGS.
+XRT_ARGS=()
+xrt_mounts() {
+  local f real
+  for f in libxrt_coreutil.so.2 libxrt_core.so.2 libxrt_driver_xdna.so.2; do
+    real=$(readlink -f "$XRT_LIBDIR/$f" 2>/dev/null || true)
+    if [[ -z "$real" || ! -f "$real" ]]; then
+      echo "XRT: $f not found under $XRT_LIBDIR" >&2
+      echo "     install it: sudo pacman -S xrt xrt-plugin-amdxdna" >&2
+      return 1
+    fi
+    # The ${f} braces matter: under zsh an unbraced "$f:ro" is parsed as the
+    # :r history modifier and silently mangles the path.
+    XRT_ARGS+=(
+      --volume "$real:/opt/xilinx/xrt/lib/${f}:ro"
+      --volume "$real:${XRT_LIBDIR}/${f}:ro"
+    )
+  done
+}
+
+do_start() {
+  if podman container exists "$NAME"; then
+    echo "Container '$NAME' already exists." >&2
+    echo "Use: cq_halogen restart" >&2
+    return 1
+  fi
+
+  local -a args=(
+    run -d --rm
+    --name "$NAME"
+    --publish "$PORT:$PORT"
+    --device /dev/kfd
+    --device /dev/dri
+    --group-add keep-groups
+    --ipc=host
+    --ulimit memlock=-1:-1
+  )
+
+  if [[ -n "$NPU_MODELS" ]]; then
+    xrt_mounts || return 1
+    args+=( "${XRT_ARGS[@]}" )
+    args+=( --device /dev/accel/accel0 )
+    args+=( --env "HALOGEN_NPU_MODELS=$NPU_MODELS" )
+    # Fetches the NPU models named above into /models/npu and checks each
+    # one's size and checksum. Needs a writable /models.
+    args+=( --env "HALOGEN_DOWNLOAD=peonist-ai/halogen-qwen3.8-flash-next" )
+    args+=( --volume "$MODELS:/models" )
+  else
+    # No download needed, so keep the volume read-only.
+    args+=( --volume "$MODELS:/models:ro" )
+  fi
+
+  if [[ "$VISION" = "1" ]]; then
+    args+=( --env "HALOGEN_VISION_TOWER=1" )
+  fi
+
+  args+=( "$IMAGE" )
+
+  if [[ -n "$DRYRUN" ]]; then
+    printf 'podman'
+    printf ' %q' "${args[@]}"
+    printf '\n'
+    return 0
+  fi
+
+  podman "${args[@]}"
 }
 
 case "${1:-}" in
   start)
-    if podman container exists "$NAME"; then
-      echo "Container '$NAME' already exists." >&2
-      echo "Use: cq_halogen restart" >&2
-      exit 1
-    fi
-
-    podman run -d --rm \
-      --name "$NAME" \
-      -p "$PORT:$PORT" \
-      --device /dev/kfd \
-      --device /dev/dri \
-      --group-add keep-groups \
-      --ipc=host \
-      --ulimit memlock=-1:-1 \
-      -v "$MODELS:/models:ro" \
-      "$IMAGE"
+    do_start
     ;;
 
   stop)
@@ -124,11 +204,8 @@ Updating Halogen using:
 
 This command only pulls the version configured in cq_halogen.
 
-If you want to upgrade to a newer release, edit:
-
-  ~/.local/bin/cq_halogen
-
-and change the IMAGE variable first.
+If you want to upgrade to a newer release, edit this script and change the
+IMAGE variable first.
 
 EOF
 
