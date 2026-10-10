@@ -4,7 +4,7 @@
 #:no-args: false
 set -euo pipefail
 
-IMAGE="ghcr.io/peonist-ai/halogen-flash-server:0.17.2"
+IMAGE="ghcr.io/peonist-ai/halogen-flash-server:0.17.5"
 NAME="halogen"
 MODELS="/srv/halogen/models"
 PORT="8731"
