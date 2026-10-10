@@ -20,6 +20,9 @@ PORT="8731"
 # Images on the NPU:   flux2-klein-4b (adds about 8 GiB resident)
 NPU_MODELS="decider-0.8b,qwen3-embedding-0.6b,qwen3-reranker-0.6b"
 
+# Rootless NPU serving also needs an unlimited host memlock hard limit.
+# See /srv/halogen/halogen-memlock.conf and NPU-STARTUP-FIX.md.
+
 # Where the distro installed XRT.
 #   Arch / CachyOS:  /usr/lib
 #   Ubuntu:          /usr/lib/x86_64-linux-gnu
@@ -77,7 +80,7 @@ Commands:
 
   health
       Query the Halogen health endpoint at:
-        http://localhost:$PORT/health
+        http://127.0.0.1:$PORT/health
 
   help
       Show this help.
@@ -127,7 +130,23 @@ xrt_mounts() {
   done
 }
 
+# Check before stopping a working server for restart/update. Podman's
+# --ulimit cannot raise the hard limit inherited from the host login.
+check_npu_memlock() {
+  [[ -z "$NPU_MODELS" || -n "$DRYRUN" ]] && return 0
+  local hard
+  hard=$(ulimit -H -l)
+  if [[ "$hard" != unlimited ]]; then
+    echo "NPU: host memlock hard limit is $hard KiB; unlimited is required by this launcher." >&2
+    echo "Install /srv/halogen/halogen-memlock.conf under /etc/security/limits.d/, then log out and back in." >&2
+    echo "See /srv/halogen/NPU-STARTUP-FIX.md. No container was stopped." >&2
+    return 1
+  fi
+}
+
 do_start() {
+  check_npu_memlock || return 1
+
   if podman container exists "$NAME"; then
     echo "Container '$NAME' already exists." >&2
     echo "Use: cq_halogen restart" >&2
@@ -189,6 +208,7 @@ case "${1:-}" in
     ;;
 
   restart)
+    check_npu_memlock || exit 1
     if podman container exists "$NAME"; then
       podman stop "$NAME"
     fi
@@ -197,6 +217,7 @@ case "${1:-}" in
     ;;
 
   update)
+    check_npu_memlock || exit 1
     cat <<EOF
 Updating Halogen using:
 
@@ -227,8 +248,29 @@ EOF
     ;;
 
   health)
-    curl -fsS "http://localhost:$PORT/health"
-    echo
+    health_rc=0
+    health_body=$(curl --noproxy '*' --connect-timeout 3 --max-time 15 \
+      --fail-with-body -sS "http://127.0.0.1:$PORT/health") || health_rc=$?
+    if [[ -n "$health_body" ]]; then
+      format_rc=0
+      printf '%s' "$health_body" | python3 -c '
+import json, sys
+try:
+    body = json.load(sys.stdin)
+except ValueError as exc:
+    print(f"health: invalid JSON response: {exc}", file=sys.stderr)
+    sys.exit(65)
+print(json.dumps(body, indent=2, ensure_ascii=False))
+if not isinstance(body, dict) or body.get("status") != "ok":
+    print("health: server did not report status ok", file=sys.stderr)
+    sys.exit(1)
+' || format_rc=$?
+      if [[ "$health_rc" = 0 ]]; then health_rc=$format_rc; fi
+    elif [[ "$health_rc" = 0 ]]; then
+      echo "health: empty response" >&2
+      health_rc=65
+    fi
+    exit "$health_rc"
     ;;
 
   help|-h|--help)
