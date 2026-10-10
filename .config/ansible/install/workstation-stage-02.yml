@@ -15,6 +15,9 @@
 - name: AUR for workstation
   import_playbook: ../playbooks/055-user-install-aur.yml
 
+- name: tmux plugin manager and pinned plugins
+  import_playbook: ../playbooks/065-tmux-plugins.yml
+
 - name: Wireguard tunnels
   import_playbook: ../playbooks/100-wireguard.yml
 

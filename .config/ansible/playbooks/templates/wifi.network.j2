@@ -9,20 +9,34 @@ Name={{ wifi_match }}
 DHCP=yes
 Metric={{ wifi_metric }}
 IPv6PrivacyExtensions=yes
-# Explicit, not automatic. resolved's automatic mode only makes this link the
-# default DNS link when it has NO routing-only domains - but UseDomains=route
-# below gives it exactly that (~int.kotelett.no), which silently disqualified
-# the router and pushed all unmatched queries to FallbackDNS. Setting it to yes
-# keeps DHCP DNS preferred for everything not claimed by a more specific
-# route-only domain on a tunnel.
+# Explicit, not automatic. resolved's automatic mode only promotes a link to the
+# default DNS link when that link has no routing-only domains. We keep this set
+# to yes deliberately so the WiFi router stays preferred for everything not
+# claimed by a more specific route-only domain on a tunnel (wg-home claims
+# ~int.kotelett.no, wg-full claims ~.), and so later changes to the domain
+# list cannot silently demote this link and dump unmatched queries into
+# FallbackDNS.
 DNSDefaultRoute=yes
+# Search domain: makes bare "robert" resolve as "robert.int.kotelett.no".
+# No "~" prefix on purpose - see search_domains in vars/network.yml.
+{% if search_domains %}
+Domains={{ search_domains | join(' ') }}
+{% endif %}
 
 [DHCPv4]
 UseDNS=yes
-UseDomains=route
+# "no" is required, not cosmetic. The search suffix is supplied statically by
+# Domains= above. If DHCP is allowed to claim the same domain as route-only
+# (UseDomains=route) the two collide: resolved keeps the route-only attribute,
+# and a route-only domain never suffixes bare names - which is exactly the bug
+# this fixes. UseDomains=yes is the other wrong answer: it makes an untrusted
+# network's own domain a search suffix for every single-label lookup.
+# So DHCP contributes no domain at all and Domains= owns it outright.
+UseDomains=no
 SendHostname=yes
 ClientIdentifier=mac
 
 [IPv6AcceptRA]
 UseDNS=yes
-UseDomains=route
+# Same reasoning as [DHCPv4] above.
+UseDomains=no

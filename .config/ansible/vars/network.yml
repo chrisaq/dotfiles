@@ -23,6 +23,25 @@ dns_llmnr: false
 dns_mdns: false
 dns_stale_retention: 1h
 
+# ─── Search domains (bare hostname resolution) ───────────────────────────────
+# These are deliberately WITHOUT the "~" prefix. Per systemd.network(5):
+#   "The domains with the prefix are called 'routing-only domains'. The domains
+#    without the prefix are called 'search domains' and are first used as search
+#    suffixes for extending single-label hostnames ... each of the specified
+#    search domains are appended to it in turn, converting it into a fully
+#    qualified domain name, until one of them may be successfully resolved."
+#
+# This is the reason `robert` did not resolve while `robert.int.kotelett.no` did:
+# every int.kotelett.no entry was route-only (~), which routes *.int.kotelett.no
+# queries but never suffixes a bare name. Route-only is not a search domain.
+#
+# Configured explicitly here rather than via UseDomains=yes so that we always
+# search OUR domain and never inherit whatever suffix an untrusted DHCP server
+# (cafe, hotel, conference) hands out - which is exactly why UseDomains=route
+# is the upstream default recommendation.
+search_domains:
+  - int.kotelett.no
+
 # ─── Wired ───────────────────────────────────────────────────────────────────
 wired_match: "enp* eth*"
 wired_metric: 100

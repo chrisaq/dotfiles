@@ -12,13 +12,26 @@ IPv6PrivacyExtensions=yes
 # See the note in wifi.network.j2 - without this, UseDomains=route disqualifies
 # the link from being the default DNS link and unmatched queries hit FallbackDNS.
 DNSDefaultRoute=yes
+# Search domain: makes bare "robert" resolve as "robert.int.kotelett.no".
+# No "~" prefix on purpose - see search_domains in vars/network.yml.
+{% if search_domains %}
+Domains={{ search_domains | join(' ') }}
+{% endif %}
 
 [DHCPv4]
 UseDNS=yes
-UseDomains=route
+# "no" is required, not cosmetic. The search suffix is supplied statically by
+# Domains= above. If DHCP is allowed to claim the same domain as route-only
+# (UseDomains=route) the two collide: resolved keeps the route-only attribute,
+# and a route-only domain never suffixes bare names - which is exactly the bug
+# this fixes. UseDomains=yes is the other wrong answer: it makes an untrusted
+# network's own domain a search suffix for every single-label lookup.
+# So DHCP contributes no domain at all and Domains= owns it outright.
+UseDomains=no
 SendHostname=yes
 ClientIdentifier=mac
 
 [IPv6AcceptRA]
 UseDNS=yes
-UseDomains=route
+# Same reasoning as [DHCPv4] above.
+UseDomains=no

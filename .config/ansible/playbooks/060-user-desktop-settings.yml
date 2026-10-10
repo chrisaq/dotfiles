@@ -16,3 +16,59 @@
       ansible.builtin.command:
         cmd: gsettings set org.gnome.desktop.interface gtk-enable-primary-paste true
       when: gtk_primary_paste.stdout != "true"
+
+    # ---------------------------------------------------------------------
+    # bat custom theme
+    #
+    # bat does NOT read ~/.config/bat/themes/*.tmTheme directly. Custom themes
+    # are only visible after they have been compiled into the cache at
+    # ~/.cache/bat/themes.bin. Without that step the theme file just sits there
+    # unused.
+    #
+    # This is invisible on a recent bat because its embedded default set already
+    # ships the Catppuccin flavours, so it resolves by luck. On a bat whose
+    # embedded set predates Catppuccin the configured theme is genuinely absent
+    # and bat silently degrades to the fallback theme.
+    #
+    # Built as the invoking user - never via become, or the cache lands in
+    # /root/.cache/bat and is useless.
+    # ---------------------------------------------------------------------
+    - name: Read bat config
+      ansible.builtin.slurp:
+        src: "{{ ansible_env.HOME }}/.config/bat/config"
+      register: bat_config
+      failed_when: false
+
+    - name: Determine the configured bat theme
+      ansible.builtin.set_fact:
+        bat_theme: >-
+          {{ (bat_config.content | default('') | b64decode
+              | regex_search('^--theme="([^"]+)"', '\1', multiline=True)
+              | first) | default('', true) }}
+      when: bat_config.content is defined
+
+    - name: List themes bat can actually see
+      ansible.builtin.command:
+        cmd: bat --list-themes
+      register: bat_themes
+      changed_when: false
+      # A cache built by a different bat version makes this fail outright with
+      # "[bat error]: The binary caches ... are not compatible with this version
+      # of bat". That is a rebuild condition, not a fatal one.
+      failed_when: false
+
+    - name: Build the bat syntax/theme cache so the custom theme loads
+      ansible.builtin.command:
+        cmd: bat cache --build
+      when:
+        - bat_theme | default('') | length > 0
+        - bat_themes.rc != 0 or bat_theme not in bat_themes.stdout
+      register: bat_cache_build
+
+    - name: Report the theme that ended up active
+      ansible.builtin.debug:
+        msg: >-
+          bat theme '{{ bat_theme | default('(unset)', true) }}'
+          {{ 'cache was stale or missing the theme - rebuilt' if bat_cache_build.changed
+             else 'already available' }}
+      when: bat_theme | default('') | length > 0
