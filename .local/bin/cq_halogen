@@ -31,7 +31,7 @@ XRT_LIBDIR="/usr/lib"
 # 1 = accept images. Costs about 2 GiB of RAM, and roughly 5.5 / 11.8 / 25.3
 # seconds per 1280x800 / 1920x1080 / 2560x1440 image; a 1080p frame also
 # occupies about 2040 tokens of the context.
-VISION=0
+VISION=1
 
 # Set DRYRUN=1 to print the podman command instead of running it.
 DRYRUN="${DRYRUN:-}"
