@@ -38,6 +38,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Optional
@@ -317,6 +318,24 @@ def gopass(*args: str, stdin: Optional[str] = None, timeout: int = 120) -> str:
 def list_entries() -> list[str]:
     out = gopass("ls", "--flat")
     return sorted({line.strip() for line in out.splitlines() if line.strip()})
+
+
+def list_dirs(store: Path) -> list[str]:
+    """All directories inside the store (relative paths), including empty ones.
+
+    gopass only lists entries, so empty folders created with a plain mkdir are
+    invisible to it — we scan the filesystem for them.
+    """
+    dirs: list[str] = []
+    try:
+        for root, dirnames, _files in os.walk(store):
+            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+            rel = os.path.relpath(root, store)
+            if rel != ".":
+                dirs.append(rel)
+    except OSError:
+        pass
+    return sorted(dirs)
 
 
 def read_secret(path: str) -> Secret:
@@ -1060,12 +1079,14 @@ class PassTUI(App):
         self.initial_entry = initial_entry
         self.reveal = settings.reveal_by_default
         self.entries: list[str] = []
+        self.dirs: list[str] = []
         self._tree_nodes: dict[str, TreeNode] = {}
         self._preview_target: Optional[str] = None
         self._preview_timer = None
         self._pending_g: float = 0.0
         self._clip_task: Optional[asyncio.Task] = None
         self._current: Optional[Secret] = None
+        self._expanded: set[str] = set()
 
     # -- layout ---------------------------------------------------------
 
@@ -1189,9 +1210,13 @@ class PassTUI(App):
                 else:
                     node.expand()
         else:
-            # Unfiltered view: everything collapsed for a calm starting point.
-            for child in root.children:
-                child.collapse()
+            # Unfiltered view: restore the folders the user had open (everything
+            # starts collapsed on the first build).
+            for key, node in nodes.items():
+                if key in self._expanded:
+                    node.expand()
+                else:
+                    node.collapse()
 
     def _match(self, q: str) -> tuple[list[str], list[str]]:
         """Return (leaf_paths, folder_paths) for a filter query.
@@ -1224,6 +1249,11 @@ class PassTUI(App):
                     folder_hits.append("/".join(parts[: i + 1]))
                     break
 
+        # Empty folders (created via mkdir) have no leaf to match on.
+        for d in self.dirs:
+            if fuzzy_score(q, d.rsplit("/", 1)[-1]) is not None or fuzzy_score(q, d) is not None:
+                folder_hits.append(d)
+
         merged = sorted(leaf_hits + path_hits, key=lambda x: -x[0])
         leaf_paths = [p for _, p in merged[:400]]
 
@@ -1243,10 +1273,20 @@ class PassTUI(App):
 
     async def rescan(self, select: Optional[str] = None) -> None:
         try:
-            self.entries = await asyncio.to_thread(list_entries)
+            entries = await asyncio.to_thread(list_entries)
+            dirs = await asyncio.to_thread(list_dirs, self.store)
         except CqPassError as exc:
             self._status(f"rescan failed: {exc}", "err")
             return
+        # Legacy `.folder` placeholder leaves (older versions had no mkdir):
+        # hide the leaf but keep its directory visible as a folder.
+        suffix = f"/{FOLDER_MARKER}"
+        legacy_dirs = {e[: -len(suffix)] for e in entries if e.endswith(suffix)}
+        self.entries = [e for e in entries if not e.endswith(suffix)]
+        self.dirs = sorted(set(dirs) | legacy_dirs)
+        # Remember which folders were open so rebuilds don't collapse the tree.
+        if not self.filter_query():
+            self._expanded = {p for p, n in self._tree_nodes.items() if n.is_expanded}
         self._apply_filter()
         self._status(f"{len(self.entries)} entries", "ok")
         if select:
@@ -1255,7 +1295,7 @@ class PassTUI(App):
     def _apply_filter(self) -> None:
         q = self.filter_query()
         if not q:
-            self._build_tree(self.entries)
+            self._build_tree(self.entries, folder_paths=self.dirs)
             return
 
         leaf_paths, folder_paths = self._match(q)
@@ -1325,7 +1365,7 @@ class PassTUI(App):
         for part in parts[:-1]:
             found = None
             for child in parent.children:
-                if str(child.label) == part:
+                if str(child.label).rstrip("/") == part:
                     found = child
                     break
             if found is None:
@@ -1338,6 +1378,67 @@ class PassTUI(App):
                 tree.focus()
                 asyncio.create_task(self.load_detail(path))
                 return
+
+    def _node_dir(self, node) -> str:
+        """Full path of a folder node (labels may carry a trailing '/')."""
+        parts: list[str] = []
+        n = node
+        tree = self.query_one("#tree", Tree)
+        while n is not None and n is not tree.root:
+            parts.append(str(n.label).rstrip("/"))
+            n = n.parent
+        return "/".join(reversed(parts))
+
+    def _cursor_dir(self) -> str:
+        """Directory the tree cursor is on.
+
+        Folder node -> that folder; leaf entry -> its parent directory.
+        Falls back to the last previewed entry when the cursor is on the root.
+        """
+        try:
+            tree = self.query_one("#tree", Tree)
+            node = tree.get_node_at_line(tree.cursor_line) if tree.cursor_line >= 0 else None
+        except Exception:
+            node = None
+        if node is None or node is tree.root:
+            cur = self._current.path if self._current else ""
+            return cur.rsplit("/", 1)[0] if "/" in cur else ""
+        if isinstance(node.data, str):  # leaf entry
+            return node.data.rsplit("/", 1)[0] if "/" in node.data else ""
+        return self._node_dir(node)
+
+    def _reveal_dir(self, path: str) -> bool:
+        """Expand every ancestor of a folder plus the folder itself, then put
+        the cursor on it."""
+        tree = self.query_one("#tree", Tree)
+        parent = tree.root
+        node = None
+        for part in path.split("/"):
+            found = None
+            for child in parent.children:
+                if str(child.label).rstrip("/") == part:
+                    found = child
+                    break
+            if found is None:
+                return False
+            found.expand()
+            self._expanded.add(self._node_dir(found))
+            node = parent = found
+        if node is not None:
+            # move_cursor (not select_node) — select_node would post NodeSelected,
+            # and the tree's auto_expand would *toggle* the node back closed.
+            # Touch _tree_lines so the line cache (and node._line) is rebuilt
+            # after the expansions above; then move the cursor onto the folder.
+            try:
+                lines = tree._tree_lines
+                for i, tl in enumerate(lines):
+                    if tl.node is node:
+                        tree.move_cursor_to_line(i)
+                        break
+            except Exception:
+                tree.move_cursor(node)
+            tree.focus()
+        return node is not None
 
     async def load_detail(self, path: str) -> None:
         detail = self.query_one("#detail", Static)
@@ -1546,22 +1647,34 @@ class PassTUI(App):
             return None
         return new
 
+    @staticmethod
+    def _under(base: str, typed: str) -> str:
+        """Resolve a user-typed name against the current directory.
+
+        Names are relative to the directory shown in the prompt help, unless
+        the user already typed the base prefix themselves.
+        """
+        typed = typed.strip().strip("/")
+        if not base or typed.startswith(base) or typed == base.rstrip("/"):
+            return typed
+        return f"{base}{typed}"
+
     @work(thread=False, exclusive=True)
     async def action_new_folder(self) -> None:
-        """Create a folder in the vault.
+        """Create a folder in the store with a plain mkdir.
 
-        gopass has no `mkdir` — a directory only exists once something lives
-        inside it, so we write a recognisable placeholder leaf to materialise it.
-        Delete the placeholder to remove an empty folder again.
+        gopass itself has no mkdir and only lists entries, so empty folders are
+        picked up by scanning the store directory (see list_dirs). Delete the
+        last entry of a folder to make it go away again.
         """
-        current = self._current.path if self._current else ""
-        base = current.rsplit("/", 1)[0] + "/" if "/" in current else ""
+        base_dir = self._cursor_dir()
+        base = f"{base_dir}/" if base_dir else ""
 
         folder = await self.push_screen_wait(
             PromptScreen(
                 "New folder",
-                default=f"{base}new-folder",
-                placeholder="Accounts/new-folder",
+                default="new-folder",
+                placeholder="name  or  sub/name",
                 help=f"under {base or '/'} · Enter to create · Esc to cancel",
             )
         )
@@ -1569,26 +1682,28 @@ class PassTUI(App):
             self._status("cancelled", "muted")
             return
 
-        folder = folder.strip().strip("/")
-        if not folder or "/" not in folder:
-            self._status("folder needs at least one name", "err")
+        # The name is always relative to the directory shown in the help line.
+        folder = self._under(base, folder)
+        if not folder or any(part in ("", "..", ".") for part in folder.split("/")):
+            self._status("folder needs a valid name", "err")
             return
 
-        marker = f"{folder}/{FOLDER_MARKER}"
-        content = (
-            "placeholder\n"
-            "---\n"
-            f"folder: {folder}/\n"
-            "comment: placeholder created by cq_pass-tui (delete to remove the folder)\n"
-        )
         try:
-            await asyncio.to_thread(write_secret, marker, content, self.settings.commit_message)
-        except CqPassError as exc:
+            await asyncio.to_thread(lambda: (self.store / folder).mkdir(parents=True, exist_ok=False))
+        except FileExistsError:
+            self._status(f"{folder}/ already exists", "warn")
+            return
+        except OSError as exc:
             self._status(f"could not create folder: {exc}", "err")
             return
 
         await self.rescan()
-        self._select_path(marker)
+        if folder not in self._tree_nodes:
+            # An active filter can hide the freshly created folder — drop the
+            # filter so the user actually sees what they just made.
+            self.query_one("#filter", Input).value = ""
+            await self.rescan()
+        self._reveal_dir(folder)
         self._status(f"created {folder}/", "ok")
 
     @work(thread=False, exclusive=True)
@@ -1620,6 +1735,9 @@ class PassTUI(App):
 
     @work(thread=False, exclusive=True)
     async def action_new_secret(self) -> None:
+        base_dir = self._cursor_dir()
+        base = f"{base_dir}/" if base_dir else ""
+
         async def run() -> None:
             tpl = await self.push_screen_wait(TemplatePickerScreen(self.templates))
             if tpl is None:
@@ -1641,20 +1759,20 @@ class PassTUI(App):
                     val = f.default
                 values[f.name] = val
 
-            suggested = suggest_path(tpl, values)
+            suggested = suggest_path(tpl, values) or "new-entry"
             path = await self.push_screen_wait(
                 PromptScreen(
-                    "Vault path",
+                    "Entry path",
                     default=suggested,
-                    placeholder="Accounts/example.com/user",
-                    help="Enter to create · Esc to cancel",
+                    placeholder="e.g. github.com/chrisq",
+                    help=f"under {base or '/'} · Enter to create · Esc to cancel",
                 )
             )
             if not path:
                 self._status("no path — cancelled", "warn")
                 return
-            path = path.strip().strip("/")
-            if not path:
+            path = self._under(base, path)
+            if not path or any(part in ("", "..", ".") for part in path.split("/")):
                 self._status("invalid path", "warn")
                 return
 
@@ -1706,10 +1824,18 @@ class PassTUI(App):
             return literal
         m = re.match(r"(?i)^generate:\s*(\d{4,128})$", c)
         length = int(m.group(1)) if m else default_len
+        # gopass generate always writes the secret to the store, so use a scratch
+        # path and clean it up afterwards (its own generator/xkcd settings apply).
+        scratch = f"__cq_pass_tui_tmp__/{os.getpid()}-{time.time_ns()}"
         try:
-            out = gopass("generate", "--print", "--force", f"__cq_pass_tui_tmp__/{length}", str(length))
+            out = gopass("generate", "--print", "--force", scratch, str(length))
         except CqPassError:
             out = ""
+        finally:
+            try:
+                gopass("rm", "--force", "--recursive", "__cq_pass_tui_tmp__")
+            except CqPassError:
+                pass
         # Fallback: local generation so the flow never dead-ends.
         if not out.strip():
             import secrets
@@ -1779,7 +1905,7 @@ class PassTUI(App):
 
         async def run() -> None:
             new = await self.push_screen_wait(
-                PromptScreen("Move / rename", default=path, placeholder="new/vault/path")
+                PromptScreen("Move / rename", default=path, placeholder="new/entry/path")
             )
             if not new:
                 return
