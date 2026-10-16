@@ -4,7 +4,7 @@
 #:no-args: false
 set -euo pipefail
 
-IMAGE="ghcr.io/peonist-ai/halogen-flash-server:0.17.5"
+IMAGE="ghcr.io/peonist-ai/halogen-flash-server:0.18.4"
 NAME="halogen"
 MODELS="/srv/halogen/models"
 PORT="8731"
@@ -18,7 +18,9 @@ PORT="8731"
 #            qwen3guard-gen-0.6b, qwen3.5-2b
 # Opt-in larger sizes: decider-4b, qwen3-embedding-4b, qwen3-reranker-4b
 # Images on the NPU:   flux2-klein-4b (adds about 8 GiB resident)
-NPU_MODELS="decider-0.8b,qwen3-embedding-0.6b,qwen3-reranker-0.6b"
+# Multimodal embeddings (text+picture+audio, 768-dim): embeddinggemma-2
+#   needs image 0.18.3 or newer, adds about 1.1 GiB resident.
+NPU_MODELS="decider-0.8b,qwen3-embedding-0.6b,qwen3-reranker-0.6b,embeddinggemma-2"
 
 # Rootless NPU serving also needs an unlimited host memlock hard limit.
 # See /srv/halogen/halogen-memlock.conf and NPU-STARTUP-FIX.md.

@@ -339,7 +339,7 @@ def list_dirs(store: Path) -> list[str]:
 
 
 def read_secret(path: str) -> Secret:
-    raw = gopass("show", "--noparsing", "--force", path)
+    raw = gopass("show", "--noparsing", "--unsafe", path)
     return build_secret(path, raw)
 
 
@@ -1842,7 +1842,10 @@ class PassTUI(App):
 
             alpha = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
             out = "".join(secrets.choice(alpha) for _ in range(length))
-        pw = out.strip().splitlines()[0]
+        # gopass >=1.17 prints banner lines before the password on stdout;
+        # the password itself is always the last non-empty line.
+        lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
+        pw = lines[-1] if lines else ""
         # Guard: never store a truncated/empty generator result. A silently short
         # password is worse than a failed operation.
         if len(pw) < 8:
