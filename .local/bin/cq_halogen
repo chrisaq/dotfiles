@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #:desc: manage the Halogen Flash Server Podman container
-#:usage: cq_halogen {start|stop|restart|update|logs|status}
+#:usage: cq_halogen {start|stop|restart|update|upgrade VERSION|logs|status}
 #:no-args: false
 set -euo pipefail
 
-IMAGE="ghcr.io/peonist-ai/halogen-flash-server:0.18.4"
+IMAGE_REPO="ghcr.io/peonist-ai/halogen-flash-server"
+IMAGE_VERSION="0.18.4"
+IMAGE="$IMAGE_REPO:$IMAGE_VERSION"
 NAME="halogen"
 MODELS="/srv/halogen/models"
 PORT="8731"
@@ -53,7 +55,8 @@ Configured model directory:
 
 Commands:
   start
-      Start Halogen using the configured IMAGE.
+      Start Halogen using the newest version of the image present on this
+      machine; if none is present, the configured version is pulled.
 
   stop
       Stop the running Halogen container.
@@ -64,15 +67,15 @@ Commands:
   update
       Pull the configured IMAGE and recreate the Halogen container.
 
-      IMPORTANT:
-        This command does NOT automatically discover the newest Halogen
-        version. Before running 'cq_halogen update', edit this script and
-        change the IMAGE variable, then run:
-
-          cq_halogen update
-
       The model files in $MODELS are preserved because they are stored
       outside the container and mounted at /models.
+
+  upgrade VERSION
+      Pull VERSION of the image (e.g. 'cq_halogen upgrade 0.19.0') and
+      recreate the container with it. Because 'start' always uses the newest
+      version present on this machine, the new version is then used by
+      'start' and 'restart' too. The model files in $MODELS are preserved as
+      with 'update'.
 
   logs
       Follow the Halogen container logs.
@@ -145,6 +148,13 @@ check_npu_memlock() {
     return 1
   fi
 }
+# Newest numeric tag of IMAGE_REPO present in the local image store, empty
+# if none. 'latest' and dangling tags are ignored; sort -V orders versions.
+newest_local_version() {
+  podman images --format '{{.Repository}} {{.Tag}}' 2>/dev/null \
+    | awk -v r="$IMAGE_REPO" '$1 == r && $2 ~ /^[0-9]/ { print $2 }' \
+    | sort -V | tail -n1
+}
 
 do_start() {
   check_npu_memlock || return 1
@@ -184,7 +194,16 @@ do_start() {
     args+=( --env "HALOGEN_VISION_TOWER=1" )
   fi
 
-  args+=( "$IMAGE" )
+  local image
+  if [[ -n "${HALOGEN_IMAGE_VERSION:-}" ]]; then
+    image="$IMAGE_REPO:$HALOGEN_IMAGE_VERSION"
+  else
+    image=$(newest_local_version)
+    image="${image:+$IMAGE_REPO:$image}"
+    image="${image:-$IMAGE}"
+  fi
+  echo "Starting $image"
+  args+=( "$image" )
 
   if [[ -n "$DRYRUN" ]]; then
     printf 'podman'
@@ -227,8 +246,9 @@ Updating Halogen using:
 
 This command only pulls the version configured in cq_halogen.
 
-If you want to upgrade to a newer release, edit this script and change the
-IMAGE variable first.
+To upgrade to a newer release without editing this script:
+
+  cq_halogen upgrade VERSION
 
 EOF
 
@@ -239,6 +259,41 @@ EOF
     fi
 
     "$0" start
+    ;;
+
+  upgrade)
+    version="${2:-}"
+    if [[ -z "$version" ]]; then
+      echo "Usage: cq_halogen upgrade VERSION   (e.g. cq_halogen upgrade 0.19.0)" >&2
+      exit 1
+    fi
+    if [[ ! "$version" =~ ^[0-9][0-9a-zA-Z.]*$ ]]; then
+      echo "Invalid version: $version" >&2
+      exit 1
+    fi
+
+    # Warn on downgrade against the newest version on this machine (falling
+    # back to the configured version if nothing is pulled yet).
+    current=$(newest_local_version)
+    current="${current:-$IMAGE_VERSION}"
+    if [[ "$version" != "$current" ]] &&
+       [[ "$(printf '%s\n%s\n' "$version" "$current" | sort -V | head -n1)" = "$version" ]]; then
+      echo "WARNING: $version is older than the newest local version $current." >&2
+      read -r -p "Downgrade anyway? [y/N] " reply
+      [[ "$reply" = "y" || "$reply" = "Y" ]] || exit 1
+    fi
+
+    check_npu_memlock || exit 1
+
+    new_image="$IMAGE_REPO:$version"
+    echo "Upgrading Halogen to: $new_image"
+    podman pull "$new_image"
+
+    if podman container exists "$NAME"; then
+      podman stop "$NAME"
+    fi
+
+    HALOGEN_IMAGE_VERSION="$version" "$0" start
     ;;
 
   logs)
