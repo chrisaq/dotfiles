@@ -365,7 +365,7 @@ alias dtig="GIT_DIR=$XDG_DATA_HOME/dotfiles.git GIT_WORK_TREE=${HOME} tig"
 alias dlazygit="lazygit --git-dir=$XDG_DATA_HOME/dotfiles.git/ --work-tree=$HOME"
 # dotfiles based on hostname (per-machine dotfiles)
 if [[ ! -d "$HOME"/.local/share/dotlocal.git ]]; then
-    mkdir -p "$HOME"/.local/share/dotlocal-$(hostnamectl --static).git
+    mkdir -p "$HOME"/.local/share/dotfiles-$(hostnamectl --static).git
 fi
 alias dotlocal="git --work-tree=$HOME/ --git-dir=$HOME/.local/share/dotfiles-$(hostnamectl --static).git"
 alias lcassm='dotlocal commit --all --gpg-sign --signoff --message'
@@ -1110,6 +1110,12 @@ cq_ai_ohmyopenagent() {
     _cq_ai_require_bun || return 1
     bunx oh-my-opencode install
 }
+omp() {
+    local PATH="$HOME/.cache/.bun/bin:$PATH"
+    local -x PI_CODING_AGENT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omp/agent"
+    mkdir -p "$PI_CODING_AGENT_DIR"
+    command omp "$@"
+}
 cq_opencode_setup() {
     : "#:desc: sync everything-claude-code and install OpenCode agents/commands into .opencode"
     : "#:usage: cq_opencode_setup"
@@ -1117,7 +1123,6 @@ cq_opencode_setup() {
     local source_dir="$HOME/Code/Private/everything-claude-code"
     local source_url="https://github.com/affaan-m/everything-claude-code"
     local target_dir="$PWD/.opencode"
-
     if [[ -d "$source_dir/.git" ]]; then
         echo "Updating $source_dir..."
         git -C "$source_dir" pull --ff-only || return 1
@@ -1129,16 +1134,13 @@ cq_opencode_setup() {
         mkdir -p "${source_dir:h}" || return 1
         git clone "$source_url" "$source_dir" || return 1
     fi
-
     if [[ ! -d "$source_dir/agents" || ! -d "$source_dir/commands" ]]; then
         echo "Error: expected agents/ and commands/ in $source_dir" >&2
         return 1
     fi
-
     mkdir -p "$target_dir" || return 1
     cp -a "$source_dir/agents" "$target_dir/" || return 1
     cp -a "$source_dir/commands" "$target_dir/" || return 1
-
     echo "Installed OpenCode config to $target_dir"
 }
  cq_rspamd() {
