@@ -24,9 +24,11 @@ fi
 initial_ws="$(hyprctl -j activeworkspace | jq -r '.id // empty' || true)"
 
 declare -A desired=()
+ws_json="$(hyprctl -j workspaces)"
+focus_changed=false
 
 restore_initial_workspace() {
-  if [[ "${initial_ws:-}" =~ ^[1-9]$ ]]; then
+  if [[ "$focus_changed" == true && "${initial_ws:-}" =~ ^[1-9][0-9]*$ ]]; then
     hyprctl dispatch "hl.dsp.focus({ workspace = $initial_ws })" >/dev/null 2>&1 || true
   fi
 }
@@ -40,7 +42,8 @@ focus_workspace() {
 
   lua_expr="hl.dsp.focus({ workspace = $ws })"
 
-  if ! output="$(hyprctl dispatch "$lua_expr" 2>&1)"; then
+  focus_changed=true
+  if ! output="$(hyprctl dispatch "$lua_expr" 2>&1)" || [[ "$output" != "ok" ]]; then
     printf 'hyprctl dispatch %s failed:\n%s\n' "$lua_expr" "$output" >&2
     return 1
   fi
@@ -48,14 +51,15 @@ focus_workspace() {
 
 move_workspace_to_monitor() {
   local mon="$1"
+  local ws="$2"
   local lua_mon
   local lua_expr
   local output
 
-  lua_mon="$(jq -Rn --arg mon "$mon" '$mon | @json')"
-  lua_expr="hl.dsp.workspace.move({ monitor = $lua_mon })"
+  lua_mon="$(jq -rn --arg mon "$mon" '$mon | @json')"
+  lua_expr="hl.dsp.workspace.move({ workspace = $ws, monitor = $lua_mon })"
 
-  if ! output="$(hyprctl dispatch "$lua_expr" 2>&1)"; then
+  if ! output="$(hyprctl dispatch "$lua_expr" 2>&1)" || [[ "$output" != "ok" ]]; then
     printf 'hyprctl dispatch %s failed:\n%s\n' "$lua_expr" "$output" >&2
     return 1
   fi
@@ -63,10 +67,16 @@ move_workspace_to_monitor() {
 
 move_ws_to() {
   local mon="$1"; shift
+  local ws actual
   for ws in "$@"; do
     desired["$ws"]="$mon"
-    focus_workspace "$ws"
-    move_workspace_to_monitor "$mon"
+    actual="$(jq -r --argjson ws "$ws" '.[] | select(.id == $ws) | .monitor' <<<"$ws_json")"
+    [[ "$actual" == "$mon" ]] && continue
+    # Only focus to create a missing workspace; move existing ones directly.
+    if [[ -z "$actual" ]]; then
+      focus_workspace "$ws"
+    fi
+    move_workspace_to_monitor "$mon" "$ws"
   done
 }
 
