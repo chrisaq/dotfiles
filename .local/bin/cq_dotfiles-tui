@@ -1,0 +1,2707 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "textual[syntax]==8.2.8",
+#   "typer==0.27.3",
+#   "pydantic==2.14.1",
+#   "rich==15.0.0",
+#   "Send2Trash==2.1.0",
+#   "tomli-w==1.2.0",
+# ]
+# ///
+#:usage: cq_dotfiles-tui [--config PATH] [--repo NAME] [doctor|config]
+#:no-args: true
+#:desc: A Catppuccin workbench for shared and machine-specific dotfiles.
+"""Standalone dotfiles manager. Git remains the source of truth.
+
+Startup never writes configuration, sources shell files, accesses the network,
+or recursively scans home. Tests, CLI and UI share the same services.
+"""
+from __future__ import annotations
+
+import asyncio
+import codecs
+import contextlib
+import difflib
+import hashlib
+import json
+import os
+import re
+import shlex
+import shutil
+import socket
+import stat
+import subprocess
+import tempfile
+import threading
+import tomllib
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Literal
+
+import tomli_w
+import typer
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from rich.console import Console, Group
+from rich.syntax import Syntax
+from rich.table import Table
+from rich.text import Text
+from send2trash import send2trash
+from textual import on, work
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.command import DiscoveryHit, Hit, Hits, Provider
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
+from textual.theme import Theme
+from textual.widgets import (
+    Button, Checkbox, DataTable, Input, Label,
+    MarkdownViewer, Select, Static, TabbedContent, TabPane, TextArea, Tree,
+)
+
+APP_NAME = "cq_dotfiles"
+VERSION = "1.0.0"
+
+
+class DotError(Exception):
+    """An error suitable for display without a traceback."""
+
+
+def xdg_dir(kind: str, home: Path) -> Path:
+    default = {"config": ".config", "data": ".local/share", "state": ".local/state"}[kind]
+    value = os.environ.get(f"XDG_{kind.upper()}_HOME") if home == Path.home() else None
+    return Path(value) if value else home / default
+
+
+def config_path(home: Path | None = None) -> Path:
+    return xdg_dir("config", home or Path.home()) / APP_NAME / "config.toml"
+
+
+def stamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+
+
+def display_path(value: str | Path) -> str:
+    return "".join(c if c.isprintable() else f"\\x{ord(c):02x}" for c in str(value))
+
+
+def atomic_write(path: Path, data: bytes, mode: int = 0o600) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(name, mode)
+        os.replace(name, path)
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(name)
+
+
+DEFAULT_COMMANDS: dict[str, list[str]] = {
+    "valid": ["rev-parse", "--absolute-git-dir"],
+    "tracked": ["ls-files", "--full-name", "-z"],
+    "status": ["status", "--porcelain=v1", "-z", "--untracked-files=no"],
+    "diff": ["diff", "--no-ext-diff", "--no-textconv", "--no-color", "--", "{paths}"],
+    "diff_staged": ["diff", "--cached", "--no-ext-diff", "--no-textconv", "--no-color", "--", "{paths}"],
+    "diff_combined": ["diff", "HEAD", "--no-ext-diff", "--no-textconv", "--no-color", "--", "{paths}"],
+    "stage": ["add", "--force", "--", "{paths}"],
+    "unstage": ["reset", "--quiet", "HEAD", "--", "{paths}"],
+    "unstage_unborn": ["rm", "--cached", "--", "{paths}"],
+    "untrack": ["rm", "--cached", "--", "{paths}"],
+    "commit": ["commit", "--all", "--gpg-sign", "--signoff", "--message", "{message}"],
+    "commit_staged": ["commit", "--gpg-sign", "--signoff", "--message", "{message}"],
+    "commit_preview": ["commit", "--dry-run", "--all"],
+    "push": ["push"],
+    "push_upstream": ["push", "--set-upstream", "{remote}", "{branch}"],
+    "fetch": ["fetch", "{remote}"],
+    "pull": ["pull", "--ff-only"],
+    "head": ["rev-parse", "--verify", "HEAD"],
+    "branch": ["symbolic-ref", "--quiet", "--short", "HEAD"],
+    "upstream": ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+    "ahead": ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
+    "remotes": ["remote"],
+    "remote_url": ["remote", "get-url", "{remote}"],
+    "read_config": ["config", "--get", "{key}"],
+    "set_config": ["config", "--local", "{key}", "{value}"],
+    "tree": ["ls-tree", "-r", "-z", "--name-only", "HEAD"],
+    "tree_modes": ["ls-tree", "-r", "-z", "HEAD"],
+    "checkout": ["checkout", "HEAD", "--", "{paths}"],
+    "init": ["init", "--bare", "--initial-branch={branch}", "{git_dir}"],
+    "clone": ["clone", "--bare", "--", "{url}", "{git_dir}"],
+    "remote_add": ["remote", "add", "{remote}", "{url}"],
+    "seed_tracking": ["update-ref", "refs/remotes/{remote}/{branch}", "{revision}"],
+}
+READ_CONTRACTS = {
+    "tracked": {"ls-files", "--full-name", "-z"},
+    "status": {"status", "--porcelain=v1", "-z", "--untracked-files=no"},
+    "tree": {"ls-tree", "-r", "-z", "--name-only", "HEAD"},
+    "tree_modes": {"ls-tree", "-r", "-z", "HEAD"},
+}
+READ_ACTIONS = {
+    "valid", "tracked", "status", "diff", "diff_staged", "diff_combined",
+    "commit_preview", "head", "branch", "upstream", "ahead", "remotes",
+    "remote_url", "read_config", "tree", "tree_modes",
+}
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+def validate_commands(commands: dict[str, list[str]]) -> dict[str, list[str]]:
+    for name, args in commands.items():
+        if not args or any("\0" in arg for arg in args):
+            raise ValueError(f"Command {name}: expected a nonempty argument list without NUL bytes")
+        if name in READ_CONTRACTS and not READ_CONTRACTS[name].issubset(args):
+            raise ValueError(f"Command {name} must retain {sorted(READ_CONTRACTS[name])}")
+        if any("{paths}" in arg and arg != "{paths}" for arg in args):
+            raise ValueError("{paths} must be a separate argument")
+        if name in {"stage", "unstage", "unstage_unborn", "untrack", "checkout"}:
+            if "--" not in args or "{paths}" not in args or args.index("--") > args.index("{paths}"):
+                raise ValueError(f"Command {name} must include -- followed by {{paths}}")
+    return commands
+
+
+class RepoProfile(StrictModel):
+    git_dir: str
+    commands: dict[str, list[str]] = Field(default_factory=dict)
+    _commands = field_validator("commands")(validate_commands)
+
+
+class Settings(StrictModel):
+    home: Path = Field(default_factory=Path.home)
+    theme: Literal["macchiato", "latte"] = "macchiato"
+    animation: bool = True
+    glyphs: bool = True
+    refresh_seconds: float = Field(default=2, ge=0.5, le=3600)
+    preview_bytes: int = Field(default=1_048_576, ge=1024, le=100_000_000)
+    preview_delay: float = Field(default=0.5, ge=0, le=10)
+    editor: list[str] = Field(default_factory=list)
+    repositories: dict[str, RepoProfile] = Field(default_factory=dict)
+    commands: dict[str, list[str]] = Field(default_factory=dict)
+    recipes: dict[str, list[str]] = Field(default_factory=dict)
+    keybindings: dict[str, str] = Field(default_factory=dict)
+    _commands = field_validator("commands")(validate_commands)
+
+    @field_validator("home")
+    @classmethod
+    def absolute_home(cls, path: Path) -> Path:
+        return path.expanduser().resolve()
+
+    @model_validator(mode="after")
+    def recipe_references(self) -> Settings:
+        known = set(DEFAULT_COMMANDS) | self.commands.keys()
+        for profile in self.repositories.values():
+            known |= profile.commands.keys()
+        for name, steps in self.recipes.items():
+            if not steps or not set(steps) <= known:
+                raise ValueError(f"Recipe {name}: steps must name configured Git commands")
+        return self
+
+
+def expand_path(value: str, home: Path) -> Path:
+    values = {"HOME": str(home), "XDG_DATA_HOME": str(xdg_dir("data", home)),
+              "XDG_CONFIG_HOME": str(xdg_dir("config", home))}
+    value = value.replace("$(hostnamectl --static)", socket.gethostname().split(".")[0])
+    value = value.replace("$(hostname)", socket.gethostname())
+    for key, replacement in values.items():
+        value = value.replace("${" + key + "}", replacement)
+        value = re.sub(r"\$" + key + r"\b", lambda _: replacement, value)
+    if "$" in value or "`" in value:
+        raise DotError(f"Cannot statically resolve path: {value}")
+    if value == "~" or value.startswith("~/"):
+        value = str(home) + value[1:]
+    path = Path(value)
+    return Path(os.path.abspath(path if path.is_absolute() else home / path))
+
+
+@dataclass
+class ShellInfo:
+    files: dict[Path, str]
+    aliases: dict[str, str]
+    dynamic: list[str]
+    zdotdir: Path
+
+
+def inspect_shell(home: Path) -> ShellInfo:
+    zdotdir = Path(os.environ.get("ZDOTDIR", str(home))) if home == Path.home() else home
+    envfile = home / ".zshenv"
+    try:
+        match = re.search(r"^\s*(?:export\s+)?ZDOTDIR=[\"']?([^\s\"']+)", envfile.read_text(), re.M)
+        if match:
+            zdotdir = expand_path(match[1], home)
+    except (OSError, UnicodeError, DotError):
+        pass
+    candidates = [envfile, home / ".zshrc", zdotdir / ".zshrc", zdotdir / "zshenv"]
+    files: dict[Path, str] = {}
+    aliases: dict[str, str] = {}
+    dynamic: list[str] = []
+    while candidates and len(files) < 30:
+        path = candidates.pop(0)
+        if path in files:
+            continue
+        try:
+            if path.stat().st_size > 1_000_000:
+                continue
+            text = path.read_text()
+        except (OSError, UnicodeError):
+            continue
+        files[path] = text
+        for line in text.splitlines():
+            if not re.match(r"\s*alias\s+", line):
+                continue
+            try:
+                assignments = shlex.split(line, comments=True)[1:]
+            except ValueError:
+                continue
+            for assignment in assignments:
+                name, separator, body = assignment.partition("=")
+                if separator and name in {"dotfiles", "dotlocal", "dcassm", "lcassm", "dtig", "ltig", "dlazygit", "llazygit"}:
+                    aliases[name] = body
+        for raw in re.findall(r"^\s*(?:source|\.)\s+([^\n#]+)", text, re.M):
+            raw = raw.strip().strip("\"'").replace("${ZDOTDIR}", str(zdotdir)).replace("$ZDOTDIR", str(zdotdir))
+            try:
+                source = expand_path(raw, home)
+                if any(c in str(source) for c in "*?{}<>() "):
+                    continue
+                candidates.append(source)
+            except DotError:
+                dynamic.append(raw)
+    return ShellInfo(files, aliases, dynamic, zdotdir)
+
+
+def alias_repository(body: str, home: Path) -> Path | None:
+    try:
+        body = body.replace("$(hostnamectl --static)", socket.gethostname().split(".")[0]).replace("$(hostname)", socket.gethostname())
+        args = shlex.split(body)
+        if not args or args[0] != "git":
+            return None
+        for index, arg in enumerate(args):
+            if arg.startswith("--git-dir="):
+                return expand_path(arg.partition("=")[2], home)
+            if arg == "--git-dir" and index + 1 < len(args):
+                return expand_path(args[index + 1], home)
+    except (ValueError, DotError):
+        pass
+    return None
+
+
+def load_settings(path: Path, home: Path | None = None) -> Settings:
+    try:
+        data = tomllib.loads(path.read_text()) if path.exists() else {}
+        if home is not None:
+            data["home"] = home
+        settings = Settings.model_validate(data)
+    except (OSError, ValueError) as error:
+        raise DotError(f"Invalid configuration {path}: {error}") from error
+    shell = inspect_shell(settings.home)
+    for name, dirname in (("dotfiles", "dotfiles.git"), ("dotlocal", f"dotfiles-{socket.gethostname().split('.')[0]}.git")):
+        if name not in settings.repositories:
+            candidate = alias_repository(shell.aliases.get(name, ""), settings.home)
+            settings.repositories[name] = RepoProfile(git_dir=str(candidate or xdg_dir("data", settings.home) / dirname))
+    for profile in settings.repositories.values():
+        profile.git_dir = str(expand_path(profile.git_dir, settings.home))
+    return settings
+
+
+def settings_toml(settings: Settings) -> str:
+    return "# cq_dotfiles-tui — see Help / Configuration for recipes.\n" + tomli_w.dumps(settings.model_dump(mode="json"))
+
+
+def example_settings() -> str:
+    return '''# Save as ~/.config/cq_dotfiles/config.toml
+theme = "macchiato" # or "latte"
+animation = true
+glyphs = true
+refresh_seconds = 2.0
+preview_bytes = 1048576
+preview_delay = 0.5 # seconds to pause on a file before loading its preview
+# editor = ["nvim"] # otherwise $EDITOR, otherwise built-in
+
+[repositories.dotfiles]
+git_dir = "~/.local/share/dotfiles.git"
+# Omit dotlocal to discover its alias or conventional hostname path.
+# [repositories.dotlocal]
+# git_dir = "~/.local/share/dotfiles-myhost.git"
+
+# No shell evaluation: arguments follow the implicit Git/repository prefix.
+# [commands]
+# commit = ["commit", "--all", "--gpg-sign", "--signoff", "--message", "{message}"]
+# inspect_log = ["log", "--oneline", "-20"]
+# [repositories.dotlocal.commands]
+# commit = ["commit", "--all", "--signoff", "--message", "{message}"]
+# [recipes]
+# publish = ["commit", "push"]
+# [keybindings]
+# "ctrl+t" = "theme"
+'''
+
+
+@dataclass
+class CommandResult:
+    argv: list[str]
+    returncode: int
+    stdout: bytes = b""
+    stderr: bytes = b""
+
+    @property
+    def text(self) -> str:
+        return (self.stdout + self.stderr).decode("utf-8", "replace").strip()
+
+    def check(self) -> CommandResult:
+        if self.returncode:
+            raise DotError(self.text or f"Git exited with status {self.returncode}")
+        return self
+
+
+@dataclass
+class Snapshot:
+    tracked: set[str] = field(default_factory=set)
+    statuses: dict[str, str] = field(default_factory=dict)
+    originals: dict[str, str] = field(default_factory=dict)
+    branch: str = "—"
+    upstream: str = ""
+    ahead: str = ""
+    error: str = ""
+
+
+class Repository:
+    def __init__(self, name: str, settings: Settings, profile: RepoProfile | None = None):
+        self.name, self.settings = name, settings
+        self.profile = profile or settings.repositories[name]
+        self.home, self.git_dir = settings.home, Path(self.profile.git_dir)
+        self.lock = threading.RLock()
+        self.snapshot = Snapshot()
+
+    def recipe(self, action: str) -> list[str]:
+        commands = DEFAULT_COMMANDS | self.settings.commands | self.profile.commands
+        if action not in commands:
+            raise DotError(f"Unknown Git command: {action}")
+        return commands[action]
+
+    def argv(self, action: str, *, paths: list[str] | None = None, **values: str) -> list[str]:
+        replacements = {"git_dir": str(self.git_dir), "home": str(self.home), "repo": self.name,
+                        "branch": self.snapshot.branch if self.snapshot.branch != "—" else "main", "remote": "origin", **values}
+        args: list[str] = []
+        for arg in self.recipe(action):
+            if arg == "{paths}":
+                args.extend(paths or [])
+            else:
+                def replace(match: re.Match[str]) -> str:
+                    key = match[1]
+                    if key not in replacements:
+                        raise DotError(f"Command {action} needs a value for: {key}")
+                    return replacements[key]
+                # Substitute the template once; braces inside a user value are literal.
+                args.append(re.sub(r"(?<!@)\{([a-z_]+)\}", replace, arg))
+        prefix = ["git", "--no-pager"]
+        if action not in {"init", "clone"}:
+            prefix += ["-C", str(self.home), f"--git-dir={self.git_dir}", f"--work-tree={self.home}"]
+        return prefix + args
+
+    def environment(self, *, read: bool = False) -> dict[str, str]:
+        selectors = {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+                     "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_PREFIX", "GIT_NAMESPACE", "GIT_GLOB_PATHSPECS",
+                     "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS"}
+        env = {k: v for k, v in os.environ.items() if k not in selectors}
+        env.update({"GIT_LITERAL_PATHSPECS": "1", "GIT_PAGER": "cat", "LC_ALL": "C.UTF-8"})
+        if self.home != Path.home():
+            env = {k: v for k, v in env.items() if not k.startswith(("GIT_CONFIG", "GIT_AUTHOR", "GIT_COMMITTER"))}
+            env.update({"HOME": str(self.home), "XDG_CONFIG_HOME": str(xdg_dir("config", self.home))})
+            env["GIT_CONFIG_NOSYSTEM"] = "1"
+        if read:
+            env.update({"GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0"})
+        return env
+
+    def run(self, action: str, *, check: bool = True, timeout: float = 20, **values: Any) -> CommandResult:
+        argv = self.argv(action, **values)
+        try:
+            with self.lock:
+                result = subprocess.run(argv, env=self.environment(read=action in READ_ACTIONS), capture_output=True, timeout=timeout, cwd=self.home)
+            output = CommandResult(argv, result.returncode, result.stdout, result.stderr)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise DotError(f"Git {action}: {error}") from error
+        return output.check() if check else output
+
+    def valid(self) -> bool:
+        return self.git_dir.is_dir() and self.run("valid", check=False).returncode == 0
+
+    def has_head(self) -> bool:
+        return self.run("head", check=False).returncode == 0
+
+    def config(self, key: str) -> str:
+        return self.run("read_config", key=key, check=False).text
+
+    def refresh(self) -> Snapshot:
+        if not self.valid():
+            self.snapshot = Snapshot(error="Not configured — open Setup to create, clone, or attach")
+            return self.snapshot
+        with self.lock:
+            tracked = {os.fsdecode(p) for p in self.run("tracked").stdout.split(b"\0") if p}
+            raw = self.run("status").stdout.split(b"\0")
+            statuses, originals = {}, {}
+            i = 0
+            while i < len(raw):
+                record = raw[i]
+                i += 1
+                if not record:
+                    continue
+                if len(record) < 4 or record[2:3] != b" ":
+                    raise DotError("Status command did not return porcelain v1 -z output")
+                code, path = record[:2].decode("ascii"), os.fsdecode(record[3:])
+                statuses[path] = code
+                if "R" in code or "C" in code:
+                    if i < len(raw) and raw[i]:
+                        originals[path] = os.fsdecode(raw[i])
+                        i += 1
+            branch = self.run("branch", check=False).text or "detached HEAD"
+            up = self.run("upstream", check=False)
+            upstream = up.text if up.returncode == 0 else ""
+            ahead = self.run("ahead", check=False) if upstream else None
+            counts = ahead.text.replace("\t", " ↑ / ") + " ↓" if ahead and not ahead.returncode else ""
+            self.snapshot = Snapshot(tracked, statuses, originals, branch, upstream, counts)
+        return self.snapshot
+
+    def relative(self, path: Path) -> str:
+        path = Path(os.path.abspath(path))
+        try:
+            relative = path.relative_to(self.home)
+        except ValueError as error:
+            raise DotError("Files must be within the home work tree") from error
+        cursor = self.home
+        for part in relative.parts[:-1]:
+            cursor /= part
+            if cursor.is_symlink():
+                raise DotError(f"Refusing to traverse symlink directory: {cursor}")
+        return "" if relative == Path(".") else str(relative)
+
+    def protected(self, path: Path) -> bool:
+        for profile in self.settings.repositories.values():
+            directory = Path(profile.git_dir)
+            if path == directory or directory in path.parents:
+                return True
+        return ".git" in path.relative_to(self.home).parts
+
+    def expand_selection(self, selected: list[Path], *, tracked_only: bool = False) -> list[str]:
+        found: set[str] = set()
+        known = self.snapshot.tracked | self.snapshot.statuses.keys()
+        for path in selected:
+            relative = self.relative(path)
+            if self.protected(path):
+                raise DotError("Repository metadata cannot be added or removed")
+            if tracked_only:
+                found.update(p for p in known if p == relative or p.startswith(relative + "/") or not relative)
+            elif path.is_dir() and not path.is_symlink():
+                if path == self.home:
+                    raise DotError("Select individual files or subdirectories rather than all of home")
+                for root, dirs, files in os.walk(path, followlinks=False):
+                    rootpath = Path(root)
+                    dirs[:] = [d for d in dirs if not self.protected(rootpath / d)]
+                    for item in files + [d for d in dirs if (rootpath / d).is_symlink()]:
+                        child = rootpath / item
+                        if not self.protected(child):
+                            found.add(self.relative(child))
+                            if len(found) > 20_000:
+                                raise DotError("Selection exceeds 20,000 files; select a smaller directory")
+                found.update(p for p in known if p.startswith(relative + "/"))
+            else:
+                found.add(relative)
+        return sorted(found)
+
+    def diff(self, path: str, mode: str = "combined") -> str:
+        if mode == "staged":
+            return self.run("diff_staged", paths=[path]).text
+        if mode == "unstaged":
+            return self.run("diff", paths=[path]).text
+        if self.has_head():
+            return self.run("diff_combined", paths=[path]).text
+        return self.run("diff_staged", paths=[path]).text + "\n" + self.run("diff", paths=[path]).text
+
+    def review_token(self) -> tuple[Any, ...]:
+        """Detect edits even when their porcelain status remains ' M'."""
+        index = self.git_dir / "index"
+        digest = hashlib.sha256(index.read_bytes()).digest() if index.exists() else b""
+        files = []
+        for name in sorted(self.snapshot.statuses):
+            try:
+                info = (self.home / name).lstat()
+                files.append((name, info.st_ino, info.st_size, info.st_mtime_ns, info.st_mode))
+            except FileNotFoundError:
+                files.append((name, None))
+        return digest, tuple(sorted(self.snapshot.statuses.items())), tuple(files)
+
+    def apply(self, action: str, paths: list[str]) -> CommandResult:
+        if not paths:
+            raise DotError("No matching files selected")
+        for path in paths:
+            self.relative(self.home / path)
+            if self.protected(self.home / path):
+                raise DotError("Repository metadata is protected")
+        if action == "unstage" and not self.has_head():
+            action = "unstage_unborn"
+        return self.run(action, paths=paths)
+
+
+def transfer_tracking(source: Repository, target: Repository, paths: list[str]) -> None:
+    """Prepare temporary indexes, then install using Git's lock protocol."""
+    if source.git_dir.resolve() == target.git_dir.resolve():
+        raise DotError("Choose a different destination repository")
+    if not paths or not target.valid():
+        raise DotError("Select tracked files and configure the destination repository first")
+    ordered = sorted((source, target), key=lambda r: str(r.git_dir))
+    with ordered[0].lock, ordered[1].lock:
+        indexes = [r.git_dir / "index" for r in (source, target)]
+        before = [p.read_bytes() if p.exists() else None for p in indexes]
+        tempnames: list[str] = []
+        lockfds: list[int] = []
+        try:
+            for repo, data in zip((source, target), before):
+                fd, name = tempfile.mkstemp(prefix="cq-index-", dir=repo.git_dir)
+                os.close(fd)
+                if data is None:
+                    os.unlink(name)
+                else:
+                    Path(name).write_bytes(data)
+                tempnames.append(name)
+            for repo, action, indexname in ((target, "stage", tempnames[1]), (source, "untrack", tempnames[0])):
+                env = repo.environment()
+                env["GIT_INDEX_FILE"] = indexname
+                result = subprocess.run(repo.argv(action, paths=paths), env=env, capture_output=True, cwd=repo.home, timeout=30)
+                CommandResult([], result.returncode, result.stdout, result.stderr).check()
+            for index in indexes:
+                lockfds.append(os.open(str(index) + ".lock", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600))
+            for index, old in zip(indexes, before):
+                if (index.read_bytes() if index.exists() else None) != old:
+                    raise DotError("An index changed during the move; no tracking changes applied")
+            for fd, name in zip(lockfds, tempnames):
+                with open(name, "rb") as stream, os.fdopen(os.dup(fd), "wb") as out:
+                    shutil.copyfileobj(stream, out)
+            installed = []
+            try:
+                for index in indexes:
+                    os.replace(str(index) + ".lock", index)
+                    installed.append(index)
+            except OSError:
+                for index, old in zip(indexes, before):
+                    if index in installed:
+                        if old is None:
+                            index.unlink(missing_ok=True)
+                        else:
+                            atomic_write(index, old)
+                raise
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise DotError(f"Tracking move failed: {error}") from error
+        finally:
+            for fd in lockfds:
+                os.close(fd)
+            for index in indexes[:len(lockfds)]:
+                Path(str(index) + ".lock").unlink(missing_ok=True)
+            for name in tempnames:
+                Path(name).unlink(missing_ok=True)
+                Path(name + ".lock").unlink(missing_ok=True)
+
+
+@dataclass
+class Finding:
+    level: str
+    subject: str
+    detail: str
+    repair: str = ""
+
+
+def diagnose(settings: Settings) -> list[Finding]:
+    findings: list[Finding] = []
+    if not shutil.which("git"):
+        return [Finding("error", "Git", "Install git and ensure it is on PATH")]
+    shell = inspect_shell(settings.home)
+    for name in settings.repositories:
+        repo = Repository(name, settings)
+        if not repo.valid():
+            findings.append(Finding("info" if name == "dotlocal" else "warning", name, f"Not configured: {repo.git_dir}. Use Setup."))
+            continue
+        findings.append(Finding("ok", name, f"Repository available at {repo.git_dir}"))
+        worktree = repo.config("core.worktree")
+        if worktree and expand_path(worktree, settings.home) != settings.home:
+            findings.append(Finding("warning", name, f"core.worktree is {worktree}; app explicitly uses {settings.home}"))
+        for key in ("user.name", "user.email"):
+            if not repo.config(key):
+                findings.append(Finding("warning", name, f"Missing {key}; set it in Git config before committing"))
+        if any(a.startswith("--gpg-sign") or a == "-S" for a in repo.recipe("commit")):
+            key, fmt = repo.config("user.signingkey"), repo.config("gpg.format") or "openpgp"
+            findings.append(Finding("ok" if key else "info", name, f"Commit signing: {fmt}; " + (f"key {key}" if key else "Git selects its default key; availability checked at commit")))
+        remotes = repo.run("remotes").text.splitlines()
+        if not remotes:
+            findings.append(Finding("info", name, "No remote; local commits still work"))
+        for remote in remotes:
+            if not repo.config(f"remote.{remote}.fetch"):
+                findings.append(Finding("warning", name, f"Remote {remote} has no fetch refspec", f"fetch:{name}:{remote}"))
+        if repo.run("upstream", check=False).returncode:
+            findings.append(Finding("info", name, "No upstream; Push can establish it"))
+        actual = alias_repository(shell.aliases.get(name, ""), settings.home)
+        if actual != repo.git_dir:
+            findings.append(Finding("warning", "Shell integration", f"Alias {name} missing, dynamic, or points elsewhere; TUI works independently", "shell"))
+        else:
+            findings.append(Finding("ok", "Shell integration", f"Alias {name} matches"))
+        helper = {"dotfiles": "dcassm", "dotlocal": "lcassm"}.get(name)
+        if helper and helper not in shell.aliases:
+            findings.append(Finding("info", "Shell integration", f"Optional {helper} helper is missing", "shell"))
+    text = "\n".join(shell.files.values())
+    if "mkdir" in text and "dotlocal-$(hostnamectl --static).git" in text:
+        findings.append(Finding("warning", "Shell integration", "Legacy setup creates dotlocal-<host>.git but alias uses dotfiles-<host>.git", "shell"))
+    if "llazygit" in shell.aliases and "dotfiles.git" in shell.aliases["llazygit"]:
+        findings.append(Finding("warning", "Shell integration", "llazygit points to the shared repository", "shell"))
+    for alias in ("dotfiles", "dotlocal"):
+        if alias in settings.repositories and not re.search(r"compdef\s+" + alias + r"=git", text):
+            findings.append(Finding("info", "Shell integration", f"Optional Git completion for {alias} is missing", "shell"))
+    if shell.dynamic:
+        findings.append(Finding("info", "Shell inspection", "Dynamic source statements could not all be inspected; startup files were not executed"))
+    if not shell.files:
+        findings.append(Finding("info", "Shell inspection", "No readable zsh startup files found"))
+    return findings
+
+
+SHELL_BEGIN = "# >>> cq_dotfiles-tui managed integration >>>"
+SHELL_END = "# <<< cq_dotfiles-tui managed integration <<<"
+
+
+def shell_repair(settings: Settings) -> tuple[Path, str, str]:
+    shell = inspect_shell(settings.home)
+    target = shell.zdotdir / ".zshrc"
+    for path, content in shell.files.items():
+        if re.search(r"^alias dotfiles=", content, re.M):
+            target = path
+            break
+    before = target.read_text() if target.exists() else ""
+    lines = [SHELL_BEGIN, "# Explicit work trees; no directory creation during shell startup."]
+    for name, profile in settings.repositories.items():
+        if name not in {"dotfiles", "dotlocal"}:
+            continue
+        command = f"git --git-dir={shlex.quote(profile.git_dir)} --work-tree={shlex.quote(str(settings.home))}"
+        lines.append(f"alias {name}={shlex.quote(command)}")
+        helper = "dcassm" if name == "dotfiles" else "lcassm"
+        lines += [f"alias {helper}='{name} commit --all --gpg-sign --signoff --message'", f"(( $+functions[compdef] )) && compdef {name}=git"]
+        tig, lazy = ("dtig", "dlazygit") if name == "dotfiles" else ("ltig", "llazygit")
+        tig_command = f"GIT_DIR={shlex.quote(profile.git_dir)} GIT_WORK_TREE={shlex.quote(str(settings.home))} tig"
+        lazy_command = f"lazygit --git-dir={shlex.quote(profile.git_dir)} --work-tree={shlex.quote(str(settings.home))}"
+        lines += [f"alias {tig}={shlex.quote(tig_command)}", f"alias {lazy}={shlex.quote(lazy_command)}"]
+    block = "\n".join(lines + [SHELL_END]) + "\n"
+    if SHELL_BEGIN in before:
+        if SHELL_END not in before:
+            raise DotError("Managed integration block is incomplete; repair it manually before replacing")
+        after = re.sub(re.escape(SHELL_BEGIN) + r".*?" + re.escape(SHELL_END) + r"\n?", lambda _: block, before, count=1, flags=re.S)
+    else:
+        pattern = r'(?m)^if \[\[ ! -d "\$HOME"/\.local/share/dotfiles\.git \]\]; then\n.*?^alias llazygit=.*?\n'
+        after = re.sub(pattern, lambda _: block, before, count=1, flags=re.S) if re.search(pattern, before, re.S) else before.rstrip("\n") + "\n\n" + block
+    return target, before, after
+
+
+def apply_shell_repair(settings: Settings, proposal: tuple[Path, str, str]) -> Path | None:
+    target, before, after = proposal
+    if target.is_symlink():
+        raise DotError("Shell configuration is a symlink; apply the reviewed repair to its target manually")
+    current = target.read_text() if target.exists() else ""
+    if current != before:
+        raise DotError("Shell configuration changed since review; generate the repair again")
+    if current == after:
+        return None
+    backup = xdg_dir("state", settings.home) / APP_NAME / "backups" / stamp() / "shell" / target.name
+    if target.exists():
+        atomic_write(backup, target.read_bytes())
+    atomic_write(target, after.encode(), stat.S_IMODE(target.stat().st_mode) if target.exists() else 0o600)
+    return backup if before else None
+
+
+@dataclass
+class SetupRequest:
+    name: str
+    mode: str
+    git_dir: Path
+    url: str = ""
+    branch: str = "main"
+    user_name: str = ""
+    user_email: str = ""
+    signing_key: str = ""
+
+
+@dataclass
+class PreparedSetup:
+    request: SetupRequest
+    repo: Repository
+    temporary: Path | None = None
+    paths: list[str] = field(default_factory=list)
+    collisions: list[str] = field(default_factory=list)
+
+    def cleanup(self) -> None:
+        if self.temporary and self.temporary.exists():
+            shutil.rmtree(self.temporary)
+
+
+def validate_checkout_paths(home: Path, paths: list[str], repo: Repository) -> None:
+    for name in paths:
+        relative = Path(name)
+        if relative.is_absolute() or ".." in relative.parts or not relative.parts:
+            raise DotError(f"Unsafe checkout path: {display_path(name)}")
+        destination = home / relative
+        repo.relative(destination)
+        if repo.protected(destination) or destination == home:
+            raise DotError(f"Checkout would overwrite repository metadata: {display_path(name)}")
+
+
+def prepare_setup(settings: Settings, request: SetupRequest,
+                  foreground: Callable[[Repository, str, dict[str, str]], None] | None = None) -> PreparedSetup:
+    if request.name not in settings.repositories:
+        raise DotError("Choose an existing profile name")
+    if not request.branch or request.branch.startswith("-"):
+        raise DotError("Enter a branch name")
+    repo = Repository(request.name, settings, RepoProfile(git_dir=str(request.git_dir), commands=settings.repositories[request.name].commands))
+    if repo.git_dir == settings.home or repo.git_dir.is_symlink():
+        raise DotError("Choose a dedicated non-symlink repository directory")
+    if request.mode == "attach":
+        if not repo.valid():
+            raise DotError("That directory does not contain a valid Git repository")
+        return PreparedSetup(request, repo)
+    if request.git_dir.exists():
+        raise DotError("Repository destination already exists; use Attach Existing or an unused path")
+    if request.mode == "create":
+        return PreparedSetup(request, repo)
+    if not request.url or request.url.startswith("-"):
+        raise DotError("Enter a remote URL or an absolute local repository path")
+    state = xdg_dir("state", settings.home) / APP_NAME / "setup"
+    state.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temporary = Path(tempfile.mkdtemp(prefix="clone-", dir=state))
+    clone = Repository(request.name, settings, RepoProfile(git_dir=str(temporary / "repository.git"), commands=repo.profile.commands))
+    prepared = PreparedSetup(request, clone, temporary)
+    try:
+        if foreground:
+            foreground(clone, "clone", {"url": request.url})
+        else:
+            clone.run("clone", url=request.url, timeout=300)
+        if clone.has_head():
+            prepared.paths = [os.fsdecode(p) for p in clone.run("tree").stdout.split(b"\0") if p]
+            modes = clone.run("tree_modes").stdout.split(b"\0")
+            links = {os.fsdecode(r.split(b"\t", 1)[1]) for r in modes if r.startswith(b"120000 ")}
+            if any(str(parent) in links for path in prepared.paths for parent in Path(path).parents):
+                raise DotError("Repository contains a symlink ancestor; checkout refused")
+            validate_checkout_paths(settings.home, prepared.paths, repo)
+            collisions: set[str] = set()
+            for path in prepared.paths:
+                destination = settings.home / path
+                if os.path.lexists(destination):
+                    collisions.add(path)
+                for parent in destination.parents:
+                    if parent == settings.home:
+                        break
+                    if parent.exists() and not parent.is_dir():
+                        collisions.add(str(parent.relative_to(settings.home)))
+            prepared.collisions = sorted(p for p in collisions if not any(str(parent) in collisions for parent in Path(p).parents))
+        return prepared
+    except BaseException:
+        prepared.cleanup()
+        raise
+
+
+def apply_setup(settings: Settings, filename: Path, prepared: PreparedSetup) -> tuple[Repository, Path | None]:
+    request = prepared.request
+    profile = RepoProfile(git_dir=str(request.git_dir), commands=settings.repositories[request.name].commands)
+    repo = Repository(request.name, settings, profile)
+    backup: Path | None = None
+    if request.mode != "attach" and request.git_dir.exists():
+        raise DotError("Destination appeared since review; setup cancelled")
+    validate_checkout_paths(settings.home, prepared.paths, repo)
+    for name in prepared.paths:
+        destination = settings.home / name
+        if os.path.lexists(destination) and not any(name == c or name.startswith(c + "/") for c in prepared.collisions):
+            raise DotError("A new checkout collision appeared; run the wizard again")
+    request.git_dir.parent.mkdir(parents=True, exist_ok=True)
+    created, moved = False, []
+    try:
+        if request.mode == "create":
+            repo.run("init", branch=request.branch)
+            created = True
+        elif request.mode == "clone":
+            assert prepared.temporary is not None
+            shutil.move(str(prepared.repo.git_dir), request.git_dir)
+            created, prepared.repo = True, repo
+        if not repo.valid():
+            raise DotError("Repository is not valid after setup")
+        if request.mode != "attach":
+            repo.run("set_config", key="status.showUntrackedFiles", value="no")
+            exclude = repo.git_dir / "info" / "exclude"
+            existing = exclude.read_text() if exclude.exists() else ""
+            if "*" not in existing.splitlines():
+                atomic_write(exclude, (existing + "\n# cq_dotfiles: opt-in tracking; add uses --force\n*\n").encode())
+            if request.mode == "create" and request.url:
+                repo.run("remote_add", remote="origin", url=request.url)
+            if request.mode == "clone":
+                repo.run("set_config", key="remote.origin.fetch", value="+refs/heads/*:refs/remotes/origin/*")
+                branch = repo.run("branch", check=False)
+                if not branch.returncode and repo.has_head():
+                    # Bare clone does not create normal remote-tracking refs.
+                    repo.run("seed_tracking", remote="origin", branch=branch.text, revision=repo.run("head").text)
+                    repo.run("set_config", key=f"branch.{branch.text}.remote", value="origin")
+                    repo.run("set_config", key=f"branch.{branch.text}.merge", value=f"refs/heads/{branch.text}")
+            for key, value in (("user.name", request.user_name), ("user.email", request.user_email), ("user.signingkey", request.signing_key)):
+                if value:
+                    repo.run("set_config", key=key, value=value)
+        if prepared.paths:
+            backup = xdg_dir("state", settings.home) / APP_NAME / "backups" / stamp()
+            backup.mkdir(parents=True, mode=0o700)
+            atomic_write(backup / "recovery.json", json.dumps({"repository": str(repo.git_dir), "home": str(settings.home), "collisions": prepared.collisions, "checkout_paths": prepared.paths}, indent=2).encode())
+            for name in prepared.collisions:
+                source, destination = settings.home / name, backup / "files" / name
+                if os.path.lexists(source):
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(source), str(destination))
+                    moved.append(name)
+            repo.run("checkout", paths=prepared.paths, timeout=120)
+        new_settings = settings.model_copy(deep=True)
+        new_settings.repositories[request.name] = profile
+        if filename.exists():
+            atomic_write(xdg_dir("state", settings.home) / APP_NAME / "backups" / stamp() / "config.toml", filename.read_bytes())
+        atomic_write(filename, settings_toml(new_settings).encode())
+        settings.repositories[request.name] = profile
+        return repo, backup
+    except BaseException as error:
+        for name in reversed(moved):
+            assert backup is not None
+            source, destination = backup / "files" / name, settings.home / name
+            if not os.path.lexists(destination) and os.path.lexists(source):
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(source), str(destination))
+        detail = f" Backups and recovery manifest: {backup}." if backup else ""
+        detail += f" Repository retained at {repo.git_dir}." if created else ""
+        raise DotError(f"Setup failed: {error}.{detail}") from error
+    finally:
+        prepared.cleanup()
+
+
+@dataclass
+class FileDocument:
+    path: Path
+    raw: bytes
+    encoding: str
+    newline: str
+    mode: int
+    parent: Path
+
+    @classmethod
+    def read(cls, path: Path, limit: int) -> FileDocument:
+        if path.is_symlink():
+            raise DotError("Editing symlinks is disabled; select the real file inside home")
+        if not path.is_file():
+            raise DotError("Select a regular text file")
+        with path.open("rb") as stream:
+            raw = stream.read(limit + 1)
+        if len(raw) > limit:
+            raise DotError("File exceeds built-in editor limit; use an external editor")
+        encoding = "utf-8-sig" if raw.startswith(codecs.BOM_UTF8) else "utf-8"
+        if b"\0" in raw:
+            raise DotError("Binary files require an external editor")
+        try:
+            raw.decode(encoding)
+        except UnicodeError as error:
+            raise DotError("Encoding is not UTF-8; use an external editor to preserve it") from error
+        if b"\r" in raw.replace(b"\r\n", b"") or (b"\r\n" in raw and b"\n" in raw.replace(b"\r\n", b"")):
+            raise DotError("Mixed or legacy line endings require an external editor")
+        return cls(path, raw, encoding, "\r\n" if b"\r\n" in raw else "\n", stat.S_IMODE(path.stat().st_mode), path.parent.resolve())
+
+    @property
+    def text(self) -> str:
+        return self.raw.decode(self.encoding).replace("\r\n", "\n")
+
+    def save(self, text: str) -> None:
+        if self.path.is_symlink() or self.path.parent.resolve() != self.parent or self.path.read_bytes() != self.raw:
+            raise DotError("File changed on disk since opening. Reopen it before saving.")
+        data = text.replace("\n", self.newline).encode(self.encoding)
+        atomic_write(self.path, data, self.mode)
+        self.raw = data
+
+
+HELP = r"""
+# Your dotfiles workbench
+
+Keep configuration files where applications expect them. Git stores history in a
+separate repository and treats your home directory as its work tree. No managed
+symlinks or copies between a source folder and home are needed.
+
+## Shared and machine-specific files
+
+**dotfiles** contains shared configuration; **dotlocal** contains machine-specific
+files. The repository selector chooses which index, diff, commit, and remote an
+action uses. Badges show all owners, including files tracked in both repositories.
+Editing a shared disk file affects the working copy of every repository owning it.
+
+The browser is rooted at home: Git cannot track outside its work tree. Symlink
+directories are not traversed. Repository metadata is protected.
+
+## Working tree, index, and history
+
+The **working tree** is your files on disk. The **index** is the proposed next
+commit. A **commit** records a snapshot of the index in repository history.
+
+* **Stage / Add** puts current content in the index. Force-add is used because
+  untracked files are ignored by default. Directory additions are reviewed.
+* **Unstage** restores the index entry from HEAD and preserves disk content.
+* **Stop tracking** removes the index entry while keeping your file. Commit this
+  removal to finish removing it from the current snapshot. History is retained.
+* **Trash** moves a disk file to system trash. Owning repositories see a deletion;
+  staging is separate. Failure never falls back to permanent deletion.
+* **Move tracking** stages an addition in the destination repository and removal
+  in the source without moving the file. Commit each repository separately.
+
+## Commit and publish
+
+The default commit matches **dcassm / lcassm**:
+
+`git commit --all --gpg-sign --signoff --message MESSAGE`
+
+This includes **all tracked changes**, tracked deletions, and staged new files.
+It is not limited to the highlighted file. Review the complete scope in the commit
+dialog. Staged-only commits are also available. Signing is never silently disabled.
+Inside the dialog, **F5** commits locally and **F6** commits then pushes; both have
+buttons and work while typing the message. Escape cancels. Review dialogs use
+F5 to accept, avoiding terminal/window-manager Ctrl+Enter shortcuts.
+
+Commit records locally; Push publishes existing commits. Commit & Push stops if
+commit fails. A failed push preserves the successful local commit. First push can
+choose a remote/branch and establish upstream tracking. Fetch updates remote
+knowledge; Pull is fast-forward only and refuses divergence.
+
+Git receives the foreground terminal for commits and remote operations so GPG,
+SSH, credentials, and hooks can interact normally. Press Enter to return afterwards.
+
+## Browser shortcuts
+
+| Key | Action |
+| --- | --- |
+| Up / Down | Navigate |
+| Right / Left | Expand or enter directory / collapse or move to parent |
+| Enter | Toggle directory expansion |
+| Tab / Shift+Tab | Change focus |
+| Space | Mark / unmark selected item |
+| / | Focus filename filter |
+| a / u / x | Stage / unstage / stop tracking |
+| Delete | Move selected disk files to trash |
+| m | Move tracking to another repository |
+| e / E | Preferred / built-in editor |
+| d | Cycle automatic / content / combined / staged / unstaged preview |
+| c / C / p | Commit / commit & push / push |
+| f / P | Fetch / fast-forward pull |
+| r / t | Refresh / toggle theme |
+| b | Expand tree / preview / restore split |
+| ? / F1 | Help / shortcut reference |
+| Ctrl+P | Search commands |
+| q | Quit outside text inputs |
+
+Filters examine loaded directories and tracked paths, not a recursive home scan.
+**S / L** badges identify shared / local ownership. `+` is tracked clean, `~`
+changed, `!` conflict, and `-` absent/deleted. Text never depends on colour alone.
+
+## Built-in editor
+
+`e` uses configured `editor`, then `$EDITOR`, then the built-in editor. `E` always
+uses the built-in editor. Binary, oversized, non-UTF-8, and mixed-newline files need
+an external editor. Symlinks are not edited.
+
+| Keys | Action |
+| --- | --- |
+| Ctrl+A / E | Beginning / end of line |
+| Ctrl+B / F | Backward / forward character |
+| Ctrl+P / N | Previous / next line |
+| Ctrl+K / U / W | Kill to end / beginning / previous word |
+| Ctrl+Y | Yank last killed text |
+| Ctrl+Z / Ctrl+Shift+Z | Undo / redo |
+| Ctrl+R | Find; F3 / Shift+F3 find next / previous |
+| Ctrl+S / Q | Save / close |
+| Ctrl+G | Cancel find |
+| F1 | Full editor shortcut reference |
+
+Saving preserves UTF-8 BOM, line endings, permissions, and final-newline state as
+represented in the editor. External disk changes block saving. Closing dirty text
+asks whether to discard. Browser action keys never run inside the editor.
+
+## Setup and recovery
+
+Dotfiles and Dotlocal each support Create, Attach Existing, and Clone Remote.
+Create starts an empty bare repository. Attach preserves the existing layout and
+does not checkout. Clone downloads into a temporary directory before reviewing
+home paths and collisions. Both bare and explicit-work-tree repositories work.
+
+Create and Clone install an ignore-all rule in repository-local `info/exclude`,
+never in your home `.gitignore`. Adding files is explicit opt-in. New repositories
+default to **main**; attaching preserves existing branches. Setup does not commit
+or push. Your configured signing identity is used on subsequent commits.
+
+Clone backs up collisions before checkout. Paths escaping home through symlink
+parents are refused. Backups and `recovery.json` are retained beneath
+`$XDG_STATE_HOME/cq_dotfiles/backups`; failures report recovery locations. Backups
+can contain sensitive files and are not intended for tracking.
+
+Shell integration is a separate reviewed Health repair. It backs up shell files
+and installs an idempotent managed block. Open a new shell afterwards. Startup
+files are inspected statically, never sourced.
+
+## Configuration and extensions
+
+Default: `$XDG_CONFIG_HOME/cq_dotfiles/config.toml`.
+Run `cq_dotfiles-tui config example` for a starter, `config show` for effective
+settings, or `config validate` to check configuration. Add `--commands` to `config
+show` to see every default Git recipe. Changes take effect after restart.
+
+Discovery precedence: explicit profiles, statically resolved zsh aliases, then
+`~/.local/share/dotfiles.git` and `dotfiles-HOSTNAME.git`. ZDOTDIR and XDG are
+respected. Existing layouts are never automatically converted.
+
+`[commands]` defines Git argument lists; `[repositories.NAME.commands]` overrides
+them per profile. Arguments follow the implicit Git/repository/work-tree prefix.
+`init` and `clone` use plain Git. There is no shell evaluation or pipeline syntax.
+
+Placeholders: `{home}`, `{git_dir}`, `{repo}`, `{branch}`, `{remote}`, `{message}`,
+`{url}`, `{key}`, `{value}`, `{revision}`, and standalone `{paths}`. Paths expand as individual
+literal arguments. Git's `@{upstream}` is preserved. Read recipes must retain their
+machine-readable contract (porcelain v1 and NUL-delimited paths, for example).
+
+Named `[recipes]` contain command names, run in sequence, stopping at the first
+failure. Custom commands and recipes appear in the command palette. Missing
+placeholder values are prompted for. `[keybindings]` maps Textual key names to
+registered action names. Preferences control theme, animation, glyphs, refresh
+interval, preview size, and editor arguments. Set `preview_delay = 0.5` in the
+configuration to control the cursor pause before previews (0 loads immediately).
+Known source formats and common dotfiles use theme-matched syntax colors,
+line numbers and indentation guides. Press d for content when a changed file
+automatically shows its diff. Theme changes only persist when
+you choose **Save preferences** in the command palette.
+
+## Health
+
+Health and `doctor` inspect repositories, work-tree settings, identity, signing
+configuration, remotes, fetch refspecs, and shell helpers. No network calls or
+signing probes run at startup. Actual key availability is checked during commit.
+Dynamic shell definitions may require manual inspection. Shell aliases and
+completions are optional conveniences, not prerequisites. Dotlocal is optional.
+"""
+
+EDITOR_HELP = HELP[HELP.index("## Built-in editor"):HELP.index("## Setup and recovery")]
+
+# Official Catppuccin base, surface, text, and accent colours.
+PALETTES = {
+    "macchiato": {"base": "#24273a", "mantle": "#1e2030", "surface": "#363a4f",
+                  "text": "#cad3f5", "muted": "#a5adcb", "blue": "#8aadf4",
+                  "mauve": "#c6a0f6", "green": "#a6da95", "yellow": "#eed49f", "red": "#ed8796"},
+    "latte": {"base": "#eff1f5", "mantle": "#e6e9ef", "surface": "#ccd0da",
+              "text": "#4c4f69", "muted": "#6c6f85", "blue": "#1e66f5",
+              "mauve": "#8839ef", "green": "#40a02b", "yellow": "#df8e1d", "red": "#d20f39"},
+}
+
+
+def syntax(text: str, lexer: str, theme: str, **kwargs: Any) -> Syntax:
+    """Use Catppuccin for source and diff tokens, including inserted/deleted lines."""
+    from pygments.style import Style as PygmentsStyle
+    from pygments.token import Comment, Error, Generic, Keyword, Literal, Name, Operator, Token
+    from rich.syntax import PygmentsSyntaxTheme
+    p = PALETTES.get(theme, PALETTES["macchiato"])
+    style = type("CatppuccinSyntax", (PygmentsStyle,), {
+        "background_color": p["base"], "styles": {
+            Token: p["text"], Comment: f"italic {p['muted']}", Keyword: p["mauve"],
+            Name.Function: p["blue"], Name.Builtin: p["blue"], Name.Tag: p["blue"],
+            Name.Attribute: p["yellow"], Literal.String: p["green"], Literal.Number: p["yellow"],
+            Operator: p["blue"], Error: p["red"], Generic.Deleted: p["red"],
+            Generic.Inserted: p["green"], Generic.Heading: f"bold {p['blue']}",
+            Generic.Subheading: f"bold {p['mauve']}", Generic.Emph: "italic", Generic.Strong: "bold",
+        }})
+    return Syntax(text, lexer, theme=PygmentsSyntaxTheme(style), background_color=p["base"], **kwargs)
+
+
+def preview_lexer(path: Path, text: str) -> str:
+    """Recognize source files, common extensionless dotfiles and shebang scripts."""
+    from pygments.lexers import get_lexer_by_name, guess_lexer, guess_lexer_for_filename
+    from pygments.util import ClassNotFound
+    dotfiles = {
+        ".zshrc": "zsh", ".zshenv": "zsh", ".zprofile": "zsh", ".zlogin": "zsh",
+        ".bashrc": "bash", ".bash_profile": "bash", ".profile": "bash",
+        ".gitconfig": "ini", ".gitmodules": "ini", ".editorconfig": "ini",
+        ".npmrc": "ini", ".pypirc": "ini", ".tmux.conf": "bash",
+    }
+    try:
+        if path.name in dotfiles:
+            lexer = get_lexer_by_name(dotfiles[path.name])
+        else:
+            try:
+                lexer = guess_lexer_for_filename(path.name, text[:4096])
+            except ClassNotFound:
+                if not text.startswith("#!"):
+                    return "text"
+                lexer = guess_lexer(text[:4096])
+        return lexer.aliases[0] if lexer.aliases else "text"
+    except ClassNotFound:
+        return "text"
+
+
+def theme_editor(area: TextArea, theme: str) -> None:
+    from rich.style import Style
+    from textual.widgets.text_area import TextAreaTheme
+    p = PALETTES.get(theme, PALETTES["macchiato"])
+    colours = {"comment": "muted", "keyword": "mauve", "string": "green", "number": "yellow",
+               "float": "yellow", "boolean": "yellow", "function": "blue", "function.call": "blue",
+               "type": "yellow", "operator": "blue", "variable": "text", "constant": "yellow",
+               "punctuation.bracket": "muted", "punctuation.delimiter": "muted", "property": "blue",
+               "tag": "blue", "attribute": "yellow", "heading": "blue"}
+    area.register_theme(TextAreaTheme(
+        name="catppuccin-" + theme, base_style=Style(color=p["text"], bgcolor=p["base"]),
+        gutter_style=Style(color=p["muted"], bgcolor=p["mantle"]),
+        cursor_style=Style(color=p["base"], bgcolor=p["text"]),
+        cursor_line_style=Style(bgcolor=p["mantle"]),
+        selection_style=Style(bgcolor=p["surface"]),
+        syntax_styles={token: Style(color=p[colour], italic=token == "comment") for token, colour in colours.items()},
+    ))
+    area.theme = "catppuccin-" + theme
+
+
+class ReviewDialog(ModalScreen[bool]):
+    BINDINGS = [Binding("escape", "cancel", "Cancel"), Binding("f5", "accept", "Accept", priority=True)]
+
+    def __init__(self, title: str, body: Any, accept: str = "Apply", *, dangerous: bool = False):
+        super().__init__()
+        self.title_text, self.body, self.accept_text = title, body, accept
+        self.dangerous = dangerous
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="dialog review-dialog"):
+            yield Label(self.title_text, classes="dialog-title", markup=False)
+            with VerticalScroll(classes="review-body"):
+                yield Static(self.body, markup=False)
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Cancel", id="cancel")
+                yield Button(self.accept_text, id="accept", variant="error" if self.dangerous else "primary")
+            yield Static("Esc cancel  ·  F5 accept", classes="hint")
+
+    def on_mount(self) -> None:
+        self.query_one("#cancel", Button).focus()
+
+    @on(Button.Pressed, "#accept")
+    def action_accept(self) -> None:
+        self.dismiss(True)
+
+    @on(Button.Pressed, "#cancel")
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+
+class TextDialog(ModalScreen[None]):
+    BINDINGS = [Binding("escape", "close", "Close"), Binding("f1", "close", "Close")]
+
+    def __init__(self, title: str, content: str):
+        super().__init__()
+        self.title_text, self.content = title, content
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="dialog review-dialog"):
+            yield Label(self.title_text, classes="dialog-title", markup=False)
+            yield MarkdownViewer(self.content, show_table_of_contents=False)
+            yield Button("Close  ·  Esc", id="close")
+
+    @on(Button.Pressed, "#close")
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+
+class FormDialog(ModalScreen[dict[str, str] | None]):
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, title: str, fields: list[tuple[str, str, str]], description: str = "", accept: str = "Continue"):
+        super().__init__()
+        self.title_text, self.fields, self.description, self.accept_text = title, fields, description, accept
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="dialog form-dialog"):
+            yield Label(self.title_text, classes="dialog-title", markup=False)
+            if self.description:
+                yield Static(self.description, markup=False, classes="form-description")
+            with VerticalScroll(classes="form-fields"):
+                for key, label, value in self.fields:
+                    yield Label(label, markup=False)
+                    yield Input(value=value, id=f"field-{key}")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Cancel", id="cancel")
+                yield Button(self.accept_text, id="accept", variant="primary")
+
+    def on_mount(self) -> None:
+        inputs = list(self.query(Input))
+        if inputs:
+            inputs[0].focus()
+
+    @on(Button.Pressed, "#accept")
+    def submit(self) -> None:
+        self.dismiss({key: self.query_one(f"#field-{key}", Input).value for key, _, _ in self.fields})
+
+    @on(Input.Submitted)
+    def input_submit(self) -> None:
+        self.submit()
+
+    @on(Button.Pressed, "#cancel")
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class CommitDialog(ModalScreen[tuple[str, bool, bool] | None]):
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("f5", "submit", "Commit", priority=True),
+        Binding("f6", "commit_push", "Commit + Push", priority=True),
+    ]
+
+    def __init__(self, repo: Repository, scope: str, diff: str, push: bool):
+        super().__init__()
+        self.repo, self.scope, self.diff_text, self.push = repo, scope, diff, push
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="dialog commit-dialog"):
+            yield Label(f"{'Commit & push' if self.push else 'Commit'} · {self.repo.name}", classes="dialog-title", markup=False)
+            yield Static("Default scope: ALL tracked changes + staged new files. Review before committing.", classes="warning", markup=False)
+            yield Checkbox("Commit staged content only", id="staged-only")
+            with VerticalScroll(classes="review-body"):
+                yield Static(self.scope, markup=False, id="commit-scope")
+                yield Static(syntax(self.diff_text or "No patch to display", "diff", self.app.theme, word_wrap=True), id="commit-diff")
+            yield TextArea(id="commit-message", show_line_numbers=False, soft_wrap=True)
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Cancel", id="cancel")
+                yield Button("Commit · F5", id="accept", variant="default" if self.push else "primary")
+                yield Button("Commit + Push · F6", id="commit-push", variant="primary" if self.push else "default")
+            yield Static("F5 commit  ·  F6 commit + push  ·  Esc cancel", classes="hint")
+
+    def on_mount(self) -> None:
+        area = self.query_one("#commit-message", TextArea)
+        area.border_title = "Commit message"
+        theme_editor(area, self.app.theme)
+        area.focus()
+
+    @on(Checkbox.Changed, "#staged-only")
+    def scope_changed(self, event: Checkbox.Changed) -> None:
+        self.update_scope(event.value)
+
+    @work(exclusive=True, group="commit-scope")
+    async def update_scope(self, staged: bool) -> None:
+        try:
+            mode = "diff_staged" if staged else "diff_combined" if await asyncio.to_thread(self.repo.has_head) else "diff_staged"
+            result = await asyncio.to_thread(self.repo.run, mode, paths=[])
+            self.query_one("#commit-diff", Static).update(syntax(result.text[:self.repo.settings.preview_bytes] or "No patch to display", "diff", self.app.theme, word_wrap=True))
+            if staged:
+                snap = self.repo.snapshot
+                scope = "Staged content only:\n" + "\n".join(f"{s}  {display_path(p)}" for p, s in sorted(snap.statuses.items()) if s[0] != " ")
+            else:
+                scope = self.scope
+            self.query_one("#commit-scope", Static).update(scope)
+        except DotError as error:
+            self.notify(str(error), severity="error")
+
+    @on(Button.Pressed, "#accept")
+    def action_submit(self) -> None:
+        self.submit_commit(push=False)
+
+    @on(Button.Pressed, "#commit-push")
+    def action_commit_push(self) -> None:
+        self.submit_commit(push=True)
+
+    def submit_commit(self, *, push: bool) -> None:
+        message = self.query_one("#commit-message", TextArea).text.strip()
+        if not message:
+            self.notify("Enter a commit message", severity="warning")
+            return
+        self.dismiss((message, self.query_one("#staged-only", Checkbox).value, push))
+
+    @on(Button.Pressed, "#cancel")
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class ShellTextArea(TextArea):
+    """Shell editing keys, including a local kill buffer (no clipboard required)."""
+    BINDINGS = [
+        Binding("ctrl+b", "cursor_left", show=False), Binding("ctrl+f", "cursor_right", show=False),
+        Binding("ctrl+p", "cursor_up", show=False), Binding("ctrl+n", "cursor_down", show=False),
+        Binding("ctrl+k", "kill('end')", show=False), Binding("ctrl+u", "kill('start')", show=False),
+        Binding("ctrl+w", "kill('word')", show=False), Binding("ctrl+y", "yank", show=False),
+        Binding("ctrl+shift+z", "redo", show=False),
+    ]
+    killed = ""
+
+    def action_kill(self, kind: str) -> None:
+        row, col = self.cursor_location
+        lines = self.text.split("\n")
+        start, end = (row, col), (row, col)
+        if kind == "end":
+            end = (row, len(lines[row])) if col < len(lines[row]) else (min(row + 1, len(lines) - 1), 0)
+        elif kind == "start":
+            start = (row, 0)
+        else:
+            match = re.search(r"\S+\s*$", lines[row][:col])
+            start = (row, match.start() if match else 0)
+        self.killed = self.document.get_text_range(start, end)
+        self.delete(start, end)
+
+    def action_yank(self) -> None:
+        self.insert(self.killed)
+
+
+def language_for(path: Path, area: TextArea) -> str | None:
+    names = {".py": "python", ".json": "json", ".toml": "toml", ".yaml": "yaml", ".yml": "yaml",
+             ".md": "markdown", ".sh": "bash", ".zsh": "bash", ".css": "css", ".html": "html", ".xml": "xml"}
+    language = names.get(path.suffix, "bash" if path.name in {".zshrc", ".bashrc", ".zshenv"} else None)
+    return language if language in area.available_languages else None
+
+
+class EditorScreen(ModalScreen[bool]):
+    BINDINGS = [
+        Binding("ctrl+s", "save", "Save", priority=True), Binding("ctrl+q", "close", "Close", priority=True),
+        Binding("f1", "help", "Keys", priority=True), Binding("ctrl+r", "find", "Find", priority=True),
+        Binding("ctrl+g", "cancel_find", "Cancel find", priority=True),
+        Binding("f3", "find_next", "Next", priority=True), Binding("shift+f3", "find_previous", "Previous", priority=True),
+    ]
+
+    def __init__(self, document: FileDocument):
+        super().__init__()
+        self.document, self.saved, self.search_text = document, False, ""
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="editor-frame"):
+            yield Static(display_path(self.document.path), id="editor-title", markup=False)
+            yield Input(placeholder="Find text · Enter next · Ctrl+G close search", id="editor-find", classes="hidden")
+            yield ShellTextArea(self.document.text, id="editor-area", show_line_numbers=True, tab_behavior="indent", soft_wrap=False)
+            yield Static("Ctrl+S save  ·  Ctrl+Q close  ·  Ctrl+R find  ·  F1 all keys", id="editor-hints")
+
+    def on_mount(self) -> None:
+        area = self.query_one(ShellTextArea)
+        area.language = language_for(self.document.path, area)
+        theme_editor(area, self.app.theme)
+        area.border_title = "Editor"
+        area.border_subtitle = "Ctrl+A/E line edges · Ctrl+K/U/W kill · Ctrl+Y yank"
+        area.focus()
+
+    @on(TextArea.Changed)
+    def changed(self) -> None:
+        area = self.query_one(ShellTextArea)
+        dirty = area.text != self.document.text
+        area.border_title = "Editor · unsaved" if dirty else "Editor · saved"
+
+    @work(group="editor-save", exclusive=True)
+    async def action_save(self) -> None:
+        try:
+            await asyncio.to_thread(self.document.save, self.query_one(ShellTextArea).text)
+            self.saved = True
+            self.changed()
+            self.notify("Saved")
+        except (OSError, DotError) as error:
+            self.notify(str(error), severity="error", timeout=10)
+
+    @work(group="editor-close", exclusive=True)
+    async def action_close(self) -> None:
+        if self.query_one(ShellTextArea).text != self.document.text:
+            discard = await self.app.push_screen_wait(ReviewDialog("Unsaved changes", "Discard edits since the last save?", "Discard", dangerous=True))
+            if not discard:
+                return
+        self.dismiss(self.saved)
+
+    def action_help(self) -> None:
+        self.app.push_screen(TextDialog("Editor shortcuts", EDITOR_HELP))
+
+    def action_find(self) -> None:
+        field = self.query_one("#editor-find", Input)
+        field.remove_class("hidden")
+        field.focus()
+
+    def action_cancel_find(self) -> None:
+        self.query_one("#editor-find").add_class("hidden")
+        self.query_one(ShellTextArea).focus()
+
+    @on(Input.Submitted, "#editor-find")
+    def submitted_find(self) -> None:
+        self.search_text = self.query_one("#editor-find", Input).value
+        self.action_find_next()
+
+    def find(self, previous: bool = False) -> None:
+        area = self.query_one(ShellTextArea)
+        needle = self.query_one("#editor-find", Input).value or self.search_text
+        if not needle:
+            self.action_find()
+            return
+        self.search_text = needle
+        text = area.text
+        row, col = area.cursor_location
+        offset = sum(len(line) + 1 for line in text.split("\n")[:row]) + col
+        if previous:
+            index = text.rfind(needle, 0, max(0, offset - len(needle)))
+            if index < 0:
+                index = text.rfind(needle)
+        else:
+            index = text.find(needle, offset)
+            if index < 0:
+                index = text.find(needle)
+        if index < 0:
+            self.notify("No match", severity="warning")
+            return
+        startrow = text.count("\n", 0, index)
+        startcol = index - (text.rfind("\n", 0, index) + 1)
+        endpos = index + len(needle)
+        endrow = text.count("\n", 0, endpos)
+        endcol = endpos - (text.rfind("\n", 0, endpos) + 1)
+        from textual.widgets.text_area import Selection
+        area.selection = Selection((startrow, startcol), (endrow, endcol))
+        area.scroll_cursor_visible()
+
+    def action_find_next(self) -> None:
+        self.find()
+
+    def action_find_previous(self) -> None:
+        self.find(previous=True)
+
+
+class SetupDialog(ModalScreen[SetupRequest | None]):
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, settings: Settings, name: str):
+        super().__init__()
+        self.settings, self.profile_name = settings, name
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="dialog setup-dialog"):
+            yield Label(f"Set up {self.profile_name}", classes="dialog-title", markup=False)
+            yield Static("Choose a workflow. You will review the changes before applying them.", classes="hint")
+            with VerticalScroll(classes="form-fields"):
+                yield Label("Workflow")
+                yield Select([("Create a new repository", "create"), ("Attach an existing local repository", "attach"), ("Clone a remote repository", "clone")], value="create", allow_blank=False, id="setup-mode")
+                for key, label, value in [
+                    ("path", "Repository directory", self.settings.repositories[self.profile_name].git_dir),
+                    ("url", "Remote URL (optional for Create; required for Clone)", ""),
+                    ("branch", "Initial branch (Create only)", "main"),
+                    ("name", "Git author name (optional; inherits Git configuration)", ""),
+                    ("email", "Git author email (optional)", ""),
+                    ("signing", "Signing key (optional; Git can choose its default)", ""),
+                ]:
+                    yield Label(label)
+                    yield Input(value=value, id=f"setup-{key}")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Cancel", id="cancel")
+                yield Button("Prepare review", id="accept", variant="primary")
+
+    @on(Button.Pressed, "#accept")
+    def submit(self) -> None:
+        try:
+            def value(key: str) -> str:
+                return self.query_one(f"#setup-{key}", Input).value.strip()
+            path = expand_path(value("path"), self.settings.home)
+            if not value("path"):
+                raise DotError("Enter a repository directory")
+            mode = str(self.query_one("#setup-mode", Select).value)
+            self.dismiss(SetupRequest(self.profile_name, mode, path, value("url"), value("branch"), value("name"), value("email"), value("signing")))
+        except DotError as error:
+            self.notify(str(error), severity="error")
+
+    @on(Select.Changed, "#setup-mode")
+    def mode_changed(self, event: Select.Changed) -> None:
+        for key in ("url", "branch", "name", "email", "signing"):
+            field = self.query_one(f"#setup-{key}", Input)
+            field.disabled = event.value == "attach" or key == "branch" and event.value == "clone"
+
+    @on(Button.Pressed, "#cancel")
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+@dataclass(frozen=True)
+class ActionSpec:
+    name: str
+    title: str
+    key: str = ""
+    description: str = ""
+
+
+ACTIONS = [
+    ActionSpec("stage", "Stage / add files", "a", "Force-add selected files to the active repository"),
+    ActionSpec("unstage", "Unstage files", "u", "Preserve working files"),
+    ActionSpec("untrack", "Stop tracking files", "x", "Remove from index; preserve working files"),
+    ActionSpec("trash", "Move files to trash", "delete"),
+    ActionSpec("move", "Move tracking between repositories", "m"),
+    ActionSpec("edit", "Open preferred editor", "e"),
+    ActionSpec("builtin_edit", "Open built-in editor", "E"),
+    ActionSpec("commit", "Commit changes", "c"),
+    ActionSpec("commit_push", "Commit and push", "C"),
+    ActionSpec("push", "Push commits", "p"),
+    ActionSpec("fetch", "Fetch remote", "f"),
+    ActionSpec("pull", "Pull (fast-forward only)", "P"),
+    ActionSpec("refresh", "Refresh status", "r"),
+    ActionSpec("theme", "Toggle Latte / Macchiato", "t"),
+    ActionSpec("panes", "Cycle expanded browser panes", "b"),
+    ActionSpec("mark", "Mark / unmark item", "space"),
+    ActionSpec("preview", "Cycle content and diff preview", "d"),
+    ActionSpec("filter", "Focus path filter", "/"),
+    ActionSpec("help", "Read help", "?"),
+    ActionSpec("shortcuts", "Show shortcuts", "f1"),
+    ActionSpec("setup", "Set up active repository"),
+    ActionSpec("health", "Check system health"),
+    ActionSpec("repair_shell", "Review zsh integration repair"),
+    ActionSpec("save", "Save preferences"),
+    ActionSpec("local_readme", "Read local dotfiles README"),
+    ActionSpec("quit", "Quit", "q"),
+]
+ACTION_MAP = {spec.name: spec for spec in ACTIONS}
+
+
+class WorkbenchCommands(Provider):
+    async def discover(self) -> Hits:
+        for name, title, description in self.app.command_entries():
+            yield DiscoveryHit(title, lambda name=name: self.app.dispatch(name), help=description)
+
+    async def search(self, query: str) -> Hits:
+        matcher = self.matcher(query)
+        for name, title, description in self.app.command_entries():
+            score = matcher.match(title)
+            if score:
+                yield Hit(score, matcher.highlight(title), lambda name=name: self.app.dispatch(name), help=description)
+
+
+class FileTree(Tree[Path]):
+    BINDINGS = [
+        Binding("space", "mark_item", "Mark", show=False),
+        Binding("right", "expand_or_enter", "Expand", show=False),
+        Binding("left", "collapse_or_parent", "Collapse", show=False),
+    ]
+
+    def action_mark_item(self) -> None:
+        self.app.action_mark()
+
+    def action_expand_or_enter(self) -> None:
+        node = self.cursor_node
+        if node is None or not node.allow_expand:
+            return
+        if not node.is_expanded:
+            node.expand()
+        elif node.children:
+            self.move_cursor(node.children[0])
+
+    def action_collapse_or_parent(self) -> None:
+        node = self.cursor_node
+        if node is None:
+            return
+        if node.allow_expand and node.is_expanded:
+            node.collapse()
+        elif node.parent is not None and (self.show_root or not node.parent.is_root):
+            self.move_cursor(node.parent)
+
+
+class DotfilesApp(App):
+    TITLE = "Dotfiles · workbench"
+    COMMANDS = {WorkbenchCommands}
+    BINDINGS = [Binding(spec.key, f"dispatch('{spec.name}')", spec.title, show=False)
+                for spec in ACTIONS if spec.key] + [
+        # App defaults are priority bindings; let editor Ctrl+P/Q win instead.
+        Binding("ctrl+p", "command_palette", "Commands", priority=False, show=False),
+        Binding("ctrl+q", "dispatch('quit')", "Quit", priority=False, show=False),
+    ]
+    CSS = """
+    Screen { background: $background; color: $text; }
+    #topbar { height: 3; background: $surface; padding: 0 1; align-vertical: middle; }
+    #brand { width: 1fr; height: 3; content-align: left middle; text-style: bold; color: $primary; }
+    #repo-select { width: 24; margin-left: 1; }
+    #theme-button { min-width: 14; width: 14; margin-left: 1; }
+    #statusbar { height: 1; padding: 0 2; background: $panel; color: $text-muted; }
+    #workspace { height: 1fr; }
+    TabPane { padding: 0 1; }
+    #browser-tools { height: 3; }
+    #path-filter { width: 1fr; }
+    #scope-filter { width: 17; margin-left: 1; }
+    #show-hidden { width: auto; margin-left: 1; border: none; padding: 0 1; height: 3; }
+    #browser-panes { height: 1fr; }
+    #tree-box { width: 36%; min-width: 23; border: round $primary-muted; margin-right: 1; }
+    #tree-box:focus-within { border: round $primary; }
+    #files { height: 1fr; scrollbar-size: 1 1; }
+    #preview-box { width: 1fr; border: round $secondary-muted; border-title-color: $secondary; border-subtitle-color: $text-muted; }
+    #preview-box:focus-within { border: round $secondary; }
+    #preview-scroll { height: 1fr; padding: 0 1; }
+    #preview-content { width: 1fr; height: auto; }
+    #preview-meta { height: auto; max-height: 3; color: $text-muted; padding: 0 1; }
+    #actionbar { height: 3; }
+    #actionbar Button { min-width: 11; width: 1fr; margin-right: 1; }
+    #changes-table { height: 1fr; border: round $primary-muted; }
+    .page-title { height: auto; color: $primary; text-style: bold; padding: 1 1 0 1; }
+    .page-copy { height: auto; padding: 1; color: $text-muted; }
+    .page-buttons { height: 3; margin: 0 1 1 1; }
+    .page-buttons Button { margin-right: 1; }
+    .setup-card { border: round $primary-muted; height: auto; padding: 1 2; margin: 1 1 0 1; }
+    #health-results { height: 1fr; padding: 0 1; }
+    #health-output { height: auto; }
+    #help-search { height: 3; }
+    #help-viewer { height: 1fr; }
+    #activity { height: 1; padding: 0 2; color: $accent; background: $panel; }
+    #hints { height: 1; padding: 0 1; background: $surface; color: $text-muted; }
+    .hidden { display: none; }
+    .dialog { width: 88%; max-width: 130; height: 85%; background: $background; border: round $primary; padding: 1 2; }
+    ModalScreen { align: center middle; background: $background 65%; }
+    .dialog-title { width: 1fr; height: 2; text-style: bold; color: $primary; }
+    .review-body { height: 1fr; border: round $primary-muted; padding: 0 1; }
+    .dialog-buttons { height: 3; align-horizontal: right; margin-top: 1; }
+    .dialog-buttons Button { margin-left: 1; }
+    .hint { height: auto; color: $text-muted; }
+    .warning { height: auto; color: $warning; padding: 0 0 1 0; }
+    .form-description { height: auto; margin-bottom: 1; color: $text-muted; }
+    .form-fields { height: 1fr; }
+    .form-fields Label { margin-top: 1; }
+    .form-dialog { height: auto; max-height: 85%; }
+    .form-dialog .form-fields { height: auto; max-height: 25; }
+    #commit-message { height: 6; border: round $primary-muted; margin-top: 1; }
+    #editor-frame { width: 100%; height: 100%; padding: 0 1; background: $background; }
+    #editor-title { height: 2; color: $primary; text-style: bold; padding: 0 1; content-align: left middle; }
+    #editor-area { height: 1fr; border: round $primary; }
+    #editor-hints { height: 2; color: $text-muted; content-align: center middle; }
+    #editor-find { height: 3; }
+    """
+
+    def __init__(self, settings: Settings, filename: Path, initial_repo: str | None = None):
+        super().__init__()
+        self.settings, self.filename = settings, filename
+        self.repositories = {name: Repository(name, settings) for name in settings.repositories}
+        self.repo_name = initial_repo or next(iter(self.repositories))
+        if self.repo_name not in self.repositories:
+            raise DotError(f"Unknown repository {self.repo_name!r}")
+        self.marked: set[Path] = set()
+        self.nodes: dict[Path, Any] = {}
+        self.loaded: set[Path] = set()
+        self.preview_mode = "auto"
+        self.pane_mode = 0
+        self.filter_text = ""
+        self.scope_filter = "all"
+        self.show_hidden = True
+        self.busy = False
+        self.refreshing = False
+        self.activity_text = "Ready · choose a file to inspect"
+        self.frame = 0
+        self.findings: list[Finding] = []
+        self._last_changes: Any = None
+        self._last_preview: Any = None
+        self._activity_widget: Static | None = None
+        self._first_refresh = True
+        self._explicit_repo = initial_repo is not None
+        for name, p in PALETTES.items():
+            self.register_theme(Theme(name=name, primary=p["blue"], secondary=p["mauve"], accent=p["mauve"],
+                                      foreground=p["text"], background=p["base"], surface=p["mantle"], panel=p["surface"],
+                                      success=p["green"], warning=p["yellow"], error=p["red"], dark=name == "macchiato"))
+        self.theme = settings.theme
+        self.animation_level = "full" if settings.animation else "none"
+
+    @property
+    def repo(self) -> Repository:
+        return self.repositories[self.repo_name]
+
+    @property
+    def palette(self) -> dict[str, str]:
+        return PALETTES[self.theme if self.theme in PALETTES else "macchiato"]
+
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="topbar"):
+            yield Static("◈  DOTFILES  /  workbench" if self.settings.glyphs else "DOTFILES / workbench", id="brand")
+            yield Select([(name, name) for name in self.repositories], value=self.repo_name, allow_blank=False, id="repo-select")
+            yield Button("☀ Latte" if self.theme == "macchiato" else "☾ Dark", id="theme-button")
+        yield Static("Reading local repository state…", id="statusbar", markup=False)
+        with TabbedContent(initial="browser", id="workspace"):
+            with TabPane("Browser", id="browser"):
+                with Horizontal(id="browser-tools"):
+                    yield Input(placeholder="/ Filter paths…", id="path-filter")
+                    yield Select([("All files", "all"), ("Tracked", "tracked"), ("Changed", "changed")], value="all", allow_blank=False, id="scope-filter")
+                    yield Checkbox("Hidden", value=True, id="show-hidden")
+                with Horizontal(id="browser-panes"):
+                    with Vertical(id="tree-box"):
+                        yield FileTree("~", data=self.settings.home, id="files")
+                    with Vertical(id="preview-box"):
+                        yield Static("Automatic preview", id="preview-meta", markup=False)
+                        with VerticalScroll(id="preview-scroll", can_focus=True):
+                            yield Static("Select a file or directory", id="preview-content", markup=False)
+                with Horizontal(id="actionbar"):
+                    yield Button("a  Stage", id="do-stage")
+                    yield Button("e  Edit", id="do-edit")
+                    yield Button("c  Commit", id="do-commit", variant="primary")
+                    yield Button("p  Push", id="do-push")
+            with TabPane("Changes", id="changes"):
+                yield Static("Repository changes", classes="page-title", id="changes-title")
+                yield Static("Select a row to inspect it in Browser. Stage and commit actions use the active repository.", classes="page-copy")
+                yield DataTable(id="changes-table", cursor_type="row", zebra_stripes=True)
+                with Horizontal(classes="page-buttons"):
+                    yield Button("Stage selected", id="changes-stage")
+                    yield Button("Unstage selected", id="changes-unstage")
+                    yield Button("Commit…", id="changes-commit", variant="primary")
+                    yield Button("Commit & push…", id="changes-commit_push")
+            with TabPane("Setup", id="setup"):
+                with VerticalScroll():
+                    yield Static("Build your dotfiles system", classes="page-title")
+                    yield Static("Keep files in place. Give shared and machine-specific configuration separate Git histories.\nCreate, attach, or clone; review changes before applying them.", classes="page-copy")
+                    for name, repo in self.repositories.items():
+                        with Vertical(classes="setup-card"):
+                            yield Label(name, classes="dialog-title", markup=False)
+                            yield Static(display_path(repo.git_dir), markup=False, id=f"setup-path-{list(self.repositories).index(name)}")
+                            yield Static("Shared configuration" if name == "dotfiles" else "Machine-specific configuration" if name == "dotlocal" else "Additional repository", classes="hint")
+                            yield Button(f"Set up {name}…", name=name, classes="setup-open", variant="primary")
+                    yield Static("Shell integration is optional. Health offers reviewed fixes for aliases and completion.\nAttaching preserves existing repository settings and does not check out files.", classes="page-copy")
+            with TabPane("Health", id="health"):
+                yield Static("System health", classes="page-title")
+                yield Static("Local checks only. Shell startup files are inspected, never executed.", classes="page-copy")
+                with Horizontal(classes="page-buttons"):
+                    yield Button("Run checks", id="health-run", variant="primary")
+                    yield Button("Review shell repair…", id="health-shell")
+                    yield Button("Review fetch repairs…", id="health-fetch")
+                with VerticalScroll(id="health-results"):
+                    yield Static("Choose Run checks to inspect your setup.", id="health-output", markup=False)
+            with TabPane("Help", id="help"):
+                yield Input(placeholder="Search help… · Enter to filter · empty search restores the guide", id="help-search")
+                yield MarkdownViewer(HELP, id="help-viewer", show_table_of_contents=True)
+        yield Static(self.activity_text, id="activity", markup=False)
+        yield Static("a stage · u unstage · x stop tracking · e/E edit · c commit · p push · ? help · Ctrl+P commands", id="hints")
+
+    async def on_mount(self) -> None:
+        for key, action in self.settings.keybindings.items():
+            if action not in ACTION_MAP:
+                self.notify(f"Unknown keybinding action: {action}", severity="warning")
+            else:
+                self.bind(key, f"dispatch('{action}')")
+        tree = self.query_one("#files", Tree)
+        tree.show_root = False
+        tree.auto_expand = False
+        tree.root.expand()
+        self.nodes[self.settings.home] = tree.root
+        self.loaded.add(self.settings.home)
+        self.query_one("#tree-box").border_title = "Home / file tree"
+        self.query_one("#preview-box").border_title = "Preview"
+        self.query_one("#preview-box").border_subtitle = "d content / diffs · e edit · E built-in"
+        self.query_one("#changes-table", DataTable).add_columns("Index", "Disk", "Path", "Owners")
+        self._activity_widget = self.query_one("#activity", Static)
+        self.set_interval(self.settings.refresh_seconds, self.refresh_status)
+        self.set_interval(0.12, self.tick)
+        self.refresh_status()
+        tree.focus()
+
+    def command_entries(self) -> list[tuple[str, str, str]]:
+        entries = [(a.name, a.title, a.description) for a in ACTIONS]
+        custom = (self.settings.commands.keys() | self.repo.profile.commands.keys()) - DEFAULT_COMMANDS.keys()
+        entries += [("custom:" + name, "Git: " + name, "Configured command · review before running") for name in sorted(custom)]
+        entries += [("recipe:" + name, "Recipe: " + name, "Configured sequence · stops on failure") for name in sorted(self.settings.recipes)]
+        return entries
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "dispatch":
+            if isinstance(self.screen, ModalScreen):
+                return False
+            if isinstance(self.focused, (Input, TextArea, Select)) and parameters != ("shortcuts",):
+                # Browser keys must never eat text input or operate through a selector.
+                return False
+        return True
+
+    def action_dispatch(self, name: str) -> None:
+        self.dispatch(name)
+
+    def dispatch(self, name: str) -> None:
+        if name.startswith(("custom:", "recipe:")):
+            self.run_custom(name)
+            return
+        method = getattr(self, "action_" + name, None)
+        if method:
+            method()
+
+    @on(Button.Pressed)
+    def button_pressed(self, event: Button.Pressed) -> None:
+        button = event.button
+        if button.has_class("setup-open"):
+            self.open_setup(button.name or self.repo_name)
+        elif button.id == "theme-button":
+            self.action_theme()
+        elif button.id and button.id.startswith(("do-", "changes-")):
+            self.dispatch(button.id.partition("-")[2])
+        elif button.id == "health-run":
+            self.action_health()
+        elif button.id == "health-shell":
+            self.action_repair_shell()
+        elif button.id == "health-fetch":
+            self.repair_fetch()
+
+    @on(Select.Changed, "#repo-select")
+    def repository_changed(self, event: Select.Changed) -> None:
+        if event.value is Select.BLANK or str(event.value) == self.repo_name:
+            return
+        if self.busy:
+            self.query_one("#repo-select", Select).value = self.repo_name
+            self.notify("Finish the current operation before switching repository", severity="warning")
+            return
+        self.repo_name = str(event.value)
+        self._last_changes = self._last_preview = None
+        self.marked.clear()
+        self.refresh_status()
+
+    @on(Select.Changed, "#scope-filter")
+    def scope_changed(self, event: Select.Changed) -> None:
+        if event.value is not Select.BLANK:
+            self.scope_filter = str(event.value)
+            self.sync_tree()
+
+    @on(Checkbox.Changed, "#show-hidden")
+    def hidden_changed(self, event: Checkbox.Changed) -> None:
+        self.show_hidden = event.value
+        self.sync_tree()
+
+    @on(Input.Changed, "#path-filter")
+    def filter_changed(self, event: Input.Changed) -> None:
+        self.filter_text = event.value.casefold()
+        self.sync_tree()
+
+    @on(Input.Submitted, "#path-filter")
+    def filter_submitted(self) -> None:
+        self.query_one("#files", Tree).focus()
+
+    @on(Input.Submitted, "#help-search")
+    async def help_search(self, event: Input.Submitted) -> None:
+        needle = event.value.casefold().strip()
+        sections = re.split(r"(?=^## )", HELP, flags=re.M)
+        text = "\n\n".join(section for section in sections if needle in section.casefold()) if needle else HELP
+        await self.query_one("#help-viewer", MarkdownViewer).document.update(text or "# No matches\nTry a different help search.")
+
+    @on(TabbedContent.TabActivated, "#workspace")
+    def tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        if event.pane.id == "health" and not self.findings:
+            self.action_health()
+
+    def tick(self) -> None:
+        self.frame += 1
+        if self.busy:
+            frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" if self.settings.glyphs and self.settings.animation else "·"
+            text = f"{frames[self.frame % len(frames)]} {self.activity_text}"
+        else:
+            text = self.activity_text
+        if self._activity_widget is not None and self._activity_widget.is_mounted:
+            self._activity_widget.update(text)
+
+    @work(group="refresh")
+    async def refresh_status(self) -> None:
+        if self.refreshing or self.busy:
+            return
+        self.refreshing = True
+        try:
+            for repo in list(self.repositories.values()):
+                try:
+                    await asyncio.to_thread(repo.refresh)
+                except (OSError, DotError) as error:
+                    repo.snapshot = Snapshot(error=str(error))
+            if self._first_refresh:
+                self._first_refresh = False
+                available = [name for name, repo in self.repositories.items() if not repo.snapshot.error]
+                if not available:
+                    self.set_focus(None)
+                    self.query_one("#workspace", TabbedContent).active = "setup"
+                    self.call_after_refresh(self.focus_setup)
+                elif not self._explicit_repo and self.repo.snapshot.error:
+                    self.repo_name = available[0]
+                    self.query_one("#repo-select", Select).value = self.repo_name
+            snapshot = self.repo.snapshot
+            status = f"{self.repo_name}  /  {snapshot.branch}  ·  {len(snapshot.tracked)} tracked  ·  {len(snapshot.statuses)} changed"
+            status += f"  ·  {snapshot.upstream} {snapshot.ahead}" if snapshot.upstream else "  ·  local / no upstream"
+            if snapshot.error:
+                status = snapshot.error
+            self.query_one("#statusbar", Static).update(status)
+            self.query_one("#changes-title", Static).update(f"{self.repo_name} · {len(snapshot.statuses)} changed paths")
+            self.update_changes()
+            self.sync_tree()
+            self.preview_selected(debounce=True)
+        finally:
+            self.refreshing = False
+
+    def focus_setup(self) -> None:
+        self.query_one("#workspace", TabbedContent).active = "setup"
+        self.query_one(".setup-open", Button).focus()
+
+    def action_refresh(self) -> None:
+        self._last_preview = None
+        self.refresh_status()
+
+    def owners(self, relative: str, directory: bool = False) -> list[str]:
+        return [name for name, repo in self.repositories.items()
+                if relative in repo.snapshot.tracked or relative in repo.snapshot.statuses
+                or directory and any(p.startswith(relative + "/") for p in repo.snapshot.tracked | repo.snapshot.statuses.keys())]
+
+    def label_for(self, path: Path) -> Text:
+        relative = str(path.relative_to(self.settings.home))
+        directory = path.is_dir() and not path.is_symlink() or any(
+            p.startswith(relative + "/") for repo in self.repositories.values() for p in repo.snapshot.tracked | repo.snapshot.statuses.keys())
+        owners = self.owners(relative, directory)
+        statuses = [s for p, s in self.repo.snapshot.statuses.items() if p == relative or directory and p.startswith(relative + "/")]
+        tracked = self.repo_name in owners
+        conflict = any("U" in s or s in {"AA", "DD"} for s in statuses)
+        changed = bool(statuses)
+        colour = self.palette["red" if conflict else "yellow" if changed else "green"] if tracked or changed else self.palette["text"]
+        symbol = "!" if conflict else "~" if changed else "+" if tracked else " "
+        # Tree already renders the expand/collapse arrow for directories.
+        icon = "" if directory else "↗" if path.is_symlink() else "·"
+        if not self.settings.glyphs:
+            icon = "" if directory else "@" if path.is_symlink() else " "
+        marked = "* " if path in self.marked else ""
+        prefix = f"{icon} " if icon else ""
+        text = Text(f"{marked}{prefix}{display_path(path.name)} ", style=colour)
+        if not os.path.lexists(path):
+            text.append(" -", style=self.palette["red"])
+        else:
+            text.append(f" {symbol}", style=colour)
+        if owners:
+            badges = "/".join({"dotfiles": "S", "dotlocal": "L"}.get(n, n) for n in owners)
+            text.append(f" [{badges}]", style=self.palette["muted"])
+        return text
+
+    def list_children(self, path: Path) -> list[tuple[Path, bool]]:
+        items: dict[Path, bool] = {}
+        if path.is_symlink():
+            return []
+        try:
+            with os.scandir(path) as entries:
+                for entry in entries:
+                    child = Path(entry.path)
+                    if self.repo.protected(child):
+                        continue
+                    items[child] = entry.is_dir(follow_symlinks=False)
+                    if len(items) >= 10_000:
+                        break
+        except (OSError, PermissionError):
+            pass
+        prefix = "" if path == self.settings.home else str(path.relative_to(self.settings.home)) + "/"
+        known = set().union(*(r.snapshot.tracked | r.snapshot.statuses.keys() for r in self.repositories.values()))
+        for name in known:
+            if name.startswith(prefix):
+                tail = name[len(prefix):]
+                first = tail.split("/", 1)[0]
+                if first:
+                    child = path / first
+                    items.setdefault(child, "/" in tail)
+        visible = []
+        searchable = known | {str(p.relative_to(self.settings.home)) for p in list(self.nodes)}
+        for child, directory in items.items():
+            relative = str(child.relative_to(self.settings.home))
+            if not self.show_hidden and child.name.startswith("."):
+                continue
+            if self.filter_text and self.filter_text not in relative.casefold() and not any(p.startswith(relative + "/") and self.filter_text in p.casefold() for p in searchable):
+                continue
+            if self.scope_filter != "all":
+                candidates = self.repo.snapshot.tracked | self.repo.snapshot.statuses.keys() if self.scope_filter == "tracked" else self.repo.snapshot.statuses.keys()
+                if not any(p == relative or directory and p.startswith(relative + "/") for p in candidates):
+                    continue
+            visible.append((child, directory))
+        return sorted(visible, key=lambda item: (not item[1], item[0].name.casefold()))
+
+    @work(exclusive=True, group="tree")
+    async def sync_tree(self) -> None:
+        for path in sorted(list(self.loaded), key=lambda p: len(p.parts)):
+            node = self.nodes.get(path)
+            if node is None:
+                continue
+            children = await asyncio.to_thread(self.list_children, path)
+            present = {p for p, _ in children}
+            for child in list(node.children):
+                if child.data not in present:
+                    removed = child.data
+                    child.remove()
+                    for cached in list(self.nodes):
+                        if cached == removed or removed in cached.parents:
+                            self.nodes.pop(cached, None)
+                            self.loaded.discard(cached)
+            existing = {child.data: child for child in node.children}
+            for index, (childpath, directory) in enumerate(children):
+                if childpath in existing:
+                    existing[childpath].set_label(self.label_for(childpath))
+                    existing[childpath].allow_expand = directory
+                else:
+                    child = node.add(self.label_for(childpath), data=childpath, allow_expand=directory, before=index)
+                    self.nodes[childpath] = child
+
+    @on(Tree.NodeExpanded, "#files")
+    def node_expanded(self, event: Tree.NodeExpanded) -> None:
+        if event.node.data:
+            self.loaded.add(event.node.data)
+            self.sync_tree()
+
+    @on(Tree.NodeHighlighted, "#files")
+    def node_highlighted(self) -> None:
+        self.preview_selected(debounce=True)
+
+    @on(Tree.NodeSelected, "#files")
+    def node_selected(self, event: Tree.NodeSelected) -> None:
+        if event.node.allow_expand:
+            event.node.toggle()
+        self.preview_selected()
+
+    def selected_paths(self, use_marked: bool = True) -> list[Path]:
+        if use_marked and self.marked:
+            return sorted(self.marked)
+        workspace = self.query_one("#workspace", TabbedContent)
+        if workspace.active == "changes":
+            table = self.query_one("#changes-table", DataTable)
+            if table.row_count:
+                key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value
+                return [self.settings.home / str(key)]
+        node = self.query_one("#files", Tree).cursor_node
+        return [node.data] if node and node.data and node.data != self.settings.home else []
+
+    def update_changes(self) -> None:
+        signature = (self.repo_name, tuple(sorted(self.repo.snapshot.statuses.items())), frozenset(self.marked))
+        if signature == self._last_changes:
+            return
+        self._last_changes = signature
+        table = self.query_one("#changes-table", DataTable)
+        table.clear()
+        for path, code in sorted(self.repo.snapshot.statuses.items()):
+            table.add_row(code[0], code[1], Text(("* " if self.settings.home / path in self.marked else "") + display_path(path)), ", ".join(self.owners(path)), key=path)
+
+    @on(DataTable.RowSelected, "#changes-table")
+    def change_selected(self, event: DataTable.RowSelected) -> None:
+        self.reveal_path(self.settings.home / str(event.row_key.value))
+
+    @work(group="reveal", exclusive=True)
+    async def reveal_path(self, path: Path) -> None:
+        self.query_one("#workspace", TabbedContent).active = "browser"
+        for parent in reversed(path.parents):
+            if parent == self.settings.home or self.settings.home in parent.parents:
+                self.loaded.add(parent)
+        # Populate ancestors in dependency order.
+        for parent in [p for p in reversed(path.parents) if p == self.settings.home or self.settings.home in p.parents]:
+            node = self.nodes.get(parent)
+            if node:
+                node.expand()
+                children = await asyncio.to_thread(self.list_children, parent)
+                for childpath, directory in children:
+                    if childpath not in self.nodes:
+                        self.nodes[childpath] = node.add(self.label_for(childpath), data=childpath, allow_expand=directory)
+        if path in self.nodes:
+            tree = self.query_one("#files", Tree)
+            self.call_after_refresh(tree.select_node, self.nodes[path])
+            tree.focus()
+
+    @work(exclusive=True, group="preview")
+    async def preview_selected(self, *, debounce: bool = False) -> None:
+        # Exclusive workers cancel the previous wait/read when the cursor moves.
+        # Delay before filesystem reads, Git diffs or lexer detection begin.
+        if debounce:
+            await asyncio.sleep(self.settings.preview_delay)
+        # A confirmation/editor can open during the delay or background read.
+        # Keep targeting the browser screen beneath it, not the current modal.
+        screen = self.screen_stack[0]
+        tree = screen.query_one("#files", Tree)
+        node = tree.cursor_node
+        path = node.data if node and node.data else self.settings.home
+        try:
+            signature = (self.repo_name, path, self.preview_mode, self.theme, tuple(sorted(self.repo.snapshot.statuses.items())),
+                         tuple((name, frozenset(repo.snapshot.tracked), tuple(repo.snapshot.statuses.items())) for name, repo in self.repositories.items()),
+                         path.lstat().st_mtime_ns if os.path.lexists(path) else 0)
+            if signature == self._last_preview:
+                return
+            content, metadata = await asyncio.to_thread(self.make_preview, path)
+            self._last_preview = signature
+            screen.query_one("#preview-content", Static).update(content)
+            screen.query_one("#preview-meta", Static).update(metadata)
+            box = screen.query_one("#preview-box")
+            box.border_title = display_path(path.name) if path != self.settings.home else "Home"
+            screen.query_one("#preview-scroll", VerticalScroll).scroll_home(animate=False)
+            if self.settings.animation:
+                screen.query_one("#preview-content").styles.opacity = 0.6
+                screen.query_one("#preview-content").styles.animate("opacity", 1.0, duration=0.15)
+        except (OSError, DotError) as error:
+            screen.query_one("#preview-content", Static).update(Text(str(error), style=self.palette["red"]))
+
+    def make_preview(self, path: Path) -> tuple[Any, str]:
+        relative = str(path.relative_to(self.settings.home)) if path != self.settings.home else ""
+        owners = ", ".join(self.owners(relative, path.is_dir())) or "untracked"
+        metadata = f"{display_path(relative) or '~'} · {owners} · {self.preview_mode}"
+        if path.is_symlink():
+            return Text(f"Symbolic link\n\n{display_path(path.name)} → {display_path(os.readlink(path))}\n\nLinks are tracked as links. Directory links are not traversed."), metadata
+        if path.is_dir():
+            table = Table(expand=True, box=None, padding=(0, 1))
+            table.add_column("Name", ratio=1)
+            table.add_column("Size", justify="right")
+            table.add_column("Owners")
+            for child, directory in self.list_children(path):
+                try:
+                    size = "dir" if directory else f"{child.lstat().st_size:,}"
+                except OSError:
+                    size = "missing"
+                table.add_row(self.label_for(child), size, ", ".join(self.owners(str(child.relative_to(self.settings.home)), directory)))
+            return table if table.row_count else Text("Empty directory or no matching files"), metadata
+        changed = relative in self.repo.snapshot.statuses
+        if self.preview_mode in {"combined", "staged", "unstaged"} or self.preview_mode == "auto" and changed:
+            text = self.repo.diff(relative, self.preview_mode)
+            if text.strip():
+                if len(text.encode()) > self.settings.preview_bytes:
+                    text = text[:self.settings.preview_bytes] + "\n… diff truncated; use Git for the full patch"
+                return syntax(text, "diff", self.theme, word_wrap=True), metadata
+            if self.preview_mode != "auto":
+                return Text("No difference in this view. Try d to switch preview mode."), metadata
+        if not os.path.lexists(path):
+            return Text("Tracked path is absent from disk. Stage its deletion, unstage, or inspect another diff mode."), metadata
+        info = path.stat()
+        if not stat.S_ISREG(info.st_mode):
+            return Text(f"Special file\nMode: {stat.filemode(info.st_mode)}\nSize: {info.st_size:,} bytes\nContent is not read."), metadata
+        with path.open("rb") as stream:
+            raw = stream.read(self.settings.preview_bytes + 1)
+        try:
+            if b"\0" in raw:
+                raise UnicodeError()
+            decoder = codecs.getincrementaldecoder("utf-8-sig")("strict")
+            text = decoder.decode(raw[:self.settings.preview_bytes], final=len(raw) <= self.settings.preview_bytes)
+        except UnicodeError:
+            details = (f"Binary / non-UTF-8 file\n\nSize: {info.st_size:,} bytes\nMode: {stat.filemode(info.st_mode)}\n"
+                       f"Owner UID/GID: {info.st_uid}/{info.st_gid}\nModified: {datetime.fromtimestamp(info.st_mtime).isoformat(timespec='seconds')}\n"
+                       f"First bytes: {raw[:32].hex(' ')}")
+            return Text(details), metadata
+        if len(raw) > self.settings.preview_bytes:
+            text += "\n… preview truncated"
+        lexer = preview_lexer(path, text)
+        return syntax(text, lexer, self.theme, line_numbers=True, word_wrap=False, indent_guides=True), metadata + f" · {lexer} · {info.st_size:,} bytes"
+
+    @contextlib.asynccontextmanager
+    async def operation(self, title: str):
+        if self.busy:
+            self.notify("Another operation is already running", severity="warning")
+            yield False
+            return
+        self.busy, self.activity_text = True, title
+        try:
+            yield True
+        except (DotError, OSError, ValueError, subprocess.SubprocessError) as error:
+            self.activity_text = f"Failed: {error}"
+            self.notify(str(error), severity="error", timeout=12)
+        finally:
+            self.busy = False
+            self._last_preview = None
+            self.refresh_status()
+
+    async def confirm(self, title: str, body: Any, accept: str = "Apply", dangerous: bool = False) -> bool:
+        return bool(await self.push_screen_wait(ReviewDialog(title, body, accept, dangerous=dangerous)))
+
+    def require_repo(self) -> Repository:
+        if self.repo.snapshot.error:
+            raise DotError("Configure this repository in Setup first")
+        return self.repo
+
+    @work(group="operations")
+    async def file_action(self, action: str) -> None:
+        async with self.operation(action.capitalize() + " selected files") as ready:
+            if not ready:
+                return
+            repo = self.require_repo()
+            await asyncio.to_thread(repo.refresh)
+            paths = await asyncio.to_thread(repo.expand_selection, self.selected_paths(), tracked_only=action != "stage")
+            if not paths:
+                raise DotError("Select matching files first")
+            descriptions = {"stage": "Add current content to the index (force-add ignored files).",
+                            "unstage": "Restore index entries from HEAD; leave files on disk unchanged.",
+                            "untrack": "Stop tracking in this repository; keep files on disk. Commit the removal afterwards."}
+            body = descriptions[action] + f"\n\nRepository: {repo.name}\n{len(paths)} path(s):\n\n" + "\n".join(display_path(p) for p in paths)
+            if await self.confirm(action.capitalize(), body, action.capitalize(), action == "untrack"):
+                result = await asyncio.to_thread(repo.apply, action, paths)
+                self.marked.clear()
+                self.activity_text = f"{action.capitalize()}: {len(paths)} path(s) · {result.text or 'done'}"
+                self.notify(f"{action.capitalize()}: {len(paths)} path(s)")
+            else:
+                self.activity_text = "Cancelled · no changes applied"
+
+    def action_stage(self) -> None:
+        self.file_action("stage")
+
+    def action_unstage(self) -> None:
+        self.file_action("unstage")
+
+    def action_untrack(self) -> None:
+        self.file_action("untrack")
+
+    @work(group="operations")
+    async def action_trash(self) -> None:
+        async with self.operation("Move files to trash") as ready:
+            if not ready:
+                return
+            selected = self.selected_paths()
+            if not selected:
+                raise DotError("Select files first")
+            # Collapse child selections when a parent directory is also marked.
+            selected = [p for p in selected if not any(parent in selected for parent in p.parents)]
+            body = "Move these disk paths to system trash. Tracked deletions are not staged automatically.\n"
+            for path in selected:
+                relative = self.repo.relative(path)
+                if self.repo.protected(path) or path == self.settings.home:
+                    raise DotError("Repository metadata and the home root are protected")
+                if path.is_dir() and any(Path(profile.git_dir) == path or path in Path(profile.git_dir).parents for profile in self.settings.repositories.values()):
+                    raise DotError("This directory contains repository metadata")
+                if not os.path.lexists(path):
+                    raise DotError("A selected path is already absent from disk")
+                body += f"\n{display_path(relative)}  ·  owners: {', '.join(self.owners(relative, path.is_dir())) or 'none'}"
+            if await self.confirm("Trash files", body, "Move to trash", True):
+                for path in selected:
+                    await asyncio.to_thread(send2trash, str(path))
+                self.marked.clear()
+                self.activity_text = f"Moved {len(selected)} item(s) to trash"
+            else:
+                self.activity_text = "Trash cancelled"
+
+    @work(group="operations")
+    async def action_move(self) -> None:
+        async with self.operation("Move repository tracking") as ready:
+            if not ready:
+                return
+            repo = self.require_repo()
+            others = [name for name in self.repositories if name != repo.name]
+            if not others:
+                raise DotError("Configure a second repository first")
+            targetname = others[0]
+            if len(others) > 1:
+                answer = await self.push_screen_wait(FormDialog("Destination repository", [("target", "Profile name: " + ", ".join(others), targetname)]))
+                if answer is None:
+                    return
+                targetname = answer["target"]
+                if targetname not in others:
+                    raise DotError("Choose a different configured repository")
+            paths = await asyncio.to_thread(repo.expand_selection, self.selected_paths(), tracked_only=True)
+            body = f"Stage current disk content in {targetname}, then remove tracking in {repo.name}.\nFiles stay in place. Commit each repository separately.\n\n" + "\n".join(display_path(p) for p in paths)
+            if await self.confirm("Move tracking", body, "Move tracking"):
+                await asyncio.to_thread(transfer_tracking, repo, self.repositories[targetname], paths)
+                self.marked.clear()
+                self.activity_text = f"Tracking staged: {repo.name} → {targetname}; commit both repositories separately"
+
+    def foreground(self, repo: Repository, action: str, values: dict[str, Any]) -> None:
+        argv = repo.argv(action, **values)
+        if self.is_headless:
+            repo.run(action, timeout=300, **values)
+            return
+        with self.suspend():
+            console = Console()
+            console.print(f"\n[bold cyan]{repo.name} · {action}[/bold cyan]")
+            console.print(Text(shlex.join(argv), style="dim"))
+            with repo.lock:
+                result = subprocess.run(argv, env=repo.environment(), cwd=repo.home)
+            try:
+                input("\nPress Enter to return to the workbench… ")
+            except (EOFError, KeyboardInterrupt):
+                pass
+        if result.returncode:
+            raise DotError(f"Git {action} failed (exit {result.returncode}); see terminal output. Signing was not changed.")
+
+    async def push_values(self, repo: Repository) -> tuple[str, dict[str, str]] | None:
+        upstream = await asyncio.to_thread(repo.run, "upstream", check=False)
+        if upstream.returncode == 0:
+            return "push", {}
+        remotes = (await asyncio.to_thread(repo.run, "remotes")).text.splitlines()
+        if not remotes:
+            raise DotError("No remote configured; add one through Setup (Create) or a configured Git action")
+        branch = (await asyncio.to_thread(repo.run, "branch", check=False)).text
+        if not branch:
+            raise DotError("Cannot establish upstream from detached HEAD")
+        configured_remote = await asyncio.to_thread(repo.config, f"branch.{branch}.remote")
+        configured_merge = await asyncio.to_thread(repo.config, f"branch.{branch}.merge")
+        if configured_remote in remotes and configured_merge:
+            # A bare repo can have a valid push upstream before a fetch ref exists.
+            return "push", {}
+        result = await self.push_screen_wait(FormDialog("First push · establish upstream", [
+            ("remote", "Remote: " + ", ".join(remotes), "origin" if "origin" in remotes else remotes[0]),
+            ("branch", "Local branch to publish", branch)], "Push sets upstream tracking for the selected local branch."))
+        if result is None:
+            return None
+        if result["remote"] not in remotes or not result["branch"] or result["branch"].startswith("-"):
+            raise DotError("Choose an existing remote and a valid branch name")
+        return "push_upstream", result
+
+    def action_commit(self) -> None:
+        self.commit_workflow(False)
+
+    def action_commit_push(self) -> None:
+        self.commit_workflow(True)
+
+    @work(group="operations")
+    async def commit_workflow(self, push: bool) -> None:
+        async with self.operation("Review commit" + (" and push" if push else "")) as ready:
+            if not ready:
+                return
+            repo = self.require_repo()
+            await asyncio.to_thread(repo.refresh)
+            scope = (await asyncio.to_thread(repo.run, "commit_preview", check=False)).text
+            if not repo.snapshot.statuses:
+                raise DotError("No changes to commit. Use Push to publish existing commits.")
+            action = "diff_combined" if await asyncio.to_thread(repo.has_head) else "diff_staged"
+            patch = (await asyncio.to_thread(repo.run, action, paths=[])).text[:self.settings.preview_bytes]
+            signature = await asyncio.to_thread(repo.review_token)
+            answer = await self.push_screen_wait(CommitDialog(repo, scope, patch, push))
+            if answer is None:
+                self.activity_text = "Commit cancelled"
+                return
+            message, staged, push = answer
+            await asyncio.to_thread(repo.refresh)
+            if await asyncio.to_thread(repo.review_token) != signature:
+                current_scope = (await asyncio.to_thread(repo.run, "commit_preview", check=False)).text
+                current_patch = (await asyncio.to_thread(repo.run, "diff_staged" if staged or not repo.has_head() else "diff_combined", paths=[])).text[:self.settings.preview_bytes]
+                if not await self.confirm("Changes updated during review", Group(Text("Files or staged content changed while composing. Review the updated commit.\n\n" + current_scope), syntax(current_patch, "diff", self.theme, word_wrap=True)), "Commit updated changes"):
+                    return
+            self.activity_text = "Committing…"
+            self.foreground(repo, "commit_staged" if staged else "commit", {"message": message})
+            self.activity_text = "Commit recorded locally"
+            if push:
+                self.notify("Commit recorded locally; preparing push")
+                values = await self.push_values(repo)
+                if values:
+                    try:
+                        self.foreground(repo, values[0], values[1])
+                        self.activity_text = "Committed and pushed"
+                    except DotError as error:
+                        raise DotError(f"Commit saved locally; push failed. {error}") from error
+
+    @work(group="operations")
+    async def action_push(self) -> None:
+        async with self.operation("Push commits") as ready:
+            if not ready:
+                return
+            repo = self.require_repo()
+            values = await self.push_values(repo)
+            if values and await self.confirm("Push commits", f"Publish commits from {repo.name}.\n\n" + shlex.join(repo.argv(values[0], **values[1])), "Push"):
+                self.foreground(repo, values[0], values[1])
+                self.activity_text = "Push completed"
+
+    @work(group="operations")
+    async def remote_workflow(self, action: str) -> None:
+        async with self.operation(action.capitalize() + " remote changes") as ready:
+            if not ready:
+                return
+            repo = self.require_repo()
+            values = {}
+            if action == "fetch":
+                remotes = (await asyncio.to_thread(repo.run, "remotes")).text.splitlines()
+                if not remotes:
+                    raise DotError("No remote configured")
+                answer = await self.push_screen_wait(FormDialog("Fetch remote", [("remote", "Remote: " + ", ".join(remotes), "origin" if "origin" in remotes else remotes[0])]))
+                if answer is None:
+                    return
+                if answer["remote"] not in remotes:
+                    raise DotError("Choose an existing remote")
+                values = answer
+            else:
+                if not await self.confirm("Pull · fast-forward only", "Update tracked files from the upstream branch. Git will refuse divergence and unsafe overwrites.\n\n" + shlex.join(repo.argv("pull")), "Pull"):
+                    return
+            self.foreground(repo, action, values)
+            self.activity_text = f"{action.capitalize()} completed"
+
+    def action_fetch(self) -> None:
+        self.remote_workflow("fetch")
+
+    def action_pull(self) -> None:
+        self.remote_workflow("pull")
+
+    def action_edit(self) -> None:
+        self.edit_workflow(False)
+
+    def action_builtin_edit(self) -> None:
+        self.edit_workflow(True)
+
+    @work(group="operations")
+    async def edit_workflow(self, builtin: bool) -> None:
+        async with self.operation("Edit file") as ready:
+            if not ready:
+                return
+            paths = self.selected_paths()
+            if len(paths) != 1:
+                raise DotError("Select one text file to edit")
+            path = paths[0]
+            self.repo.relative(path)
+            if path.is_symlink() or not path.is_file() or self.repo.protected(path):
+                raise DotError("Select a regular file inside home")
+            editor = self.settings.editor or shlex.split(os.environ.get("EDITOR", ""))
+            if editor and not builtin:
+                if self.is_headless:
+                    raise DotError("External editors require an interactive terminal")
+                with self.suspend():
+                    result = subprocess.run(editor + [str(path)], cwd=self.settings.home)
+                if result.returncode:
+                    raise DotError(f"Editor exited with status {result.returncode}")
+            else:
+                document = await asyncio.to_thread(FileDocument.read, path, self.settings.preview_bytes)
+                await self.push_screen_wait(EditorScreen(document))
+            self.activity_text = f"Editor closed · {display_path(path.name)}"
+
+    def action_setup(self) -> None:
+        self.open_setup(self.repo_name)
+
+    @work(group="operations")
+    async def open_setup(self, name: str) -> None:
+        async with self.operation("Set up " + name) as ready:
+            if not ready:
+                return
+            request = await self.push_screen_wait(SetupDialog(self.settings, name))
+            if request is None:
+                return
+            prepared = None
+            try:
+                self.activity_text = "Preparing repository and checkout review…"
+                if request.mode == "clone":
+                    prepared = prepare_setup(self.settings, request, self.foreground)
+                else:
+                    prepared = await asyncio.to_thread(prepare_setup, self.settings, request)
+                body = (f"Workflow: {request.mode}\nProfile: {name}\nRepository: {request.git_dir}\nWork tree: {self.settings.home}\n"
+                        f"Configuration: {self.filename}\n\n")
+                if request.mode == "attach":
+                    body += "Attach only: no checkout and no repository configuration changes.\n"
+                else:
+                    body += "Install repository-local ignore-all rules. No automatic commit or push.\n"
+                if prepared.paths:
+                    body += f"\nCheckout: {len(prepared.paths)} paths\n" + "\n".join(display_path(p) for p in prepared.paths)
+                    body += f"\n\nBack up and replace {len(prepared.collisions)} collision(s):\n" + "\n".join(display_path(p) for p in prepared.collisions)
+                    overlaps = [(p, self.owners(p)) for p in prepared.paths if self.owners(p)]
+                    if overlaps:
+                        body += "\n\nAlready tracked by existing repositories:\n" + "\n".join(f"{display_path(p)} · {', '.join(owners)}" for p, owners in overlaps)
+                if await self.confirm("Review setup", body, "Apply setup", bool(prepared.collisions)):
+                    repo, backup = await asyncio.to_thread(apply_setup, self.settings, self.filename, prepared)
+                    self.repositories[name] = repo
+                    self.query_one(f"#setup-path-{list(self.repositories).index(name)}", Static).update(display_path(repo.git_dir))
+                    self.activity_text = f"{name} ready" + (f" · backups: {backup}" if backup else "")
+                    self.notify(self.activity_text, timeout=12)
+                else:
+                    self.activity_text = "Setup cancelled · home files unchanged"
+            finally:
+                if prepared:
+                    prepared.cleanup()
+
+    def action_health(self) -> None:
+        self.query_one("#workspace", TabbedContent).active = "health"
+        self.run_health()
+
+    @work(group="health", exclusive=True)
+    async def run_health(self) -> None:
+        try:
+            self.findings = await asyncio.to_thread(diagnose, self.settings)
+            table = Table(expand=True, box=None)
+            table.add_column("State", width=9)
+            table.add_column("Area", width=19)
+            table.add_column("Finding", ratio=1)
+            for finding in self.findings:
+                colour = self.palette[{"ok": "green", "info": "blue", "warning": "yellow", "error": "red"}[finding.level]]
+                table.add_row(Text(finding.level.upper(), style=colour), Text(finding.subject), Text(finding.detail))
+            self.query_one("#health-output", Static).update(table)
+        except (OSError, DotError) as error:
+            self.query_one("#health-output", Static).update(str(error))
+
+    @work(group="operations")
+    async def action_repair_shell(self) -> None:
+        async with self.operation("Review zsh integration") as ready:
+            if not ready:
+                return
+            proposal = await asyncio.to_thread(shell_repair, self.settings)
+            target, before, after = proposal
+            patch = "".join(difflib.unified_diff(before.splitlines(True), after.splitlines(True), fromfile=str(target), tofile=str(target)))
+            if not patch:
+                self.notify("Managed shell integration is already up to date")
+                return
+            body = Group(Text(f"Back up and update {target}. Startup files will not be executed.\nOpen a new shell after applying.\n"),
+                         syntax(patch, "diff", self.theme, word_wrap=True))
+            if await self.confirm("Review shell repair", body, "Back up & apply"):
+                backup = await asyncio.to_thread(apply_shell_repair, self.settings, proposal)
+                self.activity_text = "Shell integration updated" + (f" · backup: {backup}" if backup else "")
+                self.run_health()
+
+    @work(group="operations")
+    async def repair_fetch(self) -> None:
+        async with self.operation("Review fetch configuration") as ready:
+            if not ready:
+                return
+            findings = await asyncio.to_thread(diagnose, self.settings)
+            repairs = [f.repair.split(":", 2)[1:] for f in findings if f.repair.startswith("fetch:")]
+            if not repairs:
+                self.notify("No missing fetch refspecs found")
+                return
+            body = "Add these repository-local fetch refspecs (no network access):\n\n" + "\n".join(f"{name}: remote.{remote}.fetch = +refs/heads/*:refs/remotes/{remote}/*" for name, remote in repairs)
+            if await self.confirm("Repair fetch configuration", body, "Apply"):
+                for name, remote in repairs:
+                    backup = xdg_dir("state", self.settings.home) / APP_NAME / "backups" / stamp() / f"{name}-git-config"
+                    await asyncio.to_thread(atomic_write, backup, (self.repositories[name].git_dir / "config").read_bytes())
+                    await asyncio.to_thread(self.repositories[name].run, "set_config", key=f"remote.{remote}.fetch", value=f"+refs/heads/*:refs/remotes/{remote}/*")
+                self.activity_text = "Fetch configuration repaired"
+                self.run_health()
+
+    @work(group="operations")
+    async def action_save(self) -> None:
+        async with self.operation("Save preferences") as ready:
+            if not ready:
+                return
+            self.settings.theme = "latte" if self.theme == "latte" else "macchiato"
+            content = settings_toml(self.settings)
+            if await self.confirm("Save preferences", Group(Text(f"Write {self.filename}\nExisting configuration will be backed up.\n"), syntax(content, "toml", self.theme, word_wrap=True)), "Save"):
+                if self.filename.exists():
+                    backup = xdg_dir("state", self.settings.home) / APP_NAME / "backups" / stamp() / "config.toml"
+                    await asyncio.to_thread(atomic_write, backup, self.filename.read_bytes())
+                await asyncio.to_thread(atomic_write, self.filename, content.encode())
+                self.activity_text = "Preferences saved"
+
+    @work(group="operations")
+    async def run_custom(self, entry: str) -> None:
+        async with self.operation("Configured Git operation") as ready:
+            if not ready:
+                return
+            repo = self.require_repo()
+            kind, name = entry.split(":", 1)
+            steps = self.settings.recipes[name] if kind == "recipe" else [name]
+            values: dict[str, Any] = {"paths": [repo.relative(p) for p in self.selected_paths()]}
+            needed = set()
+            for step in steps:
+                needed.update(re.findall(r"(?<!@)\{([a-z_]+)\}", " ".join(repo.recipe(step))))
+            needed -= {"paths", "git_dir", "home", "repo", "branch", "remote"}
+            if needed:
+                answer = await self.push_screen_wait(FormDialog(name, [(key, key.replace("_", " ").title(), "") for key in sorted(needed)]))
+                if answer is None:
+                    return
+                values.update(answer)
+            commands = "\n\n".join(shlex.join(repo.argv(step, **values)) for step in steps)
+            if await self.confirm("Run configured Git operation", commands, "Run"):
+                completed = []
+                try:
+                    for step in steps:
+                        self.foreground(repo, step, values)
+                        completed.append(step)
+                except DotError as error:
+                    raise DotError(f"Completed: {', '.join(completed) or 'none'}. {error}") from error
+                self.activity_text = f"Completed: {', '.join(completed)}"
+
+    def action_theme(self) -> None:
+        self.theme = "latte" if self.theme == "macchiato" else "macchiato"
+        self.query_one("#theme-button", Button).label = "☀ Latte" if self.theme == "macchiato" else "☾ Dark"
+        self._last_preview = None
+        self.sync_tree()
+        self.preview_selected()
+        if self.findings:
+            self.run_health()
+
+    def action_panes(self) -> None:
+        self.pane_mode = (self.pane_mode + 1) % 3
+        tree, preview = self.query_one("#tree-box"), self.query_one("#preview-box")
+        tree.set_class(self.pane_mode == 2, "hidden")
+        preview.set_class(self.pane_mode == 1, "hidden")
+        tree.styles.width = "1fr" if self.pane_mode == 1 else "36%"
+
+    def action_mark(self) -> None:
+        selected = self.selected_paths(use_marked=False)
+        if selected:
+            path = selected[0]
+            if path in self.marked:
+                self.marked.remove(path)
+            else:
+                self.marked.add(path)
+            if path in self.nodes:
+                self.nodes[path].set_label(self.label_for(path))
+            self.update_changes()
+            self.activity_text = f"{len(self.marked)} item(s) marked" if self.marked else "Selection cleared"
+
+    def action_preview(self) -> None:
+        modes = ["auto", "content", "combined", "staged", "unstaged"]
+        self.preview_mode = modes[(modes.index(self.preview_mode) + 1) % len(modes)]
+        self.preview_selected()
+
+    def action_filter(self) -> None:
+        self.query_one("#workspace", TabbedContent).active = "browser"
+        self.query_one("#path-filter", Input).focus()
+
+    def action_help(self) -> None:
+        self.query_one("#workspace", TabbedContent).active = "help"
+
+    def action_shortcuts(self) -> None:
+        overrides = {action: key for key, action in self.settings.keybindings.items()}
+        text = "# Workbench shortcuts\n\n| Key | Action |\n| --- | --- |\n" + "\n".join(f"| {overrides.get(a.name, a.key) or 'Command palette'} | {a.title} |" for a in ACTIONS)
+        self.push_screen(TextDialog("Shortcut reference", text))
+
+    @work(group="readme", exclusive=True)
+    async def action_local_readme(self) -> None:
+        try:
+            path = self.settings.home / "README.md"
+            if path.stat().st_size > self.settings.preview_bytes:
+                raise DotError("README exceeds preview limit")
+            text = await asyncio.to_thread(path.read_text)
+            self.push_screen(TextDialog("Local dotfiles README", text))
+        except (OSError, DotError, UnicodeError) as error:
+            self.notify(str(error), severity="error")
+
+    def action_quit(self) -> None:
+        if self.busy:
+            self.notify("Finish or cancel the current operation before quitting", severity="warning")
+        else:
+            self.exit()
+
+
+cli = typer.Typer(invoke_without_command=True, no_args_is_help=False, help="A Catppuccin workbench for home-directory Git dotfiles.")
+config_cli = typer.Typer(help="Inspect and validate application configuration.")
+cli.add_typer(config_cli, name="config")
+
+
+@cli.callback()
+def main(ctx: typer.Context,
+         config: Path | None = typer.Option(None, "--config", "-c", help="TOML configuration file"),
+         repo: str | None = typer.Option(None, "--repo", "-r", help="Initial repository profile"),
+         home: Path | None = typer.Option(None, "--home", help="Isolated home work tree (for testing / portable homes)"),
+         version: bool = typer.Option(False, "--version", help="Show version")) -> None:
+    if version:
+        typer.echo(VERSION)
+        raise typer.Exit()
+    filename = config or config_path(home)
+    try:
+        settings = load_settings(filename, home)
+        ctx.obj = (settings, filename)
+        if ctx.invoked_subcommand is None:
+            DotfilesApp(settings, filename, repo).run()
+    except DotError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(2) from error
+
+
+@cli.command()
+def doctor(ctx: typer.Context, json_output: bool = typer.Option(False, "--json", help="Machine-readable findings")) -> None:
+    """Check local repositories and shell integration without changing anything."""
+    settings, _ = ctx.obj
+    try:
+        findings = diagnose(settings)
+        if json_output:
+            from dataclasses import asdict
+            typer.echo(json.dumps([asdict(f) for f in findings], indent=2))
+        else:
+            table = Table(title="Dotfiles health", show_lines=True)
+            for col in ("State", "Area", "Finding"):
+                table.add_column(col)
+            for finding in findings:
+                table.add_row(finding.level, finding.subject, Text(finding.detail))
+            Console().print(table)
+        if any(f.level == "error" for f in findings):
+            raise typer.Exit(1)
+    except (DotError, OSError) as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(2) from error
+
+
+@config_cli.command("show")
+def show_config(ctx: typer.Context, commands: bool = typer.Option(False, "--commands", help="Include all default Git command recipes")) -> None:
+    """Print effective configuration without writing it."""
+    settings, _ = ctx.obj
+    effective = settings.model_copy(deep=True)
+    if commands:
+        effective.commands = DEFAULT_COMMANDS | effective.commands
+    typer.echo(settings_toml(effective))
+
+
+@config_cli.command("example")
+def config_example() -> None:
+    """Print an annotated starter configuration."""
+    typer.echo(example_settings())
+
+
+@config_cli.command("validate")
+def validate_config(ctx: typer.Context) -> None:
+    """Validate TOML, settings and machine-readable command contracts."""
+    settings, filename = ctx.obj
+    invalid = set(settings.keybindings.values()) - ACTION_MAP.keys()
+    if invalid:
+        typer.echo("Unknown keybinding actions: " + ", ".join(sorted(invalid)), err=True)
+        raise typer.Exit(2)
+    typer.echo(f"Valid: {filename}" + (" (defaults / discovery; file does not exist)" if not filename.exists() else ""))
+
+
+if __name__ == "__main__":
+    cli()
