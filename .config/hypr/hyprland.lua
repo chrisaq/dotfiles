@@ -330,7 +330,7 @@ hl.bind(mainMod .. " + " .. "l", hl.dsp.focus({ direction = "right" }))
 hl.bind(mainMod .. " + " .. "k", hl.dsp.focus({ direction = "up" }))
 hl.bind(mainMod .. " + " .. "j", hl.dsp.focus({ direction = "down" }))
 
--- Switch workspaces with mainMod + [0-9]
+-- Switch workspaces with mainMod + [1-8]
 
 hl.bind(mainMod .. " + " .. 1, hl.dsp.focus({ workspace = 1 }))
 
@@ -352,7 +352,7 @@ hl.bind(mainMod .. " + " .. 7, hl.dsp.focus({ workspace = 7 }))
 
 hl.bind(mainMod .. " + " .. 8, hl.dsp.focus({ workspace = 8 }))
 
--- Move active window to a workspace with mainMod + SHIFT + [0-9]
+-- Move active window to a workspace with mainMod + SHIFT + [1-8]
 
 hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. 1, hl.dsp.window.move({ workspace = 1 }))
 
@@ -502,17 +502,24 @@ hl.define_submap("system", function()
     -- TODO: Random new wallpaper
     -- TODO: visualize in waybar
     -- TODO: add a "environment debug" command that shows env vars in a notification (like in my i3)
-    -- NOTE: since Hyprland >= 0.54 the IPC dispatch text is evaluated as Lua, so
-    -- `hyprctl dispatch submap reset` is a syntax error that fails silently and
-    -- leaves you stuck in the submap. Use cq_hypr_reset-submap (or the Lua-quoted
-    -- form `hyprctl dispatch 'hl.dsp.submap("reset")'`) instead.
-    hl.bind("S", hl.dsp.exec_cmd("bash -lc 'systemctl suspend; cq_hypr_reset-submap'"))
-    hl.bind("R", hl.dsp.exec_cmd("systemctl reboot"))
-    hl.bind("E", hl.dsp.exec_cmd("bash -lc 'hyprctl dispatch \"hl.dsp.exit()\"'"))
+    -- Reset synchronously before spawning anything, including the screen locker.
+    -- This must also work with hypridle stopped and without a shell helper.
+    local function run_and_reset(command)
+        return function()
+            hl.dispatch(hl.dsp.submap("reset"))
+            hl.exec_cmd(command)
+        end
+    end
+    hl.bind("S", run_and_reset("systemctl suspend"))
+    hl.bind("R", run_and_reset("systemctl reboot"))
+    hl.bind("E", function()
+        hl.dispatch(hl.dsp.submap("reset"))
+        hl.dispatch(hl.dsp.exit())
+    end)
     -- exit Hyprland
-    hl.bind("L", hl.dsp.exec_cmd("bash -lc 'hyprlock & disown; cq_hypr_reset-submap'"))
+    hl.bind("L", run_and_reset("hyprlock"))
     -- D = toggle the idle auto-lock (hypridle) on/off. Manual L still locks.
-    hl.bind("D", hl.dsp.exec_cmd("bash -lc 'idle-lock toggle; cq_hypr_reset-submap'"))
+    hl.bind("D", run_and_reset("bash -lc 'idle-lock toggle'"))
     hl.bind("return", hl.dsp.submap("reset"))
     hl.bind("escape", hl.dsp.submap("reset"))
 end)
