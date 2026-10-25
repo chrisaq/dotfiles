@@ -42,6 +42,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -78,9 +79,6 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 APP_NAME = "cq_pass-tui"
-CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "cq_pass"
-TEMPLATE_DIR = CONFIG_DIR / "templates"
-SETTINGS_FILE = CONFIG_DIR / "settings.yml"
 
 MASK = "•"
 MASK_MIN = 8
@@ -175,6 +173,42 @@ class CqPassError(Exception):
 
 class GopassError(CqPassError):
     pass
+
+# ---------------------------------------------------------------------------
+# Configuration resolution
+# ---------------------------------------------------------------------------
+
+
+def app_config_path(env: dict[str, str] | None = None, explicit: Optional[str] = None) -> Path:
+    """CQ_PASS_TUI_CONFIG, then CQ_CONFIG_DIR, then the two supported layouts."""
+    env = dict(os.environ) if env is None else env
+    selected = explicit or env.get("CQ_PASS_TUI_CONFIG")
+    if selected:
+        path = Path(selected).expanduser()
+        if path.is_dir():
+            return path / "settings.yml"
+        if not path.is_file():
+            raise CqPassError(f"Configuration file not found: {path}")
+        return path
+    shared = env.get("CQ_CONFIG_DIR")
+    if shared:
+        base = Path(shared).expanduser()
+    else:
+        xdg = env.get("XDG_CONFIG_HOME", "")
+        base = (Path(xdg) if xdg.startswith("/") else Path(env.get("HOME") or str(Path.home())) / ".config") / "cq"
+    for path in (base / "pass-tui" / "settings.yml", base / "pass-tui.yml"):
+        if path.is_file():
+            return path
+    return base / "pass-tui" / "settings.yml"
+
+
+try:
+    SETTINGS_FILE = app_config_path()
+except CqPassError as _config_error:
+    print(f"cq_pass-tui: {_config_error}", file=sys.stderr)
+    raise SystemExit(1)
+CONFIG_DIR = SETTINGS_FILE.parent
+TEMPLATE_DIR = CONFIG_DIR / "templates"
 
 
 # ---------------------------------------------------------------------------
@@ -1098,9 +1132,10 @@ Ctrl+T switches Catppuccin Macchiato / Latte. Ctrl+P opens the command palette.
 Ctrl+R rescans the store; b expands the tree or content pane. F1 / ? opens help.
 q quits outside text fields. Button actions and keyboard shortcuts share handlers.
 
-Settings live in `$XDG_CONFIG_HOME/cq_pass/settings.yml`. Existing settings remain
-compatible. Use Save preferences in the command palette to persist the current
-theme and settings, with a backup. Nothing writes preferences on theme switching.
+Settings live in `$XDG_CONFIG_HOME/cq/pass-tui/settings.yml` (or `cq/pass-tui.yml`).
+`CQ_PASS_TUI_CONFIG` points at a specific file or directory; `CQ_CONFIG_DIR` replaces
+the `$XDG_CONFIG_HOME/cq` base. Use Save preferences in the command palette to persist
+the current theme and settings, with a backup. Nothing writes preferences on theme switching.
 
 ```yaml
 theme: macchiato

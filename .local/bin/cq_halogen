@@ -4,12 +4,32 @@
 #:no-args: false
 set -euo pipefail
 
-IMAGE_REPO="ghcr.io/peonist-ai/halogen-flash-server"
-IMAGE_VERSION="0.18.4"
+cq_config_file() {  # prints config file path; empty = use defaults
+  local app="halogen" ext="sh" base f
+  if [[ -n "${CQ_HALOGEN_CONFIG:-}" ]]; then
+    f="$CQ_HALOGEN_CONFIG"
+    [[ -d "$f" || ( ! "$f" == *.* && ! -f "$f" ) ]] && f="$f/config.$ext"
+    [[ -f "$f" ]] || { echo "cq_halogen: config not found: $f" >&2; return 1; }
+    printf '%s\n' "$f"; return 0
+  fi
+  base="${CQ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/cq}"
+  for f in "$base/$app/config.$ext" "$base/$app.$ext"; do
+    [[ -f "$f" ]] && { printf '%s\n' "$f"; return 0; }
+  done
+  return 0  # empty: defaults
+}
+if ! cq_cfg=$(cq_config_file); then exit 1; fi
+if [[ -n "$cq_cfg" ]]; then
+  # shellcheck source=/dev/null
+  source "$cq_cfg"
+fi
+
+IMAGE_REPO="${IMAGE_REPO:-ghcr.io/peonist-ai/halogen-flash-server}"
+IMAGE_VERSION="${IMAGE_VERSION:-0.18.4}"
 IMAGE="$IMAGE_REPO:$IMAGE_VERSION"
 NAME="halogen"
-MODELS="/srv/halogen/models"
-PORT="8731"
+MODELS="${MODELS:-/srv/halogen/models}"
+PORT="${PORT:-8731}"
 
 # --- NPU -------------------------------------------------------------------
 # Comma list of small models to serve on the Ryzen AI NPU, beside the Flash
@@ -22,7 +42,7 @@ PORT="8731"
 # Images on the NPU:   flux2-klein-4b (adds about 8 GiB resident)
 # Multimodal embeddings (text+picture+audio, 768-dim): embeddinggemma-2
 #   needs image 0.18.3 or newer, adds about 1.1 GiB resident.
-NPU_MODELS="decider-0.8b,qwen3-embedding-0.6b,qwen3-reranker-0.6b,embeddinggemma-2"
+NPU_MODELS="${NPU_MODELS:-decider-0.8b,qwen3-embedding-0.6b,qwen3-reranker-0.6b,embeddinggemma-2}"
 
 # Rootless NPU serving also needs an unlimited host memlock hard limit.
 # See /srv/halogen/halogen-memlock.conf and NPU-STARTUP-FIX.md.
@@ -30,12 +50,12 @@ NPU_MODELS="decider-0.8b,qwen3-embedding-0.6b,qwen3-reranker-0.6b,embeddinggemma
 # Where the distro installed XRT.
 #   Arch / CachyOS:  /usr/lib
 #   Ubuntu:          /usr/lib/x86_64-linux-gnu
-XRT_LIBDIR="/usr/lib"
+XRT_LIBDIR="${XRT_LIBDIR:-/usr/lib}"
 
 # 1 = accept images. Costs about 2 GiB of RAM, and roughly 5.5 / 11.8 / 25.3
 # seconds per 1280x800 / 1920x1080 / 2560x1440 image; a 1080p frame also
 # occupies about 2040 tokens of the context.
-VISION=1
+VISION="${VISION:-1}"
 
 # Set DRYRUN=1 to print the podman command instead of running it.
 DRYRUN="${DRYRUN:-}"

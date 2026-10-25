@@ -434,6 +434,24 @@ if [ -f "$XDG_CONFIG_HOME/zsh/secrets_env" ]; then
 fi
 ### ENDS: Security #############################################################
 
+# Shared config resolution for cq_* functions: CQ_<APP>_CONFIG, then
+# CQ_CONFIG_DIR, then $XDG_CONFIG_HOME/cq/<app>/config.sh or <app>.sh.
+cq_config_source() {  # $1 = app name (no cq_ prefix)
+  local app="$1" base f var
+  var="CQ_${${(U)app}//-/_}_CONFIG"
+  if [[ -n "${(P)var}" ]]; then
+    f="${(P)var}"
+    [[ -d $f || ( ! $f == *.* && ! -f $f ) ]] && f="$f/config.sh"
+    [[ -f $f ]] || { echo "cq_$app: config not found: $f" >&2; return 1 }
+    source "$f"; return 0
+  fi
+  base="${CQ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/cq}"
+  for f in "$base/$app/config.sh" "$base/$app.sh"; do
+    [[ -f $f ]] && { source "$f"; return 0 }
+  done
+  return 0
+}
+
 
 ################################################################################
 ### Aliases and functions section
@@ -556,10 +574,11 @@ cq_mdsearch() {
     : "#:desc: search markdown files with ugrep and preview with glow"
     : "#:usage: cq_mdsearch [search_term]"
     : "#:no-args: false"
+    cq_config_source mdsearch || return 1
     local arg="${1:-""}"
     local cwd wiki_dir
     cwd="$(pwd)"
-    wiki_dir="$HOME/Sync/Wiki/Tech/Tech"
+    wiki_dir="${CQ_MDSEARCH_WIKI_DIR:-$HOME/Sync/Wiki/Tech/Tech}"
     if [[ ! -d "$wiki_dir" ]]; then
         echo "Missing wiki directory: $wiki_dir" >&2
         return 1
@@ -797,6 +816,7 @@ cq_wg_diag() {
   : "#:desc: diagnose WireGuard routing, endpoint reachability and peer status"
   : "#:usage: cq_wg_diag [iface]"
   : "#:no-args: false"
+  cq_config_source wg || return 1
   local iface="${1:-wg-home}"
   local ep host
   ep="$(sudo wg show "$iface" endpoints 2>/dev/null | awk 'NR==1 {print $2}')"
@@ -815,14 +835,15 @@ cq_wg_diag() {
     ip route get "$host"
   fi
   echo
-  echo "== ping tunnel gateway (10.1.0.1) =="
-  ping -c1 -W1 10.1.0.1 2>/dev/null || echo "no reply"
+  echo "== ping tunnel gateway (${CQ_WG_DIAG_GATEWAY:-10.1.0.1}) =="
+  ping -c1 -W1 "${CQ_WG_DIAG_GATEWAY:-10.1.0.1}" 2>/dev/null || echo "no reply"
 }
 cq_wg_portal() {
   : "#:desc: temporarily disable wg-home to complete captive portal login, then re-enable it"
   : "#:usage: cq_wg_portal"
   : "#:no-args: true"
-  local url="http://neverssl.com/"
+  cq_config_source wg || return 1
+  local url="${CQ_WG_PORTAL_URL:-http://neverssl.com/}"
   echo "[wg] bringing down wg-home..."
   sudo networkctl down wg-home 2>/dev/null || true
   echo "[portal] opening ${url} (login to the portal, then press Enter here)..."
@@ -841,15 +862,17 @@ cq_wg_home() {
   : "#:desc: enable split-tunnel WireGuard (home LAN only)"
   : "#:usage: cq_wg_home"
   : "#:no-args: true"
-  sudo networkctl down wg-full 2>/dev/null || true
-  sudo networkctl reconfigure wg-home
+  cq_config_source wg || return 1
+  sudo networkctl down "${CQ_WG_FULL_IFACE:-wg-full}" 2>/dev/null || true
+  sudo networkctl reconfigure "${CQ_WG_HOME_IFACE:-wg-home}"
 }
 cq_wg_full() {
   : "#:desc: enable full-tunnel WireGuard (all traffic via home)"
   : "#:usage: cq_wg_full"
   : "#:no-args: true"
-  sudo networkctl down wg-home 2>/dev/null || true
-  sudo networkctl reconfigure wg-full
+  cq_config_source wg || return 1
+  sudo networkctl down "${CQ_WG_HOME_IFACE:-wg-home}" 2>/dev/null || true
+  sudo networkctl reconfigure "${CQ_WG_FULL_IFACE:-wg-full}"
 }
 cq_wg_reset() {
     : "#:desc: re-resolve WireGuard endpoint and reset peer endpoint"
@@ -914,8 +937,9 @@ cq_wg_off() {
   : "#:desc: disable all WireGuard tunnels"
   : "#:usage: cq_wg_off"
   : "#:no-args: true"
-  sudo networkctl down wg-home 2>/dev/null || true
-  sudo networkctl down wg-full 2>/dev/null || true
+  cq_config_source wg || return 1
+  sudo networkctl down "${CQ_WG_HOME_IFACE:-wg-home}" 2>/dev/null || true
+  sudo networkctl down "${CQ_WG_FULL_IFACE:-wg-full}" 2>/dev/null || true
 }
 # swap workspaces 1 and 2
 # make this a script for use in i3
@@ -1034,8 +1058,9 @@ cq_env_select() {
   : "#:desc: pick and source an env file from ~/.config/env"
   : "#:usage: cq_env_select"
   : "#:no-args: true"
+  cq_config_source env || return 1
   local env_file
-  env_file="$(fd .conf ~/.config/env -t f | fzf)"
+  env_file="$(fd .conf "${CQ_ENV_DIR:-$HOME/.config/env}" -t f | fzf)"
   [[ -n "$env_file" ]] || return 1
   set -o allexport
   source "$env_file"
@@ -1147,27 +1172,32 @@ cq_opencode_setup() {
     : "#:desc: open an SSH tunnel to rspamd and open the web UI"
     : "#:usage: cq_rspamd <ssh_destination>"
     : "#:no-args: false"
+    cq_config_source rspamd || return 1
     local domain_name=$1
     if [ -z "$domain_name" ]; then
         echo "Usage: cq_rspamd <domain_name>"
         return 1
     fi
-    ssh -f -N -L 11334:localhost:11334 "$domain_name" || return 1
+    local port="${CQ_RSPAMD_PORT:-11334}"
+    ssh -f -N -L "${port}:localhost:${port}" "$domain_name" || return 1
     if command -v xdg-open >/dev/null 2>&1; then
-        xdg-open http://localhost:11334 >/dev/null 2>&1 || true
+        xdg-open "http://localhost:${port}" >/dev/null 2>&1 || true
     fi
 }
 cq_rspamd_stop() {
     : "#:desc: stop the rspamd SSH tunnel created by cq_rspamd"
     : "#:usage: cq_rspamd_stop"
     : "#:no-args: true"
-    pkill -f "ssh -f -N -L 11334:localhost:11334"
+    cq_config_source rspamd || return 1
+    local port="${CQ_RSPAMD_PORT:-11334}"
+    pkill -f "ssh -f -N -L ${port}:localhost:${port}"
 }
 cq_eik_rdp() {
 : "#:desc: connect to the EIK cloud desktop (cgd-co-login1) via FreeRDP"
 : "#:usage: cq_eik_rdp"
 : "#:no-args: true"
-    xfreerdp3 /v:cgd-co-login1.eikplatform.io /u:EIK\\cqvigsta '/auth-pkg-list:none,ntlm' /dynamic-resolution /clipboard
+    cq_config_source eik-rdp || return 1
+    xfreerdp3 "/v:${CQ_EIK_RDP_HOST:-cgd-co-login1.eikplatform.io}" "/u:EIK\\${CQ_EIK_RDP_USER:-cqvigsta}" '/auth-pkg-list:none,ntlm' /dynamic-resolution /clipboard
 }
 # k8s aliases and functions
 kq_eks_drain_nodes() {
@@ -1439,9 +1469,10 @@ cq_sync_dotfiles_to_server() {
     : "#:no-args: false"
     local server="$1"
     local source_dir="$HOME"
-    local dest_user="chrisq"
-    local dest_path="/home/chrisq"
-    local rsync_dir="$HOME/.config/rsync"
+    cq_config_source sync-dotfiles-to-server || return 1
+    local dest_user="${CQ_SYNC_DOTFILES_TO_SERVER_DEST_USER:-chrisq}"
+    local dest_path="${CQ_SYNC_DOTFILES_TO_SERVER_DEST_PATH:-/home/chrisq}"
+    local rsync_dir="${CQ_SYNC_DOTFILES_TO_SERVER_DIR:-$HOME/.config/rsync}"
     local files_list_name="server-dotfiles.txt"
     # Check if the server name is provided
     if [[ -z "$server" ]]; then
@@ -1469,9 +1500,10 @@ cq_sync_gpgssh() {
     : "#:no-args: false"
     local server="$1"
     local source_dir="$HOME"
-    local dest_user="chrisq"
-    local dest_path="/home/chrisq"
-    local rsync_dir="$HOME/.config/rsync"
+    cq_config_source sync-gpgssh || return 1
+    local dest_user="${CQ_SYNC_GPGSSH_DEST_USER:-chrisq}"
+    local dest_path="${CQ_SYNC_GPGSSH_DEST_PATH:-/home/chrisq}"
+    local rsync_dir="${CQ_SYNC_GPGSSH_DIR:-$HOME/.config/rsync}"
     local files_list_name="gpgssh.txt"
     # Check if the server name is provided
     if [[ -z "$server" ]]; then

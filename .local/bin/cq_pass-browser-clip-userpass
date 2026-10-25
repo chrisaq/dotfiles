@@ -5,8 +5,29 @@
 
 shopt -s nullglob globstar
 
+cq_config_file() {  # prints config file path; empty = use defaults
+  local app="pass-browser-clip-userpass" ext="sh" base f
+  if [[ -n "${CQ_PASS_BROWSER_CLIP_USERPASS_CONFIG:-}" ]]; then
+    f="$CQ_PASS_BROWSER_CLIP_USERPASS_CONFIG"
+    [[ -d "$f" || ( ! "$f" == *.* && ! -f "$f" ) ]] && f="$f/config.$ext"
+    [[ -f "$f" ]] || { echo "cq_pass-browser-clip-userpass: config not found: $f" >&2; return 1; }
+    printf '%s\n' "$f"; return 0
+  fi
+  base="${CQ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/cq}"
+  for f in "$base/$app/config.$ext" "$base/$app.$ext"; do
+    [[ -f "$f" ]] && { printf '%s\n' "$f"; return 0; }
+  done
+  return 0  # empty: defaults
+}
+if ! cq_cfg=$(cq_config_file); then exit 1; fi
+if [[ -n "$cq_cfg" ]]; then
+  # shellcheck source=/dev/null
+  source "$cq_cfg"
+fi
+
 # get all the saved password files
-prefix=${PASSWORD_STORE_DIR-~/Sync/Password-Store}
+PASSWORD_STORE_DIR="${PASSWORD_STORE_DIR:-$HOME/Sync/Password-Store}"
+prefix=$PASSWORD_STORE_DIR
 password_files=( "$prefix"/**/*.gpg )
 password_files=( "${password_files[@]#"$prefix"/}" )
 password_files=( "${password_files[@]%.gpg}" )
@@ -22,7 +43,7 @@ xdotool key --delay 20 --clearmodifiers F6
 
 # shows a list of all password files and saved the selected one in a variable
 #password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu "$@" -theme ~/.local/share/rofi/themes/nord/nord.rasi)
-password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu -filter ${dom} -p '' "$@" -theme ~/.local/share/rofi/themes/cq-xps17/cq.rasi)
+password=$(printf '%s\n' "${password_files[@]}" | rofi -dmenu -filter ${dom} -p '' "$@" -theme "${ROFI_THEME:-$HOME/.local/share/rofi/themes/cq-xps17/cq.rasi}")
 [[ -n $password ]] || exit
 
 # get last part (username) from password path

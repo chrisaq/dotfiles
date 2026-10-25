@@ -5,6 +5,27 @@
 
 set -euo pipefail
 
+
+cq_config_file() {  # prints config file path; empty = use defaults
+  local app="pass-typeout" ext="sh" base f
+  if [[ -n "${CQ_PASS_TYPEOUT_CONFIG:-}" ]]; then
+    f="$CQ_PASS_TYPEOUT_CONFIG"
+    [[ -d "$f" || ( ! "$f" == *.* && ! -f "$f" ) ]] && f="$f/config.$ext"
+    [[ -f "$f" ]] || { echo "cq_pass-typeout: config not found: $f" >&2; return 1; }
+    printf '%s\n' "$f"; return 0
+  fi
+  base="${CQ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/cq}"
+  for f in "$base/$app/config.$ext" "$base/$app.$ext"; do
+    [[ -f "$f" ]] && { printf '%s\n' "$f"; return 0; }
+  done
+  return 0  # empty: defaults
+}
+if ! cq_cfg=$(cq_config_file); then exit 1; fi
+if [[ -n "$cq_cfg" ]]; then
+  # shellcheck source=/dev/null
+  source "$cq_cfg"
+fi
+
 ROFI_THEME="${ROFI_THEME:-$HOME/.local/share/rofi/themes/cq-xps17/cq.rasi}"
 ROFI_PROMPT="${ROFI_PROMPT:-gopass (type pass)}"
 

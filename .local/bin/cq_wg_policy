@@ -4,6 +4,26 @@
 #:no-args: false
 set -euo pipefail
 
+cq_config_file() {  # prints config file path; empty = use defaults
+  local app="wg-policy" ext="sh" base f
+  if [[ -n "${CQ_WG_POLICY_CONFIG:-}" ]]; then
+    f="$CQ_WG_POLICY_CONFIG"
+    [[ -d "$f" || ( ! "$f" == *.* && ! -f "$f" ) ]] && f="$f/config.$ext"
+    [[ -f "$f" ]] || { echo "cq_wg_policy: config not found: $f" >&2; return 1; }
+    printf '%s\n' "$f"; return 0
+  fi
+  base="${CQ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/cq}"
+  for f in "$base/$app/config.$ext" "$base/$app.$ext"; do
+    [[ -f "$f" ]] && { printf '%s\n' "$f"; return 0; }
+  done
+  return 0  # empty: defaults
+}
+if ! cq_cfg=$(cq_config_file); then exit 1; fi
+if [[ -n "$cq_cfg" ]]; then
+  # shellcheck source=/dev/null
+  source "$cq_cfg"
+fi
+
 # Automatically connect to wireguard VPN based on SSIDs
 
 # [Match]
@@ -24,9 +44,9 @@ IFACE="$(iw dev 2>/dev/null | awk '$1=="Interface"{print $2; exit}' || true)"
 SSID="$(iw dev "$IFACE" link 2>/dev/null | awk -F': ' '/SSID:/{print $2; exit}' || true)"
 
 # Buckets (edit)
-NEVER_VPN_SSIDS=("nv2g" "nv5g" "hiournet" "hiournet_5G" "CQD-Guest" "CQD-P21" "CQD-Kids")
-ALWAYS_HOME_TUNNEL_SSIDS=("posten.guest")
-ALWAYS_FULL_TUNNEL_SSIDS=("QDFam" "QDFam-5G")
+[[ -z "${NEVER_VPN_SSIDS+x}" ]] && NEVER_VPN_SSIDS=("nv2g" "nv5g" "hiournet" "hiournet_5G" "CQD-Guest" "CQD-P21" "CQD-Kids")
+[[ -z "${ALWAYS_HOME_TUNNEL_SSIDS+x}" ]] && ALWAYS_HOME_TUNNEL_SSIDS=("posten.guest")
+[[ -z "${ALWAYS_FULL_TUNNEL_SSIDS+x}" ]] && ALWAYS_FULL_TUNNEL_SSIDS=("QDFam" "QDFam-5G")
 
 in_list() {
   local needle="$1"; shift

@@ -76,7 +76,32 @@ def xdg_dir(kind: str, home: Path) -> Path:
 
 
 def config_path(home: Path | None = None) -> Path:
-    return xdg_dir("config", home or Path.home()) / APP_NAME / "config.toml"
+    return xdg_dir("config", home or Path.home()) / "cq" / "dotfiles-tui" / "config.toml"
+
+
+def app_config_path(env: dict[str, str] | None = None, explicit: str | None = None, home: Path | None = None) -> Path | None:
+    """CQ_DOTFILES_TUI_CONFIG, then CQ_CONFIG_DIR, then the two supported layouts."""
+    env = dict(os.environ) if env is None else env
+    selected = explicit or env.get("CQ_DOTFILES_TUI_CONFIG")
+    if selected:
+        path = Path(selected).expanduser()
+        if path.is_dir():
+            return path / "config.toml"
+        if not path.is_file():
+            raise DotError(f"Configuration file not found: {path}")
+        return path
+    shared = env.get("CQ_CONFIG_DIR")
+    if shared:
+        base = Path(shared).expanduser()
+    elif home is not None and home != Path.home():
+        base = xdg_dir("config", home) / "cq"
+    else:
+        xdg = env.get("XDG_CONFIG_HOME", "")
+        base = (Path(xdg) if xdg.startswith("/") else Path(env.get("HOME") or str(Path.home())) / ".config") / "cq"
+    for path in (base / "dotfiles-tui" / "config.toml", base / "dotfiles-tui.toml"):
+        if path.is_file():
+            return path
+    return None
 
 
 def stamp() -> str:
@@ -314,7 +339,7 @@ def settings_toml(settings: Settings) -> str:
 
 
 def example_settings() -> str:
-    return '''# Save as ~/.config/cq_dotfiles/config.toml
+    return '''# Save as $XDG_CONFIG_HOME/cq/dotfiles-tui/config.toml
 theme = "macchiato" # or "latte"
 animation = true
 glyphs = true
@@ -1048,7 +1073,7 @@ files are inspected statically, never sourced.
 
 ## Configuration and extensions
 
-Default: `$XDG_CONFIG_HOME/cq_dotfiles/config.toml`.
+Default: `$XDG_CONFIG_HOME/cq/dotfiles-tui/config.toml` (or `cq/dotfiles-tui.toml`).
 Run `cq_dotfiles-tui config example` for a starter, `config show` for effective
 settings, or `config validate` to check configuration. Add `--commands` to `config
 show` to see every default Git recipe. Changes take effect after restart.
@@ -2635,15 +2660,15 @@ cli.add_typer(config_cli, name="config")
 
 @cli.callback()
 def main(ctx: typer.Context,
-         config: Path | None = typer.Option(None, "--config", "-c", help="TOML configuration file"),
+         config: Path | None = typer.Option(None, "--config", "-c", help="TOML configuration file; overrides CQ_DOTFILES_TUI_CONFIG"),
          repo: str | None = typer.Option(None, "--repo", "-r", help="Initial repository profile"),
          home: Path | None = typer.Option(None, "--home", help="Isolated home work tree (for testing / portable homes)"),
          version: bool = typer.Option(False, "--version", help="Show version")) -> None:
     if version:
         typer.echo(VERSION)
         raise typer.Exit()
-    filename = config or config_path(home)
     try:
+        filename = config or app_config_path(os.environ, None, home) or config_path(home)
         settings = load_settings(filename, home)
         ctx.obj = (settings, filename)
         if ctx.invoked_subcommand is None:

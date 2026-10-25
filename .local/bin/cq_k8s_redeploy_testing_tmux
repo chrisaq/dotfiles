@@ -4,6 +4,27 @@
 #:desc: Open tmux panes for k8s redeploy/testing workflows.
 # k8s-panes.sh [DIR] — new tmux window + 2x2, robust send-keys
 set -euo pipefail
+
+cq_config_file() {  # prints config file path; empty = use defaults
+  local app="k8s-redeploy-testing-tmux" ext="sh" base f
+  if [[ -n "${CQ_K8S_REDEPLOY_TESTING_TMUX_CONFIG:-}" ]]; then
+    f="$CQ_K8S_REDEPLOY_TESTING_TMUX_CONFIG"
+    [[ -d "$f" || ( ! "$f" == *.* && ! -f "$f" ) ]] && f="$f/config.$ext"
+    [[ -f "$f" ]] || { echo "cq_k8s_redeploy_testing_tmux: config not found: $f" >&2; return 1; }
+    printf '%s\n' "$f"; return 0
+  fi
+  base="${CQ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/cq}"
+  for f in "$base/$app/config.$ext" "$base/$app.$ext"; do
+    [[ -f "$f" ]] && { printf '%s\n' "$f"; return 0; }
+  done
+  return 0  # empty: defaults
+}
+if ! cq_cfg=$(cq_config_file); then exit 1; fi
+if [[ -n "$cq_cfg" ]]; then
+  # shellcheck source=/dev/null
+  source "$cq_cfg"
+fi
+
 DIR="${1:-}"
 WN="${WN:-k8s-panes}"
 

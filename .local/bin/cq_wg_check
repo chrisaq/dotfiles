@@ -4,6 +4,26 @@
 #:no-args: false
 set -euo pipefail
 
+cq_config_file() {  # prints config file path; empty = use defaults
+  local app="wg-check" ext="sh" base f
+  if [[ -n "${CQ_WG_CHECK_CONFIG:-}" ]]; then
+    f="$CQ_WG_CHECK_CONFIG"
+    [[ -d "$f" || ( ! "$f" == *.* && ! -f "$f" ) ]] && f="$f/config.$ext"
+    [[ -f "$f" ]] || { echo "cq_wg_check: config not found: $f" >&2; return 1; }
+    printf '%s\n' "$f"; return 0
+  fi
+  base="${CQ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/cq}"
+  for f in "$base/$app/config.$ext" "$base/$app.$ext"; do
+    [[ -f "$f" ]] && { printf '%s\n' "$f"; return 0; }
+  done
+  return 0  # empty: defaults
+}
+if ! cq_cfg=$(cq_config_file); then exit 1; fi
+if [[ -n "$cq_cfg" ]]; then
+  # shellcheck source=/dev/null
+  source "$cq_cfg"
+fi
+
 # wg-diag: WireGuard + systemd-networkd + routing snapshot
 # Usage:
 #   sudo ./wg-diag
@@ -16,7 +36,7 @@ set -euo pipefail
 
 PING_COUNT="${PING_COUNT:-1}"
 PING_TIMEOUT="${PING_TIMEOUT:-1}"
-TARGETS_DEFAULT="10.1.0.1 10.1.10.11"
+TARGETS_DEFAULT="${TARGETS_DEFAULT:-10.1.0.1 10.1.10.11}"
 TARGETS="${TARGETS:-$TARGETS_DEFAULT}"
 
 hr() { printf '%*s\n' "${COLUMNS:-80}" '' | tr ' ' -; }
