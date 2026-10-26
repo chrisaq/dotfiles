@@ -256,6 +256,14 @@ hl.config({
     },
 })
 
+hl.config({
+    xwayland = {
+        -- Panel runs scale 1.5; render X apps at native pixels (sharp) instead
+        -- of blurry upscaled 96dpi. Font sizing comes from Xft.dpi (see startup).
+        force_zero_scaling = true,
+    },
+})
+
 --##################
 
 --## KEYBINDINGS ###
@@ -700,6 +708,8 @@ hl.config({
 -- Autostart
 hl.on("hyprland.start", function()
     hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=Hyprland XDG_SESSION_TYPE=wayland ENVIRONMENTD_LOADED GNUPGHOME EDITOR PASSWORD_STORE_DIR WEBRTC_PIPEWIRE_FORCE_COPY HYPRLAND_INSTANCE_SIGNATURE")
+    -- Xwayland starts lazily; retry until it is up, then seed Xft.dpi etc.
+    hl.exec_cmd("sh -c 'for i in $(seq 1 60); do xrdb -merge \"$HOME/.Xresources\" 2>/dev/null && break; sleep 0.5; done'")
     hl.exec_cmd("systemctl --user start hyprland-session.target")
     hl.exec_cmd("swayosd-server")
     hl.exec_cmd("mako")

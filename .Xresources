@@ -120,5 +120,5 @@ st.tabspaces: 4
 st.font: Hack Nerd Font:style=Regular:pixelsize=16
 
 !!! i3
-Xft.dpi: 120
+Xft.dpi: 144
 ! Xcursor.size: 64
