@@ -72,29 +72,32 @@ clipboard_copy() {
 }
 
 extract_username() {
-  # gopass usually prints: first line = password, then "key: value" lines.
-  # Prefer "username:" / "user:" / "login:"; else fall back to 2nd non-empty line.
   local secret="$1"
+  local entry_path="$2"
   local u=""
 
+  # Ignore the password line. Preserve colons inside field values.
   u="$(
     printf '%s\n' "$secret" |
-      awk -F': *' '
-        tolower($1) ~ /^(username|user|login)$/ { print $2; exit }
+      awk '
+        NR > 1 && tolower($0) ~ /^[[:space:]]*(username|user|login|account|email|mail)[[:space:]]*:/ {
+          sub(/^[^:]*:[[:space:]]*/, "")
+          sub(/[[:space:]]*$/, "")
+          if (length) { print; exit }
+        }
       '
   )"
 
   if [[ -z "$u" ]]; then
     u="$(
       printf '%s\n' "$secret" |
-        awk 'NR>1 && $0 !~ /^[[:space:]]*$/ { print; exit }'
+        awk 'NR>1 && $0 !~ /^[[:space:]]*$/ && $0 !~ /:/ { print; exit }'
     )"
-    # If the fallback line is still "key: value", strip the key.
-    if [[ "$u" == *:* ]]; then
-      u="${u#*: }"
-      u="${u#:}"
-      u="${u# }"
-    fi
+  fi
+
+  # cq_pass-add stores entries as folder/domain/user with only a password inside.
+  if [[ -z "$u" && "$entry_path" == */* ]]; then
+    u="${entry_path##*/}"
   fi
 
   printf %s "$u"
@@ -111,7 +114,7 @@ fi
 entry="$(printf '%s\n' "$entries" | rofi -dmenu -i -p "$ROFI_PROMPT" -theme "$ROFI_THEME" "$@")"
 [[ -n "$entry" ]] || exit 0
 
-secret="$({ gopass show -- "$entry" 2>/dev/null || true; })"
+secret="$({ gopass show --unsafe --noparsing -- "$entry" 2>/dev/null || true; })"
 pw="$(printf '%s\n' "$secret" | head -n1)"
 
 if [[ -z "$pw" ]]; then
@@ -119,7 +122,7 @@ if [[ -z "$pw" ]]; then
   exit 1
 fi
 
-user="$(extract_username "$secret")"
+user="$(extract_username "$secret" "$entry")"
 
 clipboard_copy clipboard "$pw"
 if [[ -n "$user" ]]; then

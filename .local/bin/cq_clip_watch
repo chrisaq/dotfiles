@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+#:usage: cq_clip_watch [--once]
+#:no-args: true
+#:desc: Show Wayland primary selection, clipboard, and tmux buffer.
+
+set -euo pipefail
+
+case "${1-}" in
+  -h|--help)
+    printf 'Usage: cq_clip_watch [--once]\nShows clipboard contents (including secrets). Ctrl-C stops watching.\n'
+    exit 0
+    ;;
+  ''|--once) ;;
+  *) printf 'Usage: cq_clip_watch [--once]\n' >&2; exit 2 ;;
+esac
+(( $# <= 1 )) || { printf 'Usage: cq_clip_watch [--once]\n' >&2; exit 2; }
+
+command -v wl-paste >/dev/null || { echo 'cq_clip_watch: wl-paste is required (wl-clipboard package).' >&2; exit 1; }
+command -v timeout >/dev/null || { echo 'cq_clip_watch: timeout is required (coreutils package).' >&2; exit 1; }
+[[ -n "${WAYLAND_DISPLAY:-}" ]] || { echo 'cq_clip_watch: run this inside your Wayland session.' >&2; exit 1; }
+
+show_selection() {
+  local label="$1" value
+  shift
+  printf '%s\n' "$label"
+  # A stalled clipboard owner must not prevent the other selection from showing.
+  if value=$(timeout 2 wl-paste --no-newline --type text "$@" 2>&1); then
+    # Escape control characters so clipboard contents cannot control the terminal.
+    printf '%q\n' "$value"
+  else
+    printf '[unavailable: %s]\n' "$value"
+  fi
+  printf '\n'
+}
+
+show_snapshot() {
+  show_selection 'PRIMARY (username; middle-click / Shift-Insert in supporting apps):' --primary
+  show_selection 'CLIPBOARD (password; Ctrl-V / Ctrl-Shift-V in terminals):'
+  printf 'tmux-buffer:\n'
+  local value
+  if command -v tmux >/dev/null && value=$(timeout 2 tmux show-buffer 2>/dev/null); then
+    printf '%q\n' "$value"
+  else
+    printf '[no tmux buffer]\n'
+  fi
+}
+
+if [[ "${1-}" == --once ]]; then
+  show_snapshot
+else
+  command -v watch >/dev/null || { echo 'cq_clip_watch: watch is required.' >&2; exit 1; }
+  exec watch --interval 1 --no-title --exec bash "$(realpath -- "${BASH_SOURCE[0]}")" --once
+fi

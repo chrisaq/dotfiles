@@ -464,7 +464,7 @@ alias k=kubectl
 compdef k=kubectl
 alias cq_groups_refresh="exec sudo su -l $USER"
 # Watch clipboard status
-alias cq_clip_watch="watch -n 1 'echo \"PRIMARY (middle_mouse):\" && sselp && echo && \
+alias cq_clip_watch_x11="watch -n 1 'echo \"PRIMARY (middle_mouse):\" && sselp && echo && \
     echo \"Clipboard (ctrl-c/p):\" && cb && echo && echo && \
     echo \"tmux-buffer:\" && tmux show-buffer && echo'"
 alias watchclip="xsel -o | xclip -selection clipboard -i"
