@@ -1,0 +1,23 @@
+{
+  "mail_root": "~/.local/share/mail/example.org",
+  "password_store": "~/Sync/Password-Store",
+  "gnupghome": "~/.config/gnupg",
+  "attachments": "~/Sync/EmailAttachments",
+  "credentials": {
+    "mail": "Email/example.org/user@example.org",
+    "contacts": "SelfHosted/dav.example.org"
+  },
+  "contacts_url": "https://dav.example.org/user/addressbook.vcf/",
+  "contacts_username": "user",
+  "smtp_host": "mail.example.org",
+  "smtp_port": 587,
+  "imap_host": "mail.example.org",
+  "imap_username": "user@example.org",
+  "primary_email": "user@example.org",
+  "aliases": [
+    "alias@example.org"
+  ],
+  "realname": "Example User",
+  "channel_name": "primary",
+  "account_name": "primary"
+}

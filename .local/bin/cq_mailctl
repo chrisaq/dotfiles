@@ -1,0 +1,351 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "typer==0.27.3",
+#   "rich==15.0.0",
+#   "reportlab==5.0.1",
+#   "vobject==0.9.9",
+# ]
+# ///
+#:usage: cq_mailctl COMMAND [ARGS...]
+#:no-args: true
+#:desc: Sync, search and manage personal mail and Radicale contacts.
+
+"""Managed personal mail, search, tags and Radicale contacts."""
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+from pathlib import Path
+import shlex
+import subprocess
+import sys
+from enum import Enum
+from typing import Annotated
+
+import typer
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
+
+# Configuration and support modules stay here when this executable lives in ~/.local/bin.
+sys.path.insert(0, str(Path.home() / '.config/mutt'))
+from mailcore import ROOT, MailError, MailSystem, atomic_write
+
+
+# ---- Application and output conventions ----
+# Machine-facing commands use plain stdout. Rich diagnostics always go to stderr.
+console = Console(highlight=False)
+errors = Console(stderr=True, highlight=False)
+app = typer.Typer(
+    help="Managed personal mail: sync IMAP, search and tag mail, and use Radicale contacts.",
+    epilog="Start with 'cq_mailctl status' or 'cq_mailctl sync'. In NeoMutt: o syncs, ,z shows status, F1 searches actions.",
+    no_args_is_help=True,
+    add_completion=False,
+    pretty_exceptions_enable=False,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
+contacts_app = typer.Typer(help="Mirror Radicale contacts or explicitly save one sender.", no_args_is_help=True)
+app.add_typer(contacts_app, name="contacts", rich_help_panel="Everyday use")
+
+
+class Service(str, Enum):
+    mail = "mail"
+    contacts = "contacts"
+
+
+class Menu(str, Enum):
+    index = "index"
+    pager = "pager"
+    attach = "attach"
+    compose = "compose"
+    browser = "browser"
+    query = "query"
+
+
+# ---- Installation and documentation ----
+def install_timers():
+    units = [f'cq-{name}.{kind}' for name in ('mail', 'contacts') for kind in ('service', 'timer')]
+    subprocess.run(['systemctl', '--user', 'show-environment'], stdout=subprocess.DEVNULL, check=True)
+    subprocess.run(['systemctl', '--user', 'link', *[str(ROOT / 'systemd' / unit) for unit in units]], check=True)
+    subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True)
+    subprocess.run(['systemctl', '--user', 'enable', '--now', 'cq-mail.timer', 'cq-contacts.timer'], check=True)
+
+
+def install_wiki():
+    from datetime import datetime
+    settings = MailSystem().settings
+    if not settings.get('wiki_guide'):
+        raise MailError('Set wiki_guide in settings.json before installing the Wiki guide')
+    target = Path(settings['wiki_guide']).expanduser()
+    if target.exists():
+        backup = ROOT / 'backups' / ('wiki-mail-' + datetime.now().strftime('%Y%m%d-%H%M%S'))
+        atomic_write(backup.with_suffix('.md'), target.read_text())
+    target.write_text((ROOT / 'wiki-mail.md').read_text())
+    console.print('Updated mail client Wiki guide')
+
+
+# ---- Everyday commands ----
+@app.command(rich_help_panel="Everyday use")
+def sync():
+    """Sync mail both ways with IMAP, then refresh the local index and category tags.
+
+    Manual sync may request your GPG PIN. Scheduled jobs never open pinentry;
+    they skip the attempt when credentials need unlocking.
+    """
+    MailSystem().sync()
+
+
+@app.command(rich_help_panel="Everyday use")
+def status(json_output: Annotated[bool, typer.Option("--json", help="Print recorded status as JSON instead of a table.")] = False):
+    """Show the last attempt, last success and current phase for mail, index and contacts.
+
+    The mail row records server sync. An index success alone only confirms local
+    indexing. This command reads local records; it does not contact any server.
+    """
+    system = MailSystem()
+    records = {}
+    for component in ('mail', 'index', 'contacts'):
+        path = system.state / f'{component}-status.json'
+        records[component] = json.loads(path.read_text()) if path.exists() else {}
+    if json_output:
+        print(json.dumps(records, indent=2))
+        return
+    table = Table(title="Mail sync status", expand=True)
+    table.add_column('Component', no_wrap=True)
+    table.add_column('State')
+    table.add_column('Activity', ratio=1, overflow='fold')
+    colors = {'ok': 'green', 'running': 'cyan', 'unlock-required': 'yellow', 'error': 'red'}
+    for component, record in records.items():
+        state = record.get('state', 'not synced yet')
+        activity = Text(f"Last success: {record.get('last_success', 'never recorded')}\n"
+                        f"Last attempt: {record.get('last_attempt', 'never recorded')}")
+        if record.get('message'):
+            activity.append('\n' + record['message'])
+        table.add_row(component, Text(state, style=colors.get(state, 'dim')), activity)
+    console.print(table)
+
+
+@app.command(rich_help_panel="Everyday use")
+def guide():
+    """Open the usage guide in $PAGER (default: less)."""
+    subprocess.run([*shlex.split(os.environ.get('PAGER', 'less')), str(ROOT / 'README.md')], check=False)
+
+
+@contacts_app.command('sync')
+def contacts_sync():
+    """Refresh the local read-only Radicale address book mirror. Never upload changes."""
+    import mailcontacts
+    mailcontacts.sync(MailSystem())
+
+
+@contacts_app.command('add')
+def contacts_add():
+    """Read an email from stdin, review its sender and confirm saving one Radicale contact.
+
+    Normally launched with 'a' in NeoMutt. Existing contacts are checked for
+    duplicates; email history is never automatically imported into your contacts.
+    """
+    import mailcontacts
+    mailcontacts.add_sender(MailSystem())
+
+
+# ---- Search and classification ----
+@app.command(rich_help_panel="Search and tags")
+def index():
+    """Index local Maildirs and refresh folder/category tags without contacting IMAP."""
+    MailSystem().index()
+
+
+@app.command('rules-preview', rich_help_panel="Search and tags")
+def rules_preview(history: Annotated[bool, typer.Option(help="Preview categories across existing historical mail instead of newly queued mail.")] = False):
+    """Preview automatic category rules without applying tags or moving messages."""
+    MailSystem().rule_preview(history)
+
+
+@app.command('rules-apply', rich_help_panel="Search and tags")
+def rules_apply(
+    history: Annotated[bool, typer.Option(help="Required: explicitly select historical mail for classification.")] = False,
+    yes: Annotated[bool, typer.Option('--yes', '-y', help="Apply after previewing without asking for confirmation.")] = False,
+):
+    """Preview and apply category tags to historical mail; requires --history.
+
+    Without --yes, confirmation is read from your controlling terminal. This
+    changes category tags, not message folders or read/unread state.
+    """
+    if not history:
+        raise typer.BadParameter('Pass --history to explicitly select historical mail.', param_hint='--history')
+    system = MailSystem()
+    system.rule_preview(True)
+    if not yes:
+        from mailui import Terminal
+        with Terminal() as terminal:
+            terminal.write('Apply these category tags to historical mail? [y/N] ')
+            terminal.flush()
+            if terminal.readline().strip().casefold() not in ('y', 'yes'):
+                return
+    system.apply_history()
+
+
+@app.command('notmuch', rich_help_panel="Search and tags", add_help_option=False,
+             context_settings={'allow_extra_args': True, 'ignore_unknown_options': True, 'allow_interspersed_args': False})
+def notmuch_command(ctx: typer.Context):
+    """Run notmuch against the managed database, forwarding all arguments and exit status.
+
+    Example: cq_mailctl notmuch search 'tag:unread'. Use 'notmuch --help' for
+    notmuch's own help. An optional leading -- separates forwarded arguments.
+    """
+    arguments = ctx.args[1:] if ctx.args[:1] == ['--'] else ctx.args
+    result = MailSystem().nm(*arguments, check=False, timeout=1800)
+    sys.stdout.write(result.stdout)
+    sys.stderr.write(result.stderr)
+    raise typer.Exit(result.returncode)
+
+
+# ---- Setup and diagnostics ----
+@app.command(rich_help_panel="Setup and diagnostics")
+def activate():
+    """Check TLS/auth, sync mail and contacts, enable timers and install the Wiki guide.
+
+    Run from your desktop terminal so credentials can be unlocked. SMTP is
+    authenticated but no test email is sent. Stops if a step fails.
+    """
+    system = MailSystem()
+    if system.scheduled:
+        raise MailError('Activation must run interactively')
+    console.print('Checking IMAP and SMTP connections…')
+    system.check_connections()
+    system.sync()
+    import mailcontacts
+    console.print('Refreshing Radicale contacts…')
+    mailcontacts.sync(system)
+    console.print('Installing background timers…')
+    install_timers()
+    install_wiki()
+    console.print('[green]Mail and contacts are synced; quiet background timers enabled.[/green]')
+
+
+@app.command(rich_help_panel="Setup and diagnostics")
+def doctor(credentials: Annotated[bool, typer.Option(help="Also try decrypting credentials; may request your GPG PIN.")] = False):
+    """Check dependencies and local configuration; exit nonzero if a check fails."""
+    if not MailSystem().doctor(credentials):
+        raise typer.Exit(1)
+
+
+@app.command('check-connections', rich_help_panel="Setup and diagnostics")
+def check_connections(no_auth: Annotated[bool, typer.Option(help="Only verify TLS; skip credential access and authentication.")] = False):
+    """Verify IMAP/SMTP TLS and authentication without syncing mail or sending a message."""
+    MailSystem().check_connections(not no_auth)
+
+
+@app.command(rich_help_panel="Setup and diagnostics")
+def render():
+    """Regenerate managed configs, bindings and service files from settings and rules.
+
+    Also updates mailcap command paths. Does not sync mail or enable timers.
+    After changing installed systemd units, run systemctl --user daemon-reload.
+    """
+    spec = importlib.util.spec_from_file_location('build_config', ROOT / 'build-config.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.render()
+
+
+@app.command('timers-install', rich_help_panel="Setup and diagnostics")
+def timers_install():
+    """Install and enable five-minute mail/contact timers. Background jobs never ask for a PIN."""
+    install_timers()
+
+
+@app.command('timers-disable', rich_help_panel="Setup and diagnostics")
+def timers_disable():
+    """Stop and disable mail/contact timers, keeping mail and configuration intact."""
+    subprocess.run(['systemctl', '--user', 'disable', '--now', 'cq-mail.timer', 'cq-contacts.timer'], check=True)
+
+
+@app.command('install-wiki-guide', rich_help_panel="Setup and diagnostics")
+def install_wiki_guide():
+    """Copy the prepared usage guide into the Wiki, backing up its previous content."""
+    install_wiki()
+
+
+# ---- NeoMutt integration: keep stdout free of decoration ----
+@app.command(hidden=True)
+def credential(service: Annotated[Service, typer.Argument(help="Credential to decrypt; output is a secret for transport tools.")]):
+    """Internal password command for mbsync/msmtp/vdirsyncer. Prints a secret; do not run manually."""
+    print(MailSystem().secret(service.value))
+
+
+@app.command('after-new', hidden=True)
+def after_new():
+    """Internal notmuch post-new hook: refresh folder tags and classify queued mail."""
+    MailSystem().after_new()
+
+
+@app.command(hidden=True)
+def palette(context: Annotated[Menu, typer.Argument(help="NeoMutt menu whose keybindings should be searched.")]):
+    """Search actions for a NeoMutt menu and emit plain NeoMutt configuration on stdout."""
+    import mailui
+    mailui.palette(MailSystem(), context.value)
+
+
+@app.command(hidden=True)
+def folders():
+    """Pick a mailbox or saved view and emit plain NeoMutt configuration on stdout."""
+    import mailui
+    mailui.folders(MailSystem())
+
+
+@app.command(hidden=True)
+def query(terms: Annotated[list[str] | None, typer.Argument(help="Address/name search terms for NeoMutt completion.")] = None):
+    """Print NeoMutt address completion records from curated contacts and sender history."""
+    import mailui
+    if not mailui.query_addresses(MailSystem(), ' '.join(terms or [])):
+        raise typer.Exit(1)
+
+
+@app.command(rich_help_panel="Message tools")
+def attachments():
+    """Read an email from stdin and save its attachments to the configured directory."""
+    import mailui
+    mailui.attachments(MailSystem())
+
+
+@app.command(rich_help_panel="Message tools")
+def pdf():
+    """Export NeoMutt's decoded print stream from stdin as a PDF in the attachment directory."""
+    import mailui
+    mailui.export_pdf(MailSystem(), sys.stdin.buffer.read(), decoded=True)
+
+
+@app.command(rich_help_panel="Message tools")
+def html():
+    """Read a raw email from stdin and open its HTML part in the desktop browser."""
+    import mailui
+    mailui.open_html(MailSystem())
+
+
+@app.command('open', rich_help_panel="Message tools")
+def open_command(file: Annotated[Path, typer.Argument(help="Attachment or HTML file to copy to private cache and open.", exists=True, file_okay=True, dir_okay=False)]):
+    """Open a cached copy of a file with the desktop viewer so NeoMutt can remove its temporary file."""
+    import mailui
+    mailui.open_file(MailSystem(), str(file))
+
+
+# ---- Process entry point ----
+def main():
+    os.umask(0o077)
+    try:
+        app()
+    except (MailError, OSError, ValueError, subprocess.CalledProcessError) as error:
+        errors.print(f'cq_mailctl: {error}', style='red', markup=False)
+        raise SystemExit(1)
+    except KeyboardInterrupt:
+        errors.print('cq_mailctl: cancelled', markup=False)
+        raise SystemExit(130)
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,32 @@
+[
+  {
+    "tag": "category/finance",
+    "query": "from:\"/@(.*\\.)?(dnb\\.no|sbanken\\.no|paypal\\.com|efaktura\\.no)(>|$)/\"",
+    "description": "Known finance senders"
+  },
+  {
+    "tag": "category/public",
+    "query": "from:\"/@(.*\\.)?(skatteetaten\\.no|altinn\\.no|nav\\.no|digipost\\.no|vigilo\\.no|mykid\\.no)(>|$)/\"",
+    "description": "Public services and school"
+  },
+  {
+    "tag": "category/purchases",
+    "query": "from:\"/@(.*\\.)?(posten\\.no|bring\\.no|postnord\\.no|postnord\\.com|dhl\\.com)(>|$)/\" or ((from:komplett.no or from:proshop.no or from:elkjop.no) and (subject:kvittering or subject:ordrebekreftelse or subject:receipt))",
+    "description": "Shipping and specific retailer receipts"
+  },
+  {
+    "tag": "category/newsletters",
+    "query": "ListUnsubscribe:http* or ListUnsubscribe:mailto* or ListUnsubscribe:ftp*",
+    "description": "Messages offering list unsubscribe"
+  },
+  {
+    "tag": "category/lists",
+    "query": "ListId:a* or ListId:b* or ListId:c* or ListId:d* or ListId:e* or ListId:f* or ListId:g* or ListId:h* or ListId:i* or ListId:j* or ListId:k* or ListId:l* or ListId:m* or ListId:n* or ListId:o* or ListId:p* or ListId:q* or ListId:r* or ListId:s* or ListId:t* or ListId:u* or ListId:v* or ListId:w* or ListId:x* or ListId:y* or ListId:z* or ListId:0* or ListId:1* or ListId:2* or ListId:3* or ListId:4* or ListId:5* or ListId:6* or ListId:7* or ListId:8* or ListId:9*",
+    "description": "Mailing lists with List-Id"
+  },
+  {
+    "tag": "category/notifications",
+    "query": "from:notifications@github.com or from:noreply@github.com or from:notifications@gitlab.com",
+    "description": "Known development notifications"
+  }
+]

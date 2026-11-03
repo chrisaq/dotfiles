@@ -1,0 +1,8 @@
+# Explicit desktop opens are copied to a private cache before launch.
+text/html; @MAILCTL@ open %s; nametemplate=%s.html
+text/html; lynx -assume_charset=%{charset} -display_charset=utf-8 -dump -force_html %s; nametemplate=%s.html; copiousoutput
+image/*; @MAILCTL@ open %s
+video/*; @MAILCTL@ open %s
+audio/*; @MAILCTL@ open %s
+application/pdf; @MAILCTL@ open %s
+application/pgp-encrypted; gpg --decrypt %s; copiousoutput

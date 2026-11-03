@@ -1,6 +1,7 @@
+# Mail integration. Render local settings with cq_mailctl render.
+source ~/.config/mutt/shared-muttrc
+source ~/.config/mutt/accounts/primary.muttrc
+source ~/.config/mutt/integration.muttrc
+source ~/.config/mutt/views.muttrc
+source ~/.config/mutt/bindings.muttrc
 # vim: filetype=neomuttrc
-#source /usr/share/mutt-wizard/mutt-wizard.muttrc
-source /home/chrisq/.config/mutt/shared-muttrc
-source /home/chrisq/.config/mutt/accounts/kotelett.no.muttrc
-macro index,pager i1 '<sync-mailbox><enter-command>source /home/chrisq/.config/mutt/accounts/kotelett.no.muttrc<enter><change-folder>!<enter>;<check-stats>' "switch to kotelett.no"
-macro index,pager i2 '<sync-mailbox><enter-command>source /home/chrisq/.config/mutt/accounts/gmail.muttrc<enter><change-folder>!<enter>;<check-stats>' "switch to gmail private"

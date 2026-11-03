@@ -1,0 +1,19 @@
+# Private settings, account identities, and local operational documentation.
+/settings.json
+/accounts/
+/README.md
+/wiki-mail.md
+/HANDOFF.md
+# Generated local configs contain account details or machine-specific paths.
+/integrations/
+/systemd/
+/bindings.muttrc
+/integration.muttrc
+/views.muttrc
+/mailcap
+# Private recovery data and disposable Python/build artifacts.
+/.state/
+/backups/
+__pycache__/
+.pytest_cache/
+*.tmp

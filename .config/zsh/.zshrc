@@ -156,6 +156,10 @@ fi
 if [ -d "/usr/bin/vendor_perl/" ] ; then
     PATH="$PATH:/usr/bin/vendor_perl"
 fi
+# bun
+if [ -d "$HOME/.cache/.bun/bin" ] ; then
+    PATH="$PATH:$HOME/.cache/.bun/bin"
+fi
 # pnpm
 if [ -d "$HOME/.local/share/pnpm" ] ; then
     PATH="$PATH:$HOME/.local/share/pnpm"
@@ -1134,12 +1138,6 @@ cq_ai_ohmyopenagent() {
     : "#:no-args: true"
     _cq_ai_require_bun || return 1
     bunx oh-my-opencode install
-}
-omp() {
-    local PATH="$HOME/.cache/.bun/bin:$PATH"
-    local -x PI_CODING_AGENT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omp/agent"
-    mkdir -p "$PI_CODING_AGENT_DIR"
-    command omp "$@"
 }
 cq_opencode_setup() {
     : "#:desc: sync everything-claude-code and install OpenCode agents/commands into .opencode"

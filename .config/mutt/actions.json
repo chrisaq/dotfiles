@@ -1,0 +1,1130 @@
+[
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "gg",
+    "description": "First message",
+    "action": "first-entry",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "G",
+    "description": "Last message",
+    "action": "last-entry",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "j",
+    "description": "Next message",
+    "action": "next-entry",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "k",
+    "description": "Previous message",
+    "action": "previous-entry",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "l",
+    "description": "Read message",
+    "action": "display-message",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "h",
+    "description": "Reserved navigation prefix",
+    "action": "noop",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "pager"
+    ],
+    "key": "j",
+    "description": "Next line",
+    "action": "next-line",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "pager"
+    ],
+    "key": "k",
+    "description": "Previous line",
+    "action": "previous-line",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "pager",
+      "attach"
+    ],
+    "key": "h",
+    "description": "Return to previous view",
+    "action": "exit",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "pager"
+    ],
+    "key": "l",
+    "description": "View attachments",
+    "action": "view-attachments",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "attach"
+    ],
+    "key": "<Return>",
+    "description": "Open attachment",
+    "action": "view-mailcap",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "attach"
+    ],
+    "key": "l",
+    "description": "Open attachment",
+    "action": "view-mailcap",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "browser"
+    ],
+    "key": "l",
+    "description": "Open folder",
+    "action": "select-entry",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "pager",
+      "browser"
+    ],
+    "key": "gg",
+    "description": "Top of page",
+    "action": "top-page",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "pager",
+      "browser"
+    ],
+    "key": "G",
+    "description": "Bottom of page",
+    "action": "bottom-page",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager",
+      "browser"
+    ],
+    "key": "d",
+    "description": "Scroll half page down",
+    "action": "half-down",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager",
+      "browser"
+    ],
+    "key": "u",
+    "description": "Scroll half page up",
+    "action": "half-up",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "D",
+    "description": "Mark message for deletion",
+    "action": "delete-message",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "U",
+    "description": "Undo deletion",
+    "action": "undelete-message",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "L",
+    "description": "Filter current view",
+    "action": "limit",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "query"
+    ],
+    "key": "<Space>",
+    "description": "Select message or address temporarily",
+    "action": "tag-entry",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "H",
+    "description": "View raw message",
+    "action": "view-raw-message",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "R",
+    "description": "Reply to all",
+    "action": "group-reply",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "\\031",
+    "description": "Mouse wheel up",
+    "action": "previous-undeleted",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "\\005",
+    "description": "Mouse wheel down",
+    "action": "next-undeleted",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "pager"
+    ],
+    "key": "\\031",
+    "description": "Mouse wheel up",
+    "action": "previous-line",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "pager"
+    ],
+    "key": "\\005",
+    "description": "Mouse wheel down",
+    "action": "next-line",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "editor"
+    ],
+    "key": "<Tab>",
+    "description": "Complete recipient from contacts and mail history",
+    "action": "complete-query",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "\\eC",
+    "description": "Search all mail with notmuch",
+    "action": "vfolder-from-query",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "+",
+    "description": "Show entire thread",
+    "action": "entire-thread",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": ",t",
+    "description": "Edit persistent tags in a notmuch view",
+    "action": "modify-labels",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "B",
+    "description": "Toggle sidebar",
+    "action": "sidebar-toggle-visible",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "\\Ck",
+    "description": "Previous sidebar folder",
+    "action": "sidebar-prev",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "\\Cj",
+    "description": "Next sidebar folder",
+    "action": "sidebar-next",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "\\Co",
+    "description": "Open sidebar folder",
+    "action": "sidebar-open",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "\\Cp",
+    "description": "Previous unread sidebar folder",
+    "action": "sidebar-prev-new",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "\\Cn",
+    "description": "Next unread sidebar folder",
+    "action": "sidebar-next-new",
+    "kind": "function",
+    "category": "Navigation"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "m",
+    "description": "Compose mail",
+    "action": "mail",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "r",
+    "description": "Reply to sender",
+    "action": "reply",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "f",
+    "description": "Forward message",
+    "action": "forward-message",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "p",
+    "description": "Export message as PDF",
+    "action": "print-message",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "v",
+    "description": "View MIME parts and attachments",
+    "action": "view-attachments",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "t",
+    "description": "Select current message temporarily",
+    "action": "tag-entry",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "T",
+    "description": "Select messages matching a pattern",
+    "action": "tag-pattern",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": ";",
+    "description": "Apply next action to selected messages",
+    "action": "tag-prefix",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "c",
+    "description": "Change folder",
+    "action": "change-folder",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "/",
+    "description": "Search current view",
+    "action": "search",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "n",
+    "description": "Next search match",
+    "action": "search-next",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "N",
+    "description": "Previous search match",
+    "action": "search-opposite",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "q",
+    "description": "Quit NeoMutt",
+    "action": "quit",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "pager"
+    ],
+    "key": "q",
+    "description": "Return to message list",
+    "action": "exit",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "compose"
+    ],
+    "key": "y",
+    "description": "Send prepared message",
+    "action": "send-message",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "compose"
+    ],
+    "key": "a",
+    "description": "Attach a file",
+    "action": "attach-file",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "compose"
+    ],
+    "key": "P",
+    "description": "Postpone draft",
+    "action": "postpone-message",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "compose"
+    ],
+    "key": "q",
+    "description": "Cancel composition",
+    "action": "exit",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "attach"
+    ],
+    "key": "s",
+    "description": "Save selected attachment",
+    "action": "save-entry",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager",
+      "attach",
+      "compose",
+      "browser",
+      "query"
+    ],
+    "key": "?",
+    "description": "Show complete native keybinding help",
+    "action": "help",
+    "kind": "function",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "<F1>",
+    "description": "Search keybindings and launch an action",
+    "action": "<enter-command>source \"@MAILCTL@ palette index|\"<enter>",
+    "kind": "macro",
+    "category": "Help"
+  },
+  {
+    "contexts": [
+      "pager"
+    ],
+    "key": "<F1>",
+    "description": "Search keybindings and launch an action",
+    "action": "<enter-command>source \"@MAILCTL@ palette pager|\"<enter>",
+    "kind": "macro",
+    "category": "Help"
+  },
+  {
+    "contexts": [
+      "attach"
+    ],
+    "key": "<F1>",
+    "description": "Search keybindings and launch an action",
+    "action": "<enter-command>source \"@MAILCTL@ palette attach|\"<enter>",
+    "kind": "macro",
+    "category": "Help"
+  },
+  {
+    "contexts": [
+      "compose"
+    ],
+    "key": "<F1>",
+    "description": "Search keybindings and launch an action",
+    "action": "<enter-command>source \"@MAILCTL@ palette compose|\"<enter>",
+    "kind": "macro",
+    "category": "Help"
+  },
+  {
+    "contexts": [
+      "browser"
+    ],
+    "key": "<F1>",
+    "description": "Search keybindings and launch an action",
+    "action": "<enter-command>source \"@MAILCTL@ palette browser|\"<enter>",
+    "kind": "macro",
+    "category": "Help"
+  },
+  {
+    "contexts": [
+      "query"
+    ],
+    "key": "<F1>",
+    "description": "Search keybindings and launch an action",
+    "action": "<enter-command>source \"@MAILCTL@ palette query|\"<enter>",
+    "kind": "macro",
+    "category": "Help"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "o",
+    "description": "Sync server, index and tags (S commits pending local deletions)",
+    "action": "<shell-escape>@MAILCTL@ sync<enter><check-stats>",
+    "kind": "macro",
+    "category": "Sync"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "O",
+    "description": "Sync server, index and tags (S commits pending local deletions)",
+    "action": "<shell-escape>@MAILCTL@ sync<enter><check-stats>",
+    "kind": "macro",
+    "category": "Sync"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "S",
+    "description": "Save local mailbox changes with normal confirmation (then o to sync server)",
+    "action": "sync-mailbox",
+    "kind": "function",
+    "category": "Sync"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "i1",
+    "description": "Return to primary Inbox",
+    "action": "<change-folder>notmuch://@DATABASE@?query=tag:inbox<enter>",
+    "kind": "macro",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "gi",
+    "description": "Open Inbox",
+    "action": "<change-folder>notmuch://@DATABASE@?query=tag:inbox<enter>",
+    "kind": "macro",
+    "category": "Views"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "gu",
+    "description": "Open Unread Inbox",
+    "action": "<change-folder>notmuch://@DATABASE@?query=tag:inbox and tag:unread<enter>",
+    "kind": "macro",
+    "category": "Views"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "gf",
+    "description": "Open Flagged",
+    "action": "<change-folder>notmuch://@DATABASE@?query=tag:flagged<enter>",
+    "kind": "macro",
+    "category": "Views"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "gv",
+    "description": "Open All searchable mail",
+    "action": "<change-folder>notmuch://@DATABASE@?query=*<enter>",
+    "kind": "macro",
+    "category": "Views"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "gd",
+    "description": "Open drafts",
+    "action": "<change-folder>=.Drafts<enter>",
+    "kind": "macro",
+    "category": "Folders"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "gj",
+    "description": "Open spam",
+    "action": "<change-folder>=.Spam<enter>",
+    "kind": "macro",
+    "category": "Folders"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "gt",
+    "description": "Open trash",
+    "action": "<change-folder>=.Trash<enter>",
+    "kind": "macro",
+    "category": "Folders"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "gs",
+    "description": "Open sent",
+    "action": "<change-folder>=.Sent<enter>",
+    "kind": "macro",
+    "category": "Folders"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "ga",
+    "description": "Open archive",
+    "action": "<change-folder>=.Archive<enter>",
+    "kind": "macro",
+    "category": "Folders"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "Mi",
+    "description": "Move current or selected messages to Inbox",
+    "action": "<enter-command>set my_cq_append=$confirm_append my_cq_create=$confirm_create my_cq_delete=$delete confirm_append=no confirm_create=no delete=yes<enter><tag-prefix><save-message>=<enter><sync-mailbox><enter-command>set confirm_append=$my_cq_append confirm_create=$my_cq_create delete=$my_cq_delete; unset my_cq_append my_cq_create my_cq_delete<enter><shell-escape>@MAILCTL@ index<enter><check-stats>",
+    "kind": "macro",
+    "category": "Filing"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "Ci",
+    "description": "Copy current or selected messages to Inbox",
+    "action": "<enter-command>set my_cq_append=$confirm_append my_cq_create=$confirm_create my_cq_delete=$delete confirm_append=no confirm_create=no delete=yes<enter><tag-prefix><copy-message>=<enter><enter-command>set confirm_append=$my_cq_append confirm_create=$my_cq_create delete=$my_cq_delete; unset my_cq_append my_cq_create my_cq_delete<enter><shell-escape>@MAILCTL@ index<enter><check-stats>",
+    "kind": "macro",
+    "category": "Filing"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "Md",
+    "description": "Move current or selected messages to drafts",
+    "action": "<enter-command>set my_cq_append=$confirm_append my_cq_create=$confirm_create my_cq_delete=$delete confirm_append=no confirm_create=no delete=yes<enter><tag-prefix><save-message>=.Drafts<enter><sync-mailbox><enter-command>set confirm_append=$my_cq_append confirm_create=$my_cq_create delete=$my_cq_delete; unset my_cq_append my_cq_create my_cq_delete<enter><shell-escape>@MAILCTL@ index<enter><check-stats>",
+    "kind": "macro",
+    "category": "Filing"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "Cd",
+    "description": "Copy current or selected messages to drafts",
+    "action": "<enter-command>set my_cq_append=$confirm_append my_cq_create=$confirm_create my_cq_delete=$delete confirm_append=no confirm_create=no delete=yes<enter><tag-prefix><copy-message>=.Drafts<enter><enter-command>set confirm_append=$my_cq_append confirm_create=$my_cq_create delete=$my_cq_delete; unset my_cq_append my_cq_create my_cq_delete<enter><shell-escape>@MAILCTL@ index<enter><check-stats>",
+    "kind": "macro",
+    "category": "Filing"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "Mj",
+    "description": "Move current or selected messages to spam",
+    "action": "<enter-command>set my_cq_append=$confirm_append my_cq_create=$confirm_create my_cq_delete=$delete confirm_append=no confirm_create=no delete=yes<enter><tag-prefix><save-message>=.Spam<enter><sync-mailbox><enter-command>set confirm_append=$my_cq_append confirm_create=$my_cq_create delete=$my_cq_delete; unset my_cq_append my_cq_create my_cq_delete<enter><shell-escape>@MAILCTL@ index<enter><check-stats>",
+    "kind": "macro",
+    "category": "Filing"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "Cj",
+    "description": "Copy current or selected messages to spam",
+    "action": "<enter-command>set my_cq_append=$confirm_append my_cq_create=$confirm_create my_cq_delete=$delete confirm_append=no confirm_create=no delete=yes<enter><tag-prefix><copy-message>=.Spam<enter><enter-command>set confirm_append=$my_cq_append confirm_create=$my_cq_create delete=$my_cq_delete; unset my_cq_append my_cq_create my_cq_delete<enter><shell-escape>@MAILCTL@ index<enter><check-stats>",
+    "kind": "macro",
+    "category": "Filing"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "Mt",
+    "description": "Move current or selected messages to trash",
+    "action": "<enter-command>set my_cq_append=$confirm_append my_cq_create=$confirm_create my_cq_delete=$delete confirm_append=no confirm_create=no delete=yes<enter><tag-prefix><save-message>=.Trash<enter><sync-mailbox><enter-command>set confirm_append=$my_cq_append confirm_create=$my_cq_create delete=$my_cq_delete; unset my_cq_append my_cq_create my_cq_delete<enter><shell-escape>@MAILCTL@ index<enter><check-stats>",
+    "kind": "macro",
+    "category": "Filing"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "Ct",
+    "description": "Copy current or selected messages to trash",
+    "action": "<enter-command>set my_cq_append=$confirm_append my_cq_create=$confirm_create my_cq_delete=$delete confirm_append=no confirm_create=no delete=yes<enter><tag-prefix><copy-message>=.Trash<enter><enter-command>set confirm_append=$my_cq_append confirm_create=$my_cq_create delete=$my_cq_delete; unset my_cq_append my_cq_create my_cq_delete<enter><shell-escape>@MAILCTL@ index<enter><check-stats>",
+    "kind": "macro",
+    "category": "Filing"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "Ms",
+    "description": "Move current or selected messages to sent",
+    "action": "<enter-command>set my_cq_append=$confirm_append my_cq_create=$confirm_create my_cq_delete=$delete confirm_append=no confirm_create=no delete=yes<enter><tag-prefix><save-message>=.Sent<enter><sync-mailbox><enter-command>set confirm_append=$my_cq_append confirm_create=$my_cq_create delete=$my_cq_delete; unset my_cq_append my_cq_create my_cq_delete<enter><shell-escape>@MAILCTL@ index<enter><check-stats>",
+    "kind": "macro",
+    "category": "Filing"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "Cs",
+    "description": "Copy current or selected messages to sent",
+    "action": "<enter-command>set my_cq_append=$confirm_append my_cq_create=$confirm_create my_cq_delete=$delete confirm_append=no confirm_create=no delete=yes<enter><tag-prefix><copy-message>=.Sent<enter><enter-command>set confirm_append=$my_cq_append confirm_create=$my_cq_create delete=$my_cq_delete; unset my_cq_append my_cq_create my_cq_delete<enter><shell-escape>@MAILCTL@ index<enter><check-stats>",
+    "kind": "macro",
+    "category": "Filing"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "Ma",
+    "description": "Move current or selected messages to archive",
+    "action": "<enter-command>set my_cq_append=$confirm_append my_cq_create=$confirm_create my_cq_delete=$delete confirm_append=no confirm_create=no delete=yes<enter><tag-prefix><save-message>=.Archive<enter><sync-mailbox><enter-command>set confirm_append=$my_cq_append confirm_create=$my_cq_create delete=$my_cq_delete; unset my_cq_append my_cq_create my_cq_delete<enter><shell-escape>@MAILCTL@ index<enter><check-stats>",
+    "kind": "macro",
+    "category": "Filing"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "Ca",
+    "description": "Copy current or selected messages to archive",
+    "action": "<enter-command>set my_cq_append=$confirm_append my_cq_create=$confirm_create my_cq_delete=$delete confirm_append=no confirm_create=no delete=yes<enter><tag-prefix><copy-message>=.Archive<enter><enter-command>set confirm_append=$my_cq_append confirm_create=$my_cq_create delete=$my_cq_delete; unset my_cq_append my_cq_create my_cq_delete<enter><shell-escape>@MAILCTL@ index<enter><check-stats>",
+    "kind": "macro",
+    "category": "Filing"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": ",b",
+    "description": "Open finance category",
+    "action": "<change-folder>notmuch://@DATABASE@?query=tag:category/finance<enter>",
+    "kind": "macro",
+    "category": "Categories"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": ",s",
+    "description": "Open public services category",
+    "action": "<change-folder>notmuch://@DATABASE@?query=tag:category/public<enter>",
+    "kind": "macro",
+    "category": "Categories"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": ",o",
+    "description": "Open purchases category",
+    "action": "<change-folder>notmuch://@DATABASE@?query=tag:category/purchases<enter>",
+    "kind": "macro",
+    "category": "Categories"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": ",c",
+    "description": "Open newsletters category",
+    "action": "<change-folder>notmuch://@DATABASE@?query=tag:category/newsletters<enter>",
+    "kind": "macro",
+    "category": "Categories"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "A",
+    "description": "Clear current view filter",
+    "action": "<limit>all<enter>",
+    "kind": "macro",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index"
+    ],
+    "key": "\\Cr",
+    "description": "Mark all messages in this view read",
+    "action": "<tag-pattern>~U<enter><tag-prefix><clear-flag>N<untag-pattern>.<enter>",
+    "kind": "macro",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "g<Space>",
+    "description": "Fuzzy search real folders and saved views",
+    "action": "<enter-command>source \"@MAILCTL@ folders|\"<enter>",
+    "kind": "macro",
+    "category": "Folders"
+  },
+  {
+    "contexts": [
+      "browser"
+    ],
+    "key": "h",
+    "description": "Go to parent folder",
+    "action": "<change-dir><kill-line>..<enter>",
+    "kind": "macro",
+    "category": "Mail"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "\\cb",
+    "description": "Extract and open URLs",
+    "action": "<pipe-message>urlscan<enter>",
+    "kind": "macro",
+    "category": "Attachments"
+  },
+  {
+    "contexts": [
+      "attach",
+      "compose"
+    ],
+    "key": "\\cb",
+    "description": "Extract URLs from MIME part",
+    "action": "<pipe-entry>urlscan<enter>",
+    "kind": "macro",
+    "category": "Attachments"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "X",
+    "description": "Save all message attachments",
+    "action": "<tag-prefix><pipe-message>@MAILCTL@ attachments<enter>",
+    "kind": "macro",
+    "category": "Attachments"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": "a",
+    "description": "Review and save sender as a Radicale contact",
+    "action": "<pipe-message>@MAILCTL@ contacts add<enter>",
+    "kind": "macro",
+    "category": "Contacts"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": ",k",
+    "description": "Refresh Radicale contacts",
+    "action": "<shell-escape>@MAILCTL@ contacts sync<enter>",
+    "kind": "macro",
+    "category": "Contacts"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": ",h",
+    "description": "Read the mail usage guide",
+    "action": "<shell-escape>@MAILCTL@ guide<enter>",
+    "kind": "macro",
+    "category": "Help"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": ",z",
+    "description": "Show sync status",
+    "action": "<shell-escape>@MAILCTL@ status<enter>",
+    "kind": "macro",
+    "category": "Sync"
+  },
+  {
+    "contexts": [
+      "index",
+      "pager"
+    ],
+    "key": ",B",
+    "description": "Open original HTML message in browser",
+    "action": "<pipe-message>@MAILCTL@ html<enter>",
+    "kind": "macro",
+    "category": "Attachments"
+  },
+  {
+    "contexts": [
+      "attach"
+    ],
+    "key": "W",
+    "description": "Choose attachment filename",
+    "action": "<save-entry><kill-line>@ATTACHMENTS@/",
+    "kind": "macro",
+    "category": "Attachments"
+  },
+  {
+    "contexts": [
+      "attach"
+    ],
+    "key": "E",
+    "description": "Save attachment under its original filename",
+    "action": "<save-entry><kill-line>@ATTACHMENTS@/<enter>",
+    "kind": "macro",
+    "category": "Attachments"
+  }
+]
