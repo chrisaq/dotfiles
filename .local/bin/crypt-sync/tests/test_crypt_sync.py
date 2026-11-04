@@ -54,6 +54,7 @@ class SyncTests(unittest.TestCase):
         self.lists.mkdir(parents=True)
         self.vault.mkdir(parents=True)
         self.env = dict(os.environ, HOME=str(self.home),
+                        PASSWORD_STORE_DIR=str(self.home / 'Sync/Password-Store'),
                         XDG_BIN_HOME=str(self.bin), XDG_STATE_HOME=str(self.root / 'state'),
                         PATH=str(self.bin) + os.pathsep + os.environ['PATH'])
         self.install_command('gpg', MOCK_GPG)

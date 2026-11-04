@@ -1,0 +1,35 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "typer==0.27.3",
+#   "rich==15.0.0",
+#   "pydantic==2.14.1",
+#   "textual[syntax]==8.2.8",
+#   "tomli-w==1.2.0",
+# ]
+# ///
+#:usage: cq_maintenance [status|check|fix|open|waybar|menu|setup|config]
+#:no-args: true
+#:desc: Inspect and maintain sync, configuration, service and package health.
+"""Desktop maintenance dashboard; checking never performs repairs."""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path.home() / '.local/lib'))
+if sys.argv[1:]==['waybar']:
+    from cq_maintenance.view import waybar
+    waybar()
+    raise SystemExit()
+from cq_maintenance.cli import app
+if __name__ == '__main__':
+    try:
+        app()
+    except Exception as error:
+        from cq_maintenance.util import Problem
+        from pydantic import ValidationError
+        if isinstance(error,ValidationError):
+            message='Invalid configuration: '+'; '.join('.'.join(map(str,item['loc']))+': '+item['msg'] for item in error.errors(include_input=False))
+        else:
+            message=str(error) if isinstance(error,Problem) else 'Maintenance failed ('+type(error).__name__+'); run config validate or inspect local state.'
+        print(message,file=sys.stderr)
+        raise SystemExit(1)

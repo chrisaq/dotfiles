@@ -13,7 +13,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from mailcore import ROOT, MailSystem, MailError
+from mailcore import ROOT, MailSystem, MailError, MailBusy
 import mailcontacts
 import mailui
 
@@ -185,6 +185,14 @@ class MailFixture(unittest.TestCase):
             run.assert_not_called()
         status = json.loads((self.system.state / 'mail-status.json').read_text())
         self.assertEqual(status['state'], 'unlock-required')
+
+    def test_overlapping_sync_preserves_active_operation_status(self):
+        for component,operation in [('mail',self.system.sync),('contacts',lambda:mailcontacts.sync(self.system))]:
+            self.system.status(component,'running','Existing operation')
+            path=self.system.state/(component+'-status.json');before=path.read_bytes()
+            with self.system.lock(component):
+                with self.assertRaises(MailBusy):operation()
+            self.assertEqual(path.read_bytes(),before)
 
     def test_sync_reports_phase_and_streams_only_foreground_transport(self):
         for scheduled in (False, True):

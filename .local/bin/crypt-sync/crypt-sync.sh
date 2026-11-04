@@ -2,6 +2,15 @@
 
 umask 077
 
+# Optional companion adds read-only planning and guarded repairs. No-argument
+# operation retains the original timestamp policy and records verified transfers.
+state_helper="$(dirname -- "${BASH_SOURCE[0]}")/crypt-sync-state.py"
+case "${1:-}" in
+    --check|--safe|--verify|--resolve|--help) exec python3 "$state_helper" "$@" ;;
+    "") ;;
+    *) error_message='Unknown crypt-sync option'; printf '%s\n' "$error_message" >&2; exit 2 ;;
+esac
+
 status=0
 tempfile=
 
@@ -48,7 +57,11 @@ regular_or_missing() {
 }
 
 transfer() {
-    local direction=$1 source=$2 destination=$3 directory
+    local direction=$1 source=$2 destination=$3 directory source_sha local_path vault_path output_sha
+    source_sha=
+    if [ -f "$state_helper" ]; then
+        source_sha=$(python3 "$state_helper" --fingerprint "$source") || source_sha=
+    fi
     local -a gpg_options
 
     directory=$(dirname -- "$destination") || return 1
@@ -82,11 +95,23 @@ transfer() {
         return 1
     fi
     regular_or_missing "$destination" || return 1
+    output_sha=
+    if [ -n "$source_sha" ]; then
+        output_sha=$(python3 "$state_helper" --fingerprint "$tempfile") || output_sha=
+    fi
     if ! mv -fT -- "$tempfile" "$destination"; then
         error "Could not replace destination: $destination"
         return 1
     fi
     tempfile=
+    if [ -n "$source_sha" ] && [ -n "$output_sha" ]; then
+        if [ "$direction" = encrypt ]; then
+            local_path=$source; vault_path=$destination
+        else
+            local_path=$destination; vault_path=$source
+        fi
+        python3 "$state_helper" --record "$local_path" "$vault_path" "$source" "$source_sha" "$destination" "$output_sha" || error 'Transfer succeeded, but status recording failed.'
+    fi
 }
 
 process_list() {
@@ -141,4 +166,7 @@ for syncfile in "${XDG_BIN_HOME}"/crypt-sync/crypt-sync-list*.txt; do
     fi
 done
 
+if [ -f "$state_helper" ]; then
+    python3 "$state_helper" --record-run "$status" || error 'Could not record run status.'
+fi
 exit "$status"

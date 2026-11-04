@@ -1,0 +1,114 @@
+theme = "macchiato"
+terminal = [
+    "ghostty",
+    "-e",
+]
+menu = [
+    "rofi",
+    "-dmenu",
+    "-i",
+    "-p",
+    "Maintenance",
+]
+waybar_signal = 12
+max_workers = 4
+
+[checks.dotfiles]
+provider = "git"
+enabled = true
+interval = 60
+timeout = 30
+
+[checks.dotfiles.options]
+profile = "dotfiles"
+
+[checks.dotlocal]
+provider = "git"
+enabled = true
+interval = 60
+timeout = 30
+
+[checks.dotlocal.options]
+profile = "dotlocal"
+
+[checks.crypt-sync]
+provider = "crypt"
+enabled = true
+interval = 60
+timeout = 30
+
+[checks.crypt-sync.options]
+
+[checks.mail]
+provider = "mail"
+enabled = true
+interval = 60
+timeout = 30
+
+[checks.mail.options]
+component = "mail"
+expected_timer = true
+stale_seconds = 1200
+
+[checks.contacts]
+provider = "mail"
+enabled = true
+interval = 60
+timeout = 30
+
+[checks.contacts.options]
+component = "contacts"
+expected_timer = true
+stale_seconds = 1200
+
+[checks.mail-setup]
+provider = "mail_setup"
+enabled = true
+interval = 300
+timeout = 30
+
+[checks.mail-setup.options]
+
+[checks.syncthing]
+provider = "syncthing"
+enabled = true
+interval = 60
+timeout = 60
+
+[checks.syncthing.options]
+
+[checks.arch]
+provider = "packages"
+enabled = true
+interval = 21600
+timeout = 150
+
+[checks.arch.options]
+kind = "arch"
+
+[checks.aur]
+provider = "packages"
+enabled = true
+interval = 21600
+timeout = 120
+
+[checks.aur.options]
+kind = "aur"
+
+[checks.flatpak]
+provider = "packages"
+enabled = false
+interval = 21600
+timeout = 120
+
+[checks.flatpak.options]
+kind = "flatpak"
+
+[checks.failed-units]
+provider = "units"
+enabled = true
+interval = 60
+timeout = 30
+
+[checks.failed-units.options]
+ignore = []

@@ -122,3 +122,48 @@ class MailCLI(unittest.TestCase):
                 self.assertEqual(result.exit_code, 0, result.output)
                 self.assertIn(stamp, result.stdout)
                 self.assertIn('[literal bracket text]', result.stdout)
+
+
+class SetupAndGuide(unittest.TestCase):
+    def test_setup_command_does_not_enable_timers(self):
+        import mailsetup
+        with patch.dict(os.environ,CQ_MAIL_CONFIG=str(ROOT/'settings.example.json')), patch.object(mailsetup,'setup_machine') as setup, patch.object(subprocess,'run') as run:
+            result=runner.invoke(app,['setup'])
+        self.assertEqual(result.exit_code,0,result.output)
+        setup.assert_called_once()
+        run.assert_not_called()
+
+    def test_guide_uses_wiki_and_falls_back_without_copying_it(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory);wiki=base/'mail.md';wiki.write_text('authoritative guide')
+            config=base/'settings.json';settings=json.loads((ROOT/'settings.example.json').read_text());settings['wiki_guide']=str(wiki);config.write_text(json.dumps(settings))
+            with patch.dict(os.environ,CQ_MAIL_CONFIG=str(config),PAGER='less'), patch.object(subprocess,'run') as run:
+                result=runner.invoke(app,['guide'])
+                self.assertEqual(result.exit_code,0,result.output)
+                self.assertEqual(run.call_args.args[0],['less',str(wiki)])
+                self.assertEqual(wiki.read_text(),'authoritative guide')
+                wiki.unlink()
+                result=runner.invoke(app,['guide'])
+                self.assertEqual(result.exit_code,0,result.output)
+                self.assertIn('Wiki guide unavailable',result.output)
+                self.assertEqual(run.call_args.args[0],['less',str(ROOT/'PUBLIC-README.md')])
+                config.unlink()
+                result=runner.invoke(app,['guide'])
+                self.assertEqual(result.exit_code,0,result.output)
+                self.assertFalse(wiki.exists())
+
+    def test_activation_orders_setup_checks_sync_and_enables_only_after_success(self):
+        import mailsetup,mailcontacts
+        from mailcore import MailSystem,MailError
+        with patch.dict(os.environ,CQ_MAIL_CONFIG=str(ROOT/'settings.example.json')):
+            order=[]
+            with patch.object(mailsetup,'setup_machine',side_effect=lambda system:order.append('setup')), patch.object(MailSystem,'check_connections',side_effect=lambda:order.append('check')), patch.object(MailSystem,'sync',side_effect=lambda:order.append('mail')), patch.object(mailcontacts,'sync',side_effect=lambda system:order.append('contacts')), patch.object(subprocess,'run',side_effect=lambda *args,**kw:order.append('enable')):
+                result=runner.invoke(app,['activate'])
+                self.assertEqual(result.exit_code,0,result.output)
+            self.assertEqual(order,['setup','check','mail','contacts','enable'])
+            with patch.object(mailsetup,'setup_machine'), patch.object(MailSystem,'check_connections'), patch.object(MailSystem,'sync',side_effect=MailError('sync failed')), patch.object(subprocess,'run') as run:
+                result=runner.invoke(app,['activate'])
+                self.assertNotEqual(result.exit_code,0)
+                run.assert_not_called()
+        self.assertNotIn('install-wiki-guide',runner.invoke(app,['--help']).output)

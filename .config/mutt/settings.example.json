@@ -19,5 +19,6 @@
   ],
   "realname": "Example User",
   "channel_name": "primary",
-  "account_name": "primary"
+  "account_name": "primary",
+  "wiki_guide": "~/Sync/Wiki/clients/mail.md"
 }

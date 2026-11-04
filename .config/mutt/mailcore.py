@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import stat
+import ssl
 import time
 
 ROOT = Path(__file__).resolve().parent
@@ -24,6 +25,11 @@ def helper_path():
 
 
 class MailError(Exception):
+    pass
+
+
+class MailBusy(MailError):
+    """An existing operation owns the lock; its status must remain untouched."""
     pass
 
 
@@ -53,6 +59,8 @@ def load_settings():
     settings["runtime"] = str(Path(runtime))
     if "integrations" in settings:
         settings["integrations"] = str(Path(settings["integrations"]).expanduser().resolve())
+    ca_file = settings.get("tls_ca_file") or ssl.get_default_verify_paths().cafile or "/etc/ssl/certs/ca-certificates.crt"
+    settings["tls_ca_file"] = str(Path(ca_file).expanduser().resolve())
     return settings
 
 
@@ -145,7 +153,7 @@ class MailSystem:
             try:
                 fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:
-                raise MailError(f"{name} operation already running") from error
+                raise MailBusy(f"{name} operation already running") from error
             yield
 
     def status(self, component, state, message):
@@ -248,9 +256,11 @@ class MailSystem:
                 if not self.scheduled:
                     print("Mail: indexing and classifying…", file=sys.stderr, flush=True)
                 self.index_locked()
-            self.status("mail", "ok", "Mail synced, indexed and classified")
+                self.status("mail", "ok", "Mail synced, indexed and classified")
             if not self.scheduled:
                 print("Mail: sync complete.", file=sys.stderr, flush=True)
+        except MailBusy:
+            raise
         except MailError as error:
             self.status("mail", "unlock-required" if "unlock required" in str(error) else "error", str(error))
             raise
@@ -283,22 +293,36 @@ class MailSystem:
             self.classify("tag:history-pending")
             self.tag_metadata("-history-pending", "--", "tag:history-pending")
 
-    def doctor(self, credentials=False):
+    def prerequisite_checks(self):
+        """Offline checks usable before a machine has any downloaded mail."""
         checks = []
-        for command in ("neomutt", "mbsync", "notmuch", "afew", "msmtp", "vdirsyncer",
-                        "khard", "gopass", "gpg", "fzf", "lynx", "xdg-open"):
+        for command in ("uv", "neomutt", "mbsync", "notmuch", "afew", "msmtp", "vdirsyncer",
+                        "khard", "gopass", "gpg", "fzf", "lynx", "xdg-open", "systemctl"):
             checks.append((command, bool(shutil.which(command))))
+        if shutil.which('neomutt'):
+            result = subprocess.run(['neomutt', '-v'], capture_output=True, text=True, timeout=15)
+            checks.append(('NeoMutt notmuch support', result.returncode == 0 and '+notmuch' in result.stdout))
         import importlib.util
         modules = ['vobject', 'reportlab']
         if any('header' in rule for rule in json.loads((ROOT / 'rules.json').read_text())):
             modules.append('notmuch2')
-        for module in modules:
-            checks.append((module, importlib.util.find_spec(module) is not None))
+        checks += [(module, importlib.util.find_spec(module) is not None) for module in modules]
+        checks += [('TLS CA file', Path(self.settings['tls_ca_file']).is_file()),
+                   ('GPG home', Path(self.settings['gnupghome']).is_dir()),
+                   ('password store', Path(self.settings['password_store']).is_dir())]
+        store = Path(self.settings['password_store']).resolve()
+        for service, entry in self.settings['credentials'].items():
+            valid = isinstance(entry, str) and not entry.startswith(('/', '-')) and all(part not in ('', '.', '..') for part in entry.split('/'))
+            path = store / (entry + '.gpg') if valid else store
+            checks.append((f'{service} credential entry', valid and path.is_file() and path.resolve().is_relative_to(store)))
+        for key in ('channel_name', 'account_name'):
+            checks.append((key, bool(re.fullmatch(r'[A-Za-z0-9_.-]+', self.settings.get(key, 'primary')))))
+        return checks
+
+    def doctor(self, credentials=False):
+        checks = self.prerequisite_checks()
         checks += [("Maildir", (self.mail_root / "cur").is_dir()),
-                   ("notmuch index", self.database_exists()),
-                   ("password store", Path(self.settings["password_store"]).is_dir())]
-        for service, entry in self.settings["credentials"].items():
-            checks.append((f"{service} credential entry", (Path(self.settings["password_store"]) / (entry + ".gpg")).is_file()))
+                   ("notmuch index", self.database_exists())]
         if credentials:
             for service in self.settings["credentials"]:
                 try:
@@ -321,7 +345,7 @@ class MailSystem:
         import ssl
         settings = self.settings
         password = self.secret('mail') if authenticate else None
-        context = ssl.create_default_context()
+        context = ssl.create_default_context(cafile=self.settings["tls_ca_file"])
         for protocol in ('IMAP', 'SMTP'):
             try:
                 if protocol == 'IMAP':

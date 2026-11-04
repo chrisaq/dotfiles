@@ -1,0 +1,2 @@
+# Machine selections belong to dotlocal; add explicitly there if desired.
+/config.local.toml

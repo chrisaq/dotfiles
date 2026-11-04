@@ -19,7 +19,7 @@ class LauncherInstallation(unittest.TestCase):
             config = home / '.config/mutt'
             config.mkdir(parents=True)
             for name in ('cq_mailctl', 'install-cq_mailctl.py', 'build-config.py', 'mailcore.py',
-                         'mailcontacts.py', 'mailui.py', 'rules.json', 'mailcap.in'):
+                         'mailcontacts.py', 'mailui.py', 'mailsetup.py', 'rules.json', 'mailcap.in'):
                 source = ROOT / name
                 if name == 'cq_mailctl' and not source.exists():
                     source = helper_path()

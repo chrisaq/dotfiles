@@ -59,3 +59,19 @@ Run `bash -n crypt-sync.sh`, `shellcheck crypt-sync.sh`, and
 `python3 tests/test_crypt_sync.py`. Tests use temporary homes, mocked commands for
 failure cases, and a disposable GPG key for an isolated encryption/decryption
 round trip. Real configuration files and the normal GPG keyring are not used.
+
+## Guarded maintenance interface
+
+`crypt-sync.sh --check --json` reports mapping/fingerprint state without decrypting
+or changing files. `--safe` transfers only unambiguous changes and verifies existing
+unverified matching copies in memory when GPG is available. Two changed sides or
+unverified differing copies remain blocked. `--resolve NAME --prefer local|vault`
+is an explicit authoritative-source selection; it is never done by monitoring.
+The no-argument timestamp policy above remains unchanged.
+
+The standard-library Python companion records verified per-pair hashes and recent
+run status under the private local XDG state directory. Direct legacy transfers
+also record baselines when their source/output remain stable. The source list,
+recipient and store synchronization configuration are unchanged. Checks cannot
+infer cryptographic equality from timestamps alone, and no background check asks
+for a PIN or stores decrypted payloads in logs.

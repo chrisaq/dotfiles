@@ -416,3 +416,12 @@ font-weight: normal;
     border-left: solid;
     border-left-width: 0.5;
 }
+
+/* cq_maintenance: health remains visible while checks/repairs are running. */
+#custom-maintenance { padding: 0 8px; color: #a6da95; }
+#custom-maintenance.ok { color: #a6da95; }
+#custom-maintenance.pending { color: #eed49f; }
+#custom-maintenance.warning { color: #f5a97f; }
+#custom-maintenance.error { color: #ed8796; }
+#custom-maintenance.unknown, #custom-maintenance.disabled { color: #939ab7; }
+#custom-maintenance.running { border-bottom: 2px solid #8aadf4; }

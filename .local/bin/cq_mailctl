@@ -32,7 +32,7 @@ from rich.text import Text
 
 # Configuration and support modules stay here when this executable lives in ~/.local/bin.
 sys.path.insert(0, str(Path.home() / '.config/mutt'))
-from mailcore import ROOT, MailError, MailSystem, atomic_write
+from mailcore import ROOT, MailError, MailBusy, MailSystem
 
 
 # ---- Application and output conventions ----
@@ -67,24 +67,9 @@ class Menu(str, Enum):
 
 # ---- Installation and documentation ----
 def install_timers():
-    units = [f'cq-{name}.{kind}' for name in ('mail', 'contacts') for kind in ('service', 'timer')]
-    subprocess.run(['systemctl', '--user', 'show-environment'], stdout=subprocess.DEVNULL, check=True)
-    subprocess.run(['systemctl', '--user', 'link', *[str(ROOT / 'systemd' / unit) for unit in units]], check=True)
-    subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True)
+    from mailsetup import setup_machine
+    setup_machine(MailSystem())
     subprocess.run(['systemctl', '--user', 'enable', '--now', 'cq-mail.timer', 'cq-contacts.timer'], check=True)
-
-
-def install_wiki():
-    from datetime import datetime
-    settings = MailSystem().settings
-    if not settings.get('wiki_guide'):
-        raise MailError('Set wiki_guide in settings.json before installing the Wiki guide')
-    target = Path(settings['wiki_guide']).expanduser()
-    if target.exists():
-        backup = ROOT / 'backups' / ('wiki-mail-' + datetime.now().strftime('%Y%m%d-%H%M%S'))
-        atomic_write(backup.with_suffix('.md'), target.read_text())
-    target.write_text((ROOT / 'wiki-mail.md').read_text())
-    console.print('Updated mail client Wiki guide')
 
 
 # ---- Everyday commands ----
@@ -130,8 +115,20 @@ def status(json_output: Annotated[bool, typer.Option("--json", help="Print recor
 
 @app.command(rich_help_panel="Everyday use")
 def guide():
-    """Open the usage guide in $PAGER (default: less)."""
-    subprocess.run([*shlex.split(os.environ.get('PAGER', 'less')), str(ROOT / 'README.md')], check=False)
+    """Open the configured Wiki guide, or the public bootstrap guide when unavailable."""
+    path = None
+    config = Path(os.environ.get('CQ_MAIL_CONFIG', ROOT / 'settings.json')).expanduser()
+    if config.exists():
+        from mailcore import load_settings
+        destination = load_settings().get('wiki_guide')
+        if destination:
+            candidate = Path(destination).expanduser()
+            if candidate.is_file():
+                path = candidate
+    if path is None:
+        errors.print('Wiki guide unavailable; showing the public bootstrap guide. Sync your Wiki for the full guide.')
+        path = ROOT / 'PUBLIC-README.md'
+    subprocess.run([*shlex.split(os.environ.get('PAGER', 'less')), str(path)], check=True)
 
 
 @contacts_app.command('sync')
@@ -206,8 +203,37 @@ def notmuch_command(ctx: typer.Context):
 
 # ---- Setup and diagnostics ----
 @app.command(rich_help_panel="Setup and diagnostics")
+def setup(
+    check: Annotated[bool, typer.Option(help="Report setup drift without writing files or changing timers.")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Machine-readable setup check; requires --check.")] = False,
+):
+    """Check prerequisites, render local configuration and link units, preserving timer choices.
+
+    Run after dotfiles or private settings updates. Does not download mail, decrypt
+    credentials, install packages or enable timers. Retry if a mail/contact job is busy.
+    """
+    from mailsetup import setup_machine, inspect_setup
+    if json_output and not check:
+        raise typer.BadParameter('--json requires --check')
+    system = MailSystem()
+    if check:
+        result = inspect_setup(system)
+        if json_output:
+            print(json.dumps(result))
+        else:
+            console.print('Setup required' if result['needs_setup'] else 'Local mail configuration current')
+            for item in result['changed'] + result['missing_prerequisites']:
+                console.print(Text(item))
+        if result['needs_setup']:
+            raise typer.Exit(1)
+        return
+    setup_machine(system)
+    console.print('Local mail configuration updated; timer choices preserved.')
+
+
+@app.command(rich_help_panel="Setup and diagnostics")
 def activate():
-    """Check TLS/auth, sync mail and contacts, enable timers and install the Wiki guide.
+    """Set up this machine, check TLS/auth, sync mail and contacts, then enable timers.
 
     Run from your desktop terminal so credentials can be unlocked. SMTP is
     authenticated but no test email is sent. Stops if a step fails.
@@ -215,6 +241,8 @@ def activate():
     system = MailSystem()
     if system.scheduled:
         raise MailError('Activation must run interactively')
+    from mailsetup import setup_machine
+    setup_machine(system)
     console.print('Checking IMAP and SMTP connections…')
     system.check_connections()
     system.sync()
@@ -222,8 +250,7 @@ def activate():
     console.print('Refreshing Radicale contacts…')
     mailcontacts.sync(system)
     console.print('Installing background timers…')
-    install_timers()
-    install_wiki()
+    subprocess.run(['systemctl', '--user', 'enable', '--now', 'cq-mail.timer', 'cq-contacts.timer'], check=True)
     console.print('[green]Mail and contacts are synced; quiet background timers enabled.[/green]')
 
 
@@ -263,12 +290,6 @@ def timers_install():
 def timers_disable():
     """Stop and disable mail/contact timers, keeping mail and configuration intact."""
     subprocess.run(['systemctl', '--user', 'disable', '--now', 'cq-mail.timer', 'cq-contacts.timer'], check=True)
-
-
-@app.command('install-wiki-guide', rich_help_panel="Setup and diagnostics")
-def install_wiki_guide():
-    """Copy the prepared usage guide into the Wiki, backing up its previous content."""
-    install_wiki()
 
 
 # ---- NeoMutt integration: keep stdout free of decoration ----
@@ -339,6 +360,9 @@ def main():
     os.umask(0o077)
     try:
         app()
+    except MailBusy as error:
+        errors.print(f'cq_mailctl: {error}', markup=False)
+        raise SystemExit(75)
     except (MailError, OSError, ValueError, subprocess.CalledProcessError) as error:
         errors.print(f'cq_mailctl: {error}', style='red', markup=False)
         raise SystemExit(1)

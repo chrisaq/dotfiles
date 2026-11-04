@@ -9,7 +9,7 @@ import sys
 import tempfile
 import uuid
 
-from mailcore import ROOT, MailError, atomic_write, helper_path
+from mailcore import ROOT, MailError, MailBusy, atomic_write, helper_path
 from mailui import read_message, Terminal
 
 
@@ -50,7 +50,9 @@ def sync(system):
     try:
         with system.lock('contacts'):
             sync_mirror(system)
-        system.status('contacts', 'ok', 'Read-only Radicale mirror refreshed')
+            system.status('contacts', 'ok', 'Read-only Radicale mirror refreshed')
+    except MailBusy:
+        raise
     except MailError as error:
         system.status('contacts', 'unlock-required' if 'unlock required' in str(error) else 'error', str(error))
         raise

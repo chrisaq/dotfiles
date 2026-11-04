@@ -214,8 +214,10 @@ def export_pdf(system, data=None, decoded=False):
         text = '\n'.join(f'{h}: {message[h]}' for h in ('From', 'To', 'Date', 'Subject') if message[h]) + '\n\n' + message_text(message)
     if not text.strip():
         raise MailError('No printable message text')
-    font = Path('/usr/share/fonts/TTF/DejaVuSans.ttf')
-    if not font.exists():
+    font = next((path for path in (Path('/usr/share/fonts/TTF/DejaVuSans.ttf'),
+                                   Path('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'),
+                                   Path('/usr/share/fonts/dejavu/DejaVuSans.ttf')) if path.is_file()), None)
+    if font is None:
         raise MailError('Install ttf-dejavu for Unicode PDF export')
     pdfmetrics.registerFont(TTFont('MailUnicode', str(font)))
     styles = getSampleStyleSheet()
