@@ -5,7 +5,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 from cq_maintenance import config,engine
 from cq_maintenance.model import Check,Result,now
 from cq_maintenance.providers.base import Context
-from cq_maintenance.util import atomic_json,state_dir,Problem,lock
+from cq_maintenance.util import atomic_json,state_dir,Problem,lock,read_json
 from cq_maintenance.view import payload
 
 class Isolated(unittest.TestCase):
@@ -30,6 +30,51 @@ class EngineTests(Isolated):
         with patch('cq_maintenance.engine.get',return_value=provider):engine.collect()
         provider.execute.assert_not_called()
         self.assertEqual(engine.previous('test').state,'pending')
+    def test_fast_check_publishes_before_slow_batch_finishes(self):
+        import threading
+        self.settings.checks={'fast':Check(provider='command'),'slow':Check(provider='command')}
+        slow_started=threading.Event();release=threading.Event();published=threading.Event();errors=[]
+        provider=Mock()
+        def check(ctx):
+            if ctx.id=='slow':slow_started.set();release.wait(5)
+            else:self.assertTrue(slow_started.wait(3))
+            return ctx.result('ok','Complete')
+        provider.check.side_effect=check
+        def notify(number):
+            current=engine.previous('fast')
+            if current and current.state=='ok':
+                active=read_json(state_dir()/'jobs/fast.json')
+                self.assertFalse(active['active']);published.set()
+        def collect():
+            try:engine.collect()
+            except Exception as error:errors.append(error)
+        with patch('cq_maintenance.engine.get',return_value=provider),patch('cq_maintenance.engine.signal_bar',side_effect=notify):
+            thread=threading.Thread(target=collect);thread.start()
+            try:self.assertTrue(published.wait(3));self.assertTrue(thread.is_alive())
+            finally:release.set();thread.join(5)
+        self.assertFalse(errors)
+    def test_failed_check_also_publishes_after_recording_error(self):
+        provider=Mock();provider.check.side_effect=RuntimeError('backend')
+        with patch('cq_maintenance.engine.get',return_value=provider),patch('cq_maintenance.engine.signal_bar') as notify:
+            engine.check_one('test',self.settings.checks['test'])
+            notify.assert_called_once_with(12)
+            self.assertEqual(engine.previous('test').state,'unknown')
+    def test_successful_mail_repair_clears_only_its_own_stale_unit_failure(self):
+        from cq_maintenance.providers import mail
+        ctx=Context('mail',Check(provider='mail'),checking=False)
+        replies=[subprocess.CompletedProcess([],0),subprocess.CompletedProcess([],0,'failed',''),subprocess.CompletedProcess([],0)]
+        with patch.object(Context,'run',side_effect=replies) as run:
+            mail.execute(ctx,'fix')
+        self.assertEqual(run.call_args.args[0],['systemctl','--user','reset-failed','cq-mail.service'])
+    def test_mail_repair_immediately_refreshes_dependent_unit_status(self):
+        from cq_maintenance.model import Action
+        self.settings.checks={'mail':Check(provider='mail'),'units':Check(provider='units')}
+        mail=Mock();mail.check.side_effect=lambda ctx:ctx.result('ok','Synced',actions=[Action(id='fix',label='Sync',safe=True)])
+        mail.execute.return_value='Completed'
+        units=Mock();units.check.side_effect=lambda ctx:ctx.result('ok','No failed units')
+        with patch('cq_maintenance.engine.get',side_effect=lambda name:mail if name=='mail' else units):engine.fix(['mail'])
+        units.check.assert_called_once()
+        self.assertEqual(engine.previous('units').state,'ok')
     def test_failure_does_not_leak_exception_body(self):
         provider=Mock();provider.check.side_effect=RuntimeError('secret api key')
         with patch('cq_maintenance.engine.get',return_value=provider):engine.collect()
@@ -177,6 +222,26 @@ class PackageTests(Isolated):
         self.assertFalse(packages.invalidated(config,Result(id='test',state='pending',summary='Old')))
         (database/'db.lck').unlink()
         self.assertTrue(packages.invalidated(config,Result(id='test',state='pending',summary='Old')))
+    def test_empty_aur_query_exit_one_means_up_to_date(self):
+        from cq_maintenance.providers import packages
+        for helper in ('paru','yay'):
+            ctx=Context('test',Check(provider='packages',options={'kind':'aur'}))
+            with patch.object(packages,'helper',return_value=helper),patch.object(Context,'run',return_value=subprocess.CompletedProcess([],1,'','')):
+                result=packages.check(ctx)
+            self.assertEqual(result.state,'ok');self.assertEqual(result.metrics['updates'],0)
+            self.assertEqual(result.actions,[])
+    def test_aur_error_is_not_mistaken_for_no_updates(self):
+        from cq_maintenance.providers import packages
+        for code,out,err in [(1,'','AUR request failed'),(1,'pkg 1 -> 2',''),(2,'','')]:
+            ctx=Context('test',Check(provider='packages',options={'kind':'aur'}))
+            with patch.object(packages,'helper',return_value='paru'),patch.object(Context,'run',return_value=subprocess.CompletedProcess([],code,out,err)):
+                with self.assertRaises(Problem):packages.check(ctx)
+    def test_successful_aur_updates_are_still_counted(self):
+        from cq_maintenance.providers import packages
+        ctx=Context('test',Check(provider='packages',options={'kind':'aur'}))
+        with patch.object(packages,'helper',return_value='paru'),patch.object(Context,'run',return_value=subprocess.CompletedProcess([],0,'one 1 -> 2\ntwo 3 -> 4\n','')):
+            result=packages.check(ctx)
+        self.assertEqual(result.state,'pending');self.assertEqual(result.metrics['updates'],2)
     def test_update_failure_is_not_up_to_date(self):
         from cq_maintenance.providers import packages
         with patch.object(Context,'run',return_value=subprocess.CompletedProcess([],1,'','')):

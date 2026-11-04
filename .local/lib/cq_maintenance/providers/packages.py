@@ -35,7 +35,12 @@ def check(ctx):
     elif kind=='flatpak':args=['flatpak','remote-ls','--updates','--columns=application,branch','--system'] if ctx.options.get('installation')=='system' else ['flatpak','remote-ls','--updates','--columns=application,branch']
     else:raise Problem('Unsupported package provider')
     result=ctx.run(args,env=env)
-    if result.returncode not in ((0,2) if kind=='arch' else (0,)):
+    # Paru's -Qu query returns 1 when nothing matches, not just on failure.
+    # Only an empty, diagnostic-free AUR query can use that convention.
+    # https://github.com/Morganamilo/paru/blob/v2.2.0/src/query.rs
+    empty_aur=(kind=='aur' and result.returncode==1
+               and not (result.stdout or '').strip() and not (result.stderr or '').strip())
+    if not empty_aur and result.returncode not in ((0,2) if kind=='arch' else (0,)):
         raise Problem(kind+' update query failed; metadata may be unavailable')
     if revision!=local_revision(ctx.options):raise Problem('Installed packages changed during query; retry after the package transaction')
     lines=[row.strip() for row in result.stdout.splitlines() if row.strip()]

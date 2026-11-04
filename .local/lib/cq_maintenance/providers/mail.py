@@ -28,5 +28,16 @@ def execute(ctx,id):
     args=['cq_mailctl','setup'] if ctx.config.provider=='mail_setup' else ['cq_mailctl','contacts','sync'] if ctx.options.get('component',ctx.id)=='contacts' else ['cq_mailctl','sync']
     result=ctx.run(args,foreground=True,timeout=2100)
     if result.returncode==75:return 'Sync already running; existing operation left to finish'
-    require(result);return 'Mail operation completed'
+    require(result)
+    if ctx.config.provider=='mail':
+        component=ctx.options.get('component',ctx.id)
+        if component in ('mail','contacts'):
+            unit='cq-'+component+'.service'
+            # The same operation just succeeded interactively; clear only its
+            # historical timer failure, without starting/restarting any unit.
+            failed=ctx.run(['systemctl','--user','is-failed',unit])
+            if failed.stdout.strip()=='failed':
+                cleared=ctx.run(['systemctl','--user','reset-failed',unit])
+                if cleared.returncode:return 'Sync completed; corresponding timer failure flag could not be cleared'
+    return 'Mail operation completed'
 def open(ctx):return ['cq_mailctl','guide']

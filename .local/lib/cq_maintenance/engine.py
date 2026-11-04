@@ -35,10 +35,23 @@ def snapshot(settings=None,include_disabled=False):
 def save(result):
     atomic_json(result_path(result.id),result.model_dump())
 
+def notify_bar():
+    # A bar/configuration problem must not turn a completed repair into failure.
+    try:signal_bar(load().waybar_signal)
+    except Exception:pass
+
 def job(id,active,activity='checking',timeout=180):
     atomic_json(state_dir()/'jobs'/(id+'.json'),{'active':active,'activity':activity,'started_at':now(),'timeout':timeout})
+    if active and activity=='fixing':notify_bar()
 
 def check_one(id,config,force=False):
+    result=_check_one(id,config,force)
+    # Publish after the result is written and its checking flag is cleared.
+    # Another slow provider must not delay this provider's UI update.
+    notify_bar()
+    return result
+
+def _check_one(id,config,force=False):
     old=previous(id)
     try:
         with lock(id):
@@ -138,6 +151,11 @@ def fix(ids=None,action_id='fix',dry_run=False):
                 outcome='blocked';message=str(error) if isinstance(error,Problem) else 'Action failed ('+type(error).__name__+')'
                 if config.provider=='mail_setup':setup_blocked=True
             updated=check_one(id,config,force=True)
+            if config.provider=='mail' and outcome=='completed':
+                # A successful mail repair may also clear its systemd failure.
+                for monitor_id,monitor_config in settings.checks.items():
+                    if monitor_config.enabled and monitor_config.provider=='units':
+                        check_one(monitor_id,monitor_config,force=True)
             if config.provider=='crypt':
                 # Only block dependent mail when the shared mail-settings entry is unresolved.
                 crypt_blocked=updated.metrics.get('entries') is None or any(row.get('local','').endswith('/.config/mutt/settings.json') and row.get('state') not in ('ok','missing') for row in updated.metrics.get('entries',[]))

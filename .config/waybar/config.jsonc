@@ -29,6 +29,7 @@
         "format": "{}",
         "tooltip": true,
         "on-click": "ghostty -e $HOME/.local/bin/cq_maintenance tui",
+        "on-click-middle": "$HOME/.local/bin/cq_maintenance check --all --quiet",
         "on-click-right": "$HOME/.local/bin/cq_maintenance menu"
     },
 

@@ -33,10 +33,11 @@ private modes. Package query databases live under XDG cache. Runtime locks are
 private and local. Never distribute this state via dotfiles, crypt-sync or Syncthing.
 
 Waybar reads the cache every ten seconds and receives an immediate realtime
-refresh signal after completed requests. Green means healthy observations; amber
+refresh signal as each check/repair completes, without waiting for slower
+providers in the same batch. Green means healthy observations; amber
 means pending work/warnings; red means errors; grey means unknown/stale. Running
 work adds an activity mark without hiding errors. Left-click opens the dashboard;
-right-click opens a dynamic Rofi action menu. No desktop notifications are sent.
+middle-click forces fresh checks; right-click opens a dynamic Rofi action menu. No desktop notifications are sent.
 
 Dashboard keys: r refresh, f safe batch, s fix selected, v review, o open,
 e enable/disable on this machine, Ctrl+T theme, q quit. Repairs are reviewed before
@@ -144,3 +145,8 @@ An existing mail/contact operation keeps its status when a second attempt hits
 the lock. `cq_mailctl` returns 75 for that case; generated timer services accept
 it as a normal skipped attempt, and maintenance reports the existing operation
 instead of launching a competing sync.
+
+Successful foreground mail/contact repairs clear only the corresponding stale
+`cq-mail.service` / `cq-contacts.service` failure flag. They do not restart units.
+To force early observations from the CLI, use `cq_maintenance check <id>` or
+`cq_maintenance check --all`; middle-clicking the icon performs the latter.

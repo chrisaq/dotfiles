@@ -20,7 +20,7 @@ def payload(results):
         line=f'{row.id}: {row.summary}'
         lines.append(f'<span foreground="{COLORS[row.state]}">{ICONS[row.state]} {html.escape(line)}</span>')
         lines.append('  '+html.escape(('stale · ' if row.stale else '')+'checked '+age(row.checked_at)+((' · '+row.activity) if row.activity else '')))
-    lines.append('\nLeft: dashboard · Right: actions')
+    lines.append('\nLeft: dashboard · Middle: refresh checks · Right: actions')
     return {'text':text,'alt':worst,'class':[worst]+(['running'] if running else []),'tooltip':'\n'.join(lines)}
 
 def waybar():
