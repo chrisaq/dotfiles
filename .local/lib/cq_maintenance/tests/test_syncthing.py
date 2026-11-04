@@ -51,3 +51,19 @@ class SyncthingTests(Isolated):
         self.assertIn('send-only; review before overriding',result.details[0])
         self.assertEqual(result.activity,'')
         self.assertNotIn('override',[action.id for action in result.actions])
+
+    def test_conflict_backlog_is_review_warning_without_folder_failure(self):
+        (self.folder/'document.sync-conflict-20260101.txt').write_text('preserved alternate')
+        result=self.check()
+        self.assertEqual(result.state,'warning')
+        self.assertEqual(result.metrics['folder_errors'],0)
+        self.assertEqual(result.metrics['pending'],0)
+        self.assertIn('1 conflict copies to review',result.summary)
+        self.assertIn('do not themselves block transfers',result.details[0])
+
+    def test_real_folder_error_is_distinct_from_review_backlog(self):
+        self.responses['db/status']['pullErrors']=1
+        result=self.check()
+        self.assertEqual(result.state,'error')
+        self.assertEqual(result.metrics['folder_errors'],1)
+        self.assertIn('1 folder errors',result.summary)
