@@ -155,6 +155,28 @@ class PackageTests(Isolated):
             result=packages.check(ctx)
         self.assertEqual(result.state,'ok');self.assertEqual(run.call_args.args[0][0],'checkupdates')
         self.assertIn(str(self.home/'cache'),run.call_args.kwargs['env']['CHECKUPDATES_DB'])
+    def test_manual_upgrade_invalidates_recent_arch_and_aur_results(self):
+        from cq_maintenance.providers import packages
+        database=self.home/'pacman';(database/'local').mkdir(parents=True)
+        for kind in ('arch','aur'):
+            configuration=Check(provider='packages',interval=21600,options={'kind':kind,'database_path':str(database)})
+            self.settings.checks={'test':configuration}
+            old=Result(id='test',state='pending',summary='Updates waiting',metrics={'local_revision':packages.local_revision(configuration.options)})
+            engine.save(old)
+            with patch.object(packages,'check',side_effect=lambda ctx:ctx.result('ok','Up to date',metrics={'local_revision':packages.local_revision(ctx.options)})) as check:
+                engine.collect(due=True);check.assert_not_called()
+                # Simulate pacman's replacement of the installed database directory.
+                (database/'local').rename(database/('old-'+kind));(database/'local').mkdir()
+                engine.collect(due=True);self.assertEqual(check.call_count,1)
+                self.assertEqual(engine.previous('test').state,'ok')
+                engine.collect(due=True);self.assertEqual(check.call_count,1)
+    def test_invalidation_waits_for_running_pacman_transaction(self):
+        from cq_maintenance.providers import packages
+        database=self.home/'pacman';(database/'local').mkdir(parents=True);(database/'db.lck').touch()
+        config=Check(provider='packages',options={'kind':'arch','database_path':str(database)})
+        self.assertFalse(packages.invalidated(config,Result(id='test',state='pending',summary='Old')))
+        (database/'db.lck').unlink()
+        self.assertTrue(packages.invalidated(config,Result(id='test',state='pending',summary='Old')))
     def test_update_failure_is_not_up_to_date(self):
         from cq_maintenance.providers import packages
         with patch.object(Context,'run',return_value=subprocess.CompletedProcess([],1,'','')):

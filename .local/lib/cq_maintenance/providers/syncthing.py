@@ -108,7 +108,9 @@ def check(ctx):
     if partial:details.append('Conflict-file scan incomplete; previous findings retained.')
     conflict_label=str(len(conflicts))+('+' if len(conflicts)>=100 else '')
     summary=f'{len(folders)} folders · {len(connected)} peers · {metric} pending · {conflict_label} conflicts'
-    return ctx.result(state,summary,details=details,metrics={'pending':metric,'folders':len(folders),'connected':len(connected),'progress_at':progress,'offline_since':offline,'conflicts':len(conflicts)},actions=actions,activity='syncing' if metric else '')
+    activities={data.get('state') for data in cache.get('states',{}).values()}
+    activity='syncing' if 'syncing' in activities else 'scanning' if 'scanning' in activities else ''
+    return ctx.result(state,summary,details=details,metrics={'pending':metric,'folders':len(folders),'connected':len(connected),'progress_at':progress,'offline_since':offline,'conflicts':len(conflicts)},actions=actions,activity=activity)
 def execute(ctx,id):
     if id=='restart':
         require(ctx.run(['systemctl','--user','restart','syncthing.service'],foreground=True,timeout=60));return 'Restart requested'

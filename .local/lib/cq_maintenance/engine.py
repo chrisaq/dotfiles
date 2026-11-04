@@ -67,7 +67,12 @@ def collect(ids=None,due=False):
         for id,config in settings.checks.items():
             if not config.enabled or requested and id not in requested:continue
             old=previous(id)
-            if due and old and now()-old.checked_at<config.interval:continue
+            if due and old and now()-old.checked_at<config.interval:
+                try:
+                    invalidated=getattr(get(config.provider),'invalidated',None)
+                    changed=callable(invalidated) and invalidated(config,old)
+                except Exception:changed=True
+                if not changed:continue
             work.append((id,config))
         with concurrent.futures.ThreadPoolExecutor(max_workers=settings.max_workers) as executor:
             futures=[executor.submit(check_one,id,config,not due) for id,config in work]

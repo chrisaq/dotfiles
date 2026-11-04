@@ -87,13 +87,21 @@ mail settings or prerequisites remain unresolved. Other independent actions cont
 System/AUR/Flatpak upgrades and selected service restarts are explicit reviewed
 commands, never part of safe Fix all. Arch metadata uses checkupdates' separate
 pacman database; the installed database is not refreshed with `pacman -Sy`.
+Arch/AUR checks also detect changes to the installed pacman database on each
+collector pass, refreshing cached counts after upgrades done outside this tool.
+The six-hour interval applies when the installed database is unchanged. Custom
+DB locations can use `options.database_path`. Pacman updates repository packages;
+AUR updates require an AUR helper. The Waybar number counts checks needing
+attention, not individual packages; its icon represents the highest severity.
 
 ## Extending checks
 
 Add a provider module and register its name in `providers.PROVIDERS`. Implement
 `check(ctx) -> Result`, returning a state (`ok`, `pending`, `warning`, `error`,
 `unknown`), summary, optional details/metrics and explicitly declared actions.
-Implement `execute(ctx, action_id)` and `open(ctx)` when relevant. Read/repair
+Implement `execute(ctx, action_id)` and `open(ctx)` when relevant. An optional
+`invalidated(config, previous) -> bool` can request an earlier recheck based on
+cheap local changes; it must not perform network requests or repairs. Read/repair
 operations share the same per-check lock. Do not put secret contents in results.
 Keep check timestamps distinct from actual sync success timestamps.
 

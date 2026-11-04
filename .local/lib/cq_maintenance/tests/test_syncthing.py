@@ -49,4 +49,5 @@ class SyncthingTests(Isolated):
         self.responses['db/completion']['needItems']=14
         result=self.check()
         self.assertIn('send-only; review before overriding',result.details[0])
+        self.assertEqual(result.activity,'')
         self.assertNotIn('override',[action.id for action in result.actions])

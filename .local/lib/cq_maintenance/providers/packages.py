@@ -1,11 +1,29 @@
 import shutil
+from pathlib import Path
 from ..util import require,Problem
 from .base import action
 
 def helper():return 'paru' if shutil.which('paru') else 'yay' if shutil.which('yay') else None
 
+def local_revision(options):
+    if options.get('kind','arch') not in ('arch','aur'):return None
+    path=Path(options.get('database_path','/var/lib/pacman')).expanduser()/'local'
+    try:
+        info=path.stat()
+        return [info.st_dev,info.st_ino,info.st_mtime_ns,info.st_ctime_ns]
+    except OSError:return None
+
+def invalidated(config,previous):
+    """Cheap local stat only: normal pacman transactions invalidate Arch/AUR results."""
+    if config.options.get('kind','arch') not in ('arch','aur'):return False
+    database=Path(config.options.get('database_path','/var/lib/pacman')).expanduser()
+    if (database/'db.lck').exists():return False
+    revision=local_revision(config.options)
+    return revision is not None and revision!=previous.metrics.get('local_revision')
+
 def check(ctx):
     kind=ctx.options.get('kind','arch')
+    revision=local_revision(ctx.options)
     env={};args=[]
     if kind=='arch':
         root=ctx.cache('pacman');root.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
@@ -19,8 +37,9 @@ def check(ctx):
     result=ctx.run(args,env=env)
     if result.returncode not in ((0,2) if kind=='arch' else (0,)):
         raise Problem(kind+' update query failed; metadata may be unavailable')
+    if revision!=local_revision(ctx.options):raise Problem('Installed packages changed during query; retry after the package transaction')
     lines=[row.strip() for row in result.stdout.splitlines() if row.strip()]
-    return ctx.result('pending' if lines else 'ok',f'{len(lines)} updates available' if lines else 'Up to date',details=lines[:100],metrics={'updates':len(lines),'kind':kind},actions=[action('Review and upgrade packages',False,'upgrade')] if lines else [])
+    return ctx.result('pending' if lines else 'ok',f'{len(lines)} updates available' if lines else 'Up to date',details=lines[:100],metrics={'updates':len(lines),'kind':kind,'local_revision':revision},actions=[action('Review and upgrade packages',False,'upgrade')] if lines else [])
 def execute(ctx,id):
     if id!='upgrade':raise Problem('Upgrades are separate from safe Fix all')
     kind=ctx.options.get('kind','arch')
