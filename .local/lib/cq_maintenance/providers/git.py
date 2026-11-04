@@ -1,4 +1,5 @@
-import json,re,tomllib
+import json,re,tomllib,time
+from datetime import datetime
 from pathlib import Path
 from ..model import now
 from ..util import Problem,require
@@ -14,7 +15,7 @@ def repository(ctx):
 def inspect(ctx, refresh=True):
     directory,home=repository(ctx)
     prefix=['git','-C',str(home),'--git-dir='+str(directory),'--work-tree='+str(home)]
-    def git(*args):return ctx.run(prefix+list(args))
+    def git(*args,**kwargs):return ctx.run(prefix+list(args),**kwargs)
     require(git('rev-parse','--git-dir'))
     rows=require(git('status','--porcelain=v1','-z','--untracked-files=no')).stdout.split('\0')
     # Rename records have a second path; count only status-prefixed records.
@@ -41,20 +42,37 @@ def inspect(ctx, refresh=True):
         previous=ctx.previous.metrics if ctx.previous else {}
         stamp=previous.get('remote_checked_at',0)
         attempt=previous.get('remote_attempt_at',0)
-        if refresh and (ctx.force or now()-attempt>=ctx.options.get('remote_interval',900)):
+        remote_error=previous.get('remote_error','')
+        auth_blocked=previous.get('auth_blocked',False)
+        interval=ctx.options.get('auth_retry_interval',60) if auth_blocked else ctx.options.get('remote_interval',900)
+        if refresh and (ctx.force or now()-attempt>=interval):
             attempt=now()
             try:
-                result=git('fetch','--no-tags','--prune','--no-prune-tags',remote)
+                url=git('remote','get-url',remote).stdout.strip()
+                fetch_timeout=max(0.1,min(ctx.options.get('fetch_timeout',20),ctx.config.timeout-(time.monotonic()-ctx.started)-3))
+                if url.startswith('ssh://') or re.match(r'[^/]+@[^/]+:',url):
+                    from ..gpg_ssh import bridge
+                    with bridge(ctx) as signing:
+                        result=git('fetch','--no-tags','--prune','--no-prune-tags',remote,env=signing.env,timeout=fetch_timeout)
+                        auth_blocked=signing.blocked or signing.unavailable or not signing.keys
+                else:
+                    result=git('fetch','--no-tags','--prune','--no-prune-tags',remote,timeout=fetch_timeout)
+                    auth_blocked=False
             except Problem:
                 result=type('Unavailable',(),{'returncode':1})()
             if result.returncode:
-                remote_unknown=True;details.append('Remote refresh failed; authentication/network unavailable (no prompts).')
-            else:stamp=now()
+                remote_unknown=True
+                remote_error='SSH key locked/unavailable; unlock your usual GPG/SSH key and retry.' if auth_blocked else 'Remote refresh failed; check network or repository access (no prompts).'
+            else:
+                stamp=now();remote_error='';auth_blocked=False
         metrics['remote_checked_at']=stamp
         metrics['remote_attempt_at']=attempt
+        metrics['remote_error']=remote_error
+        metrics['auth_blocked']=auth_blocked
         if attempt>stamp:
             remote_unknown=True
-            details.append('Last remote refresh did not succeed; retry is rate-limited.')
+            details.append(remote_error or 'Last remote refresh did not succeed.')
+            if stamp:details.append('Last verified remote: '+datetime.fromtimestamp(stamp).astimezone().isoformat(timespec='seconds'))
         if not stamp:remote_unknown=True;details.append('Remote has not been checked by this monitor yet.')
         elif now()-stamp>ctx.options.get('remote_stale',2700):remote_unknown=True;details.append('Remote metadata is stale.')
         count=git('rev-list','--left-right','--count','HEAD...'+upstream.stdout.strip())
@@ -66,7 +84,12 @@ def inspect(ctx, refresh=True):
     summary=f'{len(statuses)} changed · ↑{ahead} ↓{behind}'
     state='ok'
     if metrics['conflicts'] or in_progress or (ahead and behind):state='error';details.append('Conflict, divergence or Git operation requires manual review.')
-    elif remote_unknown:state='unknown';summary+=' · remote unknown'
+    elif remote_unknown:
+        state='warning' if metrics.get('auth_blocked') else 'unknown'
+        summary+=' · SSH unlock required' if metrics.get('auth_blocked') else ' · remote unknown'
+        if metrics.get('remote_checked_at'):
+            from ..view import age
+            summary+=' (verified '+age(metrics['remote_checked_at'])+')'
     elif statuses or ahead or behind:state='pending'
     actions=[action('Open workbench',False,'open')]
     if state!='error' and not remote_unknown and behind and not ahead and not statuses:actions.insert(0,action('Fast-forward clean repository'))

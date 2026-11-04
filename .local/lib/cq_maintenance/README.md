@@ -27,7 +27,7 @@ track it with dotlocal when wanted. `CQ_MAINTENANCE_CONFIG` selects a shared fil
 aggregate health. No configuration is written on ordinary startup.
 
 The collector runs due checks every minute, with bounded parallelism. Remote Git
-metadata defaults to 15 minutes; package metadata to six hours. Observations and
+metadata defaults to 15 minutes (locked SSH credentials retry every minute); package metadata to six hours. Observations and
 bounded seven-day action history live under `$XDG_STATE_HOME/cq/maintenance` with
 private modes. Package query databases live under XDG cache. Runtime locks are
 private and local. Never distribute this state via dotfiles, crypt-sync or Syncthing.
@@ -41,9 +41,20 @@ right-click opens a dynamic Rofi action menu. No desktop notifications are sent.
 Dashboard keys: r refresh, f safe batch, s fix selected, v review, o open,
 e enable/disable on this machine, Ctrl+T theme, q quit. Repairs are reviewed before
 running and hand the terminal to commands needing authentication. Checks never
-open GPG/SSH prompts. Background Git disables SSH agent access because desktop
-agents can prompt independently of SSH batch mode; locked keys produce unknown
-remote freshness. Use the foreground workbench when authentication is needed. Logs contain operation summaries, not backend secret output.
+open GPG/SSH prompts. Git remote checks resolve the GPG agent through `gpgconf`
+and use a private, short-lived SSH signing bridge with per-connection
+`pinentry-mode=error`. They do not use the desktop GCR socket. Unlocked RSA
+(SHA-256/512) and Ed25519 SSH identities can authenticate; private keys and cached
+passphrases stay in GPG. Confirmation-required keys and unsupported algorithms
+are excluded. Normal interactive Git/GPG configuration is unchanged.
+
+Locked/missing credentials report an actionable SSH-unlock warning, preserving
+local status and the last verified remote timestamp. They retry every minute
+(`auth_retry_interval`), then return to normal remote checks every 15 minutes
+once authentication succeeds. Network/repository-access failures remain unknown.
+Use `cq_maintenance check dotlocal` to retry immediately after unlocking your
+normal SSH key. `checks.<id>.options.gnupghome` can select a different GPG home.
+Logs contain operation summaries, not backend secret output.
 
 Git remote checks use only validated remote-tracking fetch destinations. Clean
 fast-forwards are the only batch working-tree operation: no commits, pushes,

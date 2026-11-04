@@ -117,6 +117,27 @@ class GitTests(Isolated):
         result=git.check(self.ctx);self.assertEqual(result.metrics['behind'],1)
         self.assertFalse((self.work/'two').exists())
         git.execute(self.ctx,'fix');self.assertTrue((self.work/'two').exists())
+    def test_ssh_unlock_failure_preserves_verification_and_retries_after_unlock(self):
+        from cq_maintenance.providers import git
+        from cq_maintenance import gpg_ssh
+        self.git(['remote','set-url','origin','git@example.invalid:repo.git'],self.work)
+        verified=now()-1000
+        self.ctx.previous=Result(id='test',state='ok',summary='old',metrics={'remote_checked_at':verified,'remote_attempt_at':verified})
+        signing=Mock();signing.env={};signing.keys={'public':None};signing.unavailable=False;signing.blocked=True
+        original=Context.run
+        def call(ctx,args,**kwargs):
+            if 'fetch' in args:return subprocess.CompletedProcess(args,255 if signing.blocked else 0,'','')
+            return original(ctx,args,**kwargs)
+        manager=Mock();manager.__enter__=Mock(return_value=signing);manager.__exit__=Mock(return_value=False)
+        with patch.object(gpg_ssh,'bridge',return_value=manager),patch.object(Context,'run',autospec=True,side_effect=call):
+            result=git.check(self.ctx)
+            self.assertEqual(result.state,'warning');self.assertEqual(result.metrics['dirty'],0)
+            self.assertEqual(result.metrics['remote_checked_at'],verified)
+            self.assertIn('SSH unlock required',result.summary)
+            result.metrics['remote_attempt_at']=now()-61
+            signing.blocked=False
+            fresh=git.check(Context('test',self.ctx.config,result))
+        self.assertEqual(fresh.state,'ok');self.assertGreater(fresh.metrics['remote_checked_at'],verified)
     def test_divergence_requires_review(self):
         from cq_maintenance.providers import git
         other=self.home/'other';self.git(['clone',str(self.remote),str(other)])
