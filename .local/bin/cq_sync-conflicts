@@ -1,0 +1,84 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["typer==0.27.3", "textual[syntax]==8.2.8", "pydantic==2.14.1", "pyyaml==6.0.3", "rich==15.0.0"]
+# ///
+#:usage: cq_sync-conflicts [--root PATH] [--store PATH] [--theme macchiato|latte] [--list]
+#:no-args: true
+#:desc: Visually compare and resolve Syncthing conflict copies, including encrypted password entries.
+"""Shared conflict workbench; no file changes without an explicit resolution."""
+
+from pathlib import Path
+from typing import Optional, Literal
+import sys, json
+
+sys.path.insert(0, str(Path.home() / ".local/lib"))
+import typer
+from cq_conflicts import (
+    ConflictApp,
+    ConflictError,
+    default_roots,
+    discover,
+    load_pass_ui,
+)
+
+cli = typer.Typer(add_completion=False)
+
+
+@cli.command()
+def main(
+    root: list[Path] = typer.Option(
+        [],
+        "--root",
+        help="Scan this root; repeat for several folders. Defaults to configured Syncthing folders.",
+    ),
+    store: Optional[str] = typer.Option(
+        None, "--store", help="Password-store root for encrypted entries."
+    ),
+    theme: Optional[Literal["macchiato", "latte"]] = typer.Option(None, "--theme"),
+    list_only: bool = typer.Option(
+        False, "--list", help="List paths as JSON without decrypting or changing files."
+    ),
+):
+    try:
+        roots = root or default_roots()
+        if list_only:
+            typer.echo(
+                json.dumps(
+                    [
+                        {
+                            "current": str(c.current),
+                            "alternative": str(c.copy),
+                            "date": c.timestamp,
+                            "device": c.device,
+                            "encrypted": c.encrypted,
+                            "current_exists": c.current.exists(),
+                        }
+                        for c in discover(roots)
+                    ],
+                    indent=2,
+                )
+            )
+            return
+        ui = load_pass_ui()
+        settings = ui.Settings()
+        if ui.SETTINGS_FILE.exists():
+            settings = ui.Settings.model_validate(
+                ui.yaml.safe_load(ui.SETTINGS_FILE.read_text()) or {}
+            )
+        if theme:
+            settings.theme = theme
+        resolved = ui.resolve_store(store, settings)
+        ConflictApp(roots, resolved, ui, settings).run()
+    except Exception as error:
+        typer.echo(
+            str(error)
+            if isinstance(error, ConflictError)
+            else "Could not start conflict workbench. Check configuration and folder access.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+
+if __name__ == "__main__":
+    cli()

@@ -1100,6 +1100,12 @@ requires confirmation. Generation is local first, then a single gopass write;
 metadata and extra documents are retained byte-for-byte after the first newline.
 Empty local directories are conveniences and are not versioned by Git.
 
+## Sync conflicts
+
+`c` opens side-by-side Syncthing conflict review. Encrypted alternatives are decrypted
+in memory and masked until revealed. Compare, keep either version, or edit a result.
+Every resolution confirms and preserves encrypted recovery files outside Sync.
+
 ## Editor
 
 `e` uses settings.editor or $EDITOR; `E` always uses the built-in editor.
@@ -1399,6 +1405,7 @@ PASS_ACTIONS = {
     "generate": ("Replace password", "P"), "rename_move": ("Move or rename entry", "r"),
     "delete_secret": ("Delete entry", "D"), "favorite": ("Toggle session favorite", "*"),
     "rescan": ("Rescan store", "ctrl+r"), "theme": ("Toggle Latte / Macchiato", "ctrl+t"),
+    "conflicts": ("Review Syncthing conflict copies", "c"),
     "save_preferences": ("Save preferences", ""), "panes": ("Expand browser panes", "b"),
     "help": ("Read the guide", "f1"), "quit": ("Quit", "q"),
 }
@@ -1543,6 +1550,7 @@ class PassTUI(App):
     def compose(self) -> ComposeResult:
         with Horizontal(id="topbar"):
             yield Static("◈  PASSWORDS  /  workbench", id="brand")
+            yield Button("c  Conflicts", id="quick-conflicts")
             yield Button("☀ Latte" if self.theme == "macchiato" else "☾ Dark", id="theme-button")
         with Vertical(id="top"):
             yield Label("", id="top-label")
@@ -1662,6 +1670,16 @@ class PassTUI(App):
             self.query_one("#detail", Static).update(secret_renderable(self._current, self.reveal, self.theme))
             self.query_one("#detail-head", Static).update(self._current.path + (" · temporarily revealed" if self.reveal else " · masked"))
 
+    @work(group="mutations")
+    @mutation_action
+    async def action_conflicts(self) -> None:
+        sys.path.insert(0, str(Path.home() / '.local/lib'))
+        from cq_conflicts import ConflictScreen, Resolver
+        self.action_lock()
+        await self.push_screen_wait(ConflictScreen([self.store], Resolver(self.store, self.backend), sys.modules[__name__], reveal_timeout=self.settings.reveal_timeout))
+        await self.rescan()
+        self.query_one("#theme-button", Button).label = "☀ Latte" if self.theme == "macchiato" else "☾ Dark"
+
     def action_theme(self) -> None:
         self.theme = "latte" if self.theme == "macchiato" else "macchiato"
         self.query_one("#theme-button", Button).label = "☀ Latte" if self.theme == "macchiato" else "☾ Dark"
@@ -1701,6 +1719,10 @@ class PassTUI(App):
         self._paint_chrome()
 
     def on_app_blur(self) -> None:
+        if self.settings.mask_on_blur:
+            for screen in self.screen_stack:
+                if screen.__class__.__name__ == 'ConflictScreen':
+                    screen.action_lock()
         if self.settings.mask_on_blur and self._chrome_label is not None:
             self.action_lock()
 
@@ -2776,6 +2798,7 @@ def main(
     entry: Optional[str] = typer.Argument(None, help="Entry to open on start."),
     store: Optional[str] = typer.Option(None, "--store", "-s", help="Password store path."),
     reveal: bool = typer.Option(False, "--reveal", "-r", help="Show secrets unmasked."),
+    conflicts: bool = typer.Option(False, "--conflicts", help="Open encrypted Syncthing conflict review for this store."),
     templates_dir: Optional[str] = typer.Option(
         None, "--templates-dir", "-t", help="Override the template directory."
     ),
@@ -2814,8 +2837,13 @@ def main(
         typer.secho("Could not load settings or templates: invalid or unreadable configuration.", fg=typer.colors.RED, err=True)
         raise typer.Exit(1)
 
-    app = PassTUI(resolved, settings, templates, initial_entry=entry)
-    app.run()
+    if conflicts:
+        sys.path.insert(0, str(Path.home() / '.local/lib'))
+        from cq_conflicts import ConflictApp
+        ConflictApp([resolved], resolved, sys.modules[__name__], settings).run()
+    else:
+        app = PassTUI(resolved, settings, templates, initial_entry=entry)
+        app.run()
 
 
 if __name__ == "__main__":
