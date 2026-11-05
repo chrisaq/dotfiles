@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json,os,shutil,subprocess,sys
+import json,os,subprocess
 from pathlib import Path
 import typer
 from rich.console import Console
@@ -7,7 +7,7 @@ from rich.prompt import Prompt,Confirm
 from rich.text import Text
 from .config import load,config_path,DEFAULTS,toggle
 from .model import Settings
-from .util import Problem,run,require,state_dir,atomic_text
+from .util import Problem,run,require,atomic_text
 
 app=typer.Typer(invoke_without_command=True,no_args_is_help=False,add_completion=False,pretty_exceptions_enable=False,help='Inspect and maintain sync, configuration, services and updates.')
 config_app=typer.Typer(help='Shared defaults and machine-local overrides.');app.add_typer(config_app,name='config')
@@ -64,6 +64,22 @@ def open_check(id:str):
     ctx=Context(id,settings.checks[id],previous(id))
     require(run(get(ctx.config.provider).open(ctx),foreground=True,timeout=86400))
 
+@app.command('restart-unit')
+def restart_selected_unit(id:str,unit:str,scope:str=typer.Option('user','--scope'),yes:bool=typer.Option(False,'--yes','-y')):
+    """Restart one still-failed unit after explicit review; never restart all units."""
+    from .providers.base import Context
+    from .providers.systemd import restart_unit,validate_unit
+    from .engine import collect,log_event
+    settings=load()
+    if id not in settings.checks or settings.checks[id].provider!='units' or not settings.checks[id].enabled:
+        raise typer.BadParameter('Choose an enabled failed-unit check')
+    row={'scope':scope,'unit':unit};validate_unit(row)
+    if not yes and not Confirm.ask(f'Restart {scope}: {unit}?',default=False):return
+    try:
+        message=restart_unit(Context(id,settings.checks[id],checking=False),row)
+        log_event({'id':id,'state':'completed','message':message});console.print(Text(message))
+    finally:collect([id])
+
 @app.command()
 def review(id:str):
     """Review a crypt-sync source, one failed unit or an explicit upgrade."""
@@ -102,11 +118,9 @@ def review(id:str):
         if operation=='logs':
             require(run(['journalctl',*prefix,'-u',row['unit'],'-n','100','--no-pager'],foreground=True));Prompt.ask('Press Enter to return',default='')
         elif Confirm.ask('Restart this specific unit?',default=False):
-            fresh=check_one(id,config).metrics.get('units',[])
-            if row not in fresh:raise Problem('Unit state changed; recheck before restarting')
-            args=['systemctl',*prefix,'restart',row['unit']]
-            if row['scope']=='system':args=['sudo',*args]
-            require(run(args,foreground=True,timeout=120));log_event({'id':id,'state':'completed','message':'Reviewed restart of '+row['unit']})
+            from .providers.systemd import restart_unit
+            message=restart_unit(ctx,row)
+            log_event({'id':id,'state':'completed','message':message})
     else:
         choices=[a for a in result.actions if not a.safe and a.id!='open']
         if not choices:open_check(id);return

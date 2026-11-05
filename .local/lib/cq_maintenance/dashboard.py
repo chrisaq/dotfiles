@@ -10,8 +10,7 @@ from textual.widgets import Header,Footer,DataTable,Static,Button,Label
 from textual import work
 from .config import load,toggle
 from .engine import snapshot,collect
-from .model import PRIORITY
-from .util import run,read_json,state_dir
+from .util import run,read_json,state_dir,Problem
 from .view import COLORS,age
 
 class ConfirmAction(ModalScreen[bool]):
@@ -44,14 +43,17 @@ class MaintenanceApp(App):
         with HorizontalScroll(id='buttons'):
             for id,label in [('refresh','Refresh'),('fix_all','Fix all'),('fix_selected','Fix selected'),('review','Review'),('open','Open'),('toggle','Toggle')]:yield Button(label,id=id)
         yield Footer()
+    def check_action(self,action,parameters):
+        if isinstance(self.screen,ModalScreen) and action in {'refresh','fix_all','fix_selected','review','open','toggle','quit'}:return False
+        return True
     def on_resize(self,event):
         self.screen.set_class(event.size.width<110,'narrow')
     def on_mount(self):
         self.theme='catppuccin-'+load().theme
-        self.query_one(DataTable).add_columns('Check','State','Status')
+        self.query_one('#checks',DataTable).add_columns('Check','State','Status')
         self.repaint();self.set_interval(2,self.repaint)
     def repaint(self):
-        table=self.query_one(DataTable);previous_selection=self.selected
+        table=self.query_one('#checks',DataTable);previous_selection=self.selected
         try:rows=snapshot(include_disabled=True)
         except Exception:
             self.query_one('#detail',Static).update('Configuration/cache unavailable. Run config validate.');return
@@ -84,10 +86,18 @@ class MaintenanceApp(App):
         try:collect();self.call_from_thread(self.repaint)
         except Exception as error:self.call_from_thread(self.notify,str(error),severity='error')
     def launch(self,args):
-        with self.suspend():
-            run([Path.home()/'.local/bin/cq_maintenance',*args],foreground=True,timeout=86400)
-            input('\nPress Enter to return to the dashboard…')
+        import sys
+        code=None
+        try:
+            with self.suspend():
+                result=run([Path.home()/'.local/bin/cq_maintenance',*args],foreground=True,timeout=86400)
+                if sys.stdin.isatty():input('\nPress Enter to return to the dashboard…')
+            code=result.returncode
+            if result.returncode:self.notify(f'Action failed (exit {result.returncode}); inspect its output or unit logs.',severity='error',timeout=10)
+        except Exception as error:
+            self.notify(str(error) if isinstance(error,Problem) else 'Could not run the terminal action. Use the CLI or inspect unit logs.',severity='error',timeout=10)
         self.repaint()
+        return code
     def confirm(self,args,body):
         self.push_screen(ConfirmAction('Review maintenance action',body),lambda accepted:self.launch(args) if accepted else None)
     def action_fix_all(self):
@@ -98,7 +108,12 @@ class MaintenanceApp(App):
         if row and row.state!='disabled' and any(a.safe and a.id=='fix' for a in row.actions):self.confirm(['fix',row.id,'--yes'],row.summary+'\n\nRecheck and perform the guarded fix?')
         else:self.notify('No safe fix available; use Review or Open.')
     def action_review(self):
-        if self.selected and self.selected!='monitor' and self.rows[self.selected].state!='disabled':self.launch(['review',self.selected])
+        if self.selected and self.selected!='monitor' and self.rows[self.selected].state!='disabled':
+            config=load().checks.get(self.selected)
+            if config and config.provider=='units':
+                from .unit_review import UnitReview
+                self.push_screen(UnitReview(self.selected,config))
+            else:self.launch(['review',self.selected])
     def action_open(self):
         if self.selected and self.selected!='monitor':self.launch(['open',self.selected])
     def action_toggle(self):
