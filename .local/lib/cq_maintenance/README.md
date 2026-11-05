@@ -282,3 +282,10 @@ run with `rc.hooks=off` or using an uninstalled/custom hooks directory are not
 tracked, except syncs run by maintenance itself, whose exit status is recorded.
 Disable `[checks.taskwarrior]` on machines that do not use Taskwarrior. Its setup
 item is hidden from Waybar; the normal freshness check remains visible.
+
+
+Taskwarrior's `data.location` must be set in its private taskrc (for this setup,
+`data.location=~/.local/share/task`), rather than relying only on a shell's
+`TASKDATA` export. The systemd collector does not inherit interactive shell
+variables; otherwise it can query a different replica and report no sync even
+when shell syncs succeed. Health details show the replica actually inspected.

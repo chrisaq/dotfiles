@@ -181,3 +181,29 @@ class TaskTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(record.read_bytes(), before)
+
+    @unittest.skipUnless(__import__("shutil").which("task"), "Taskwarrior unavailable")
+    def test_configured_replica_matches_shell_and_service_environments(self):
+        import os
+
+        data = self.home / ".local/share/task"
+        data.mkdir(parents=True)
+        rc = self.home / ".config/task/taskrc"
+        rc.parent.mkdir(parents=True)
+        rc.write_text("data.location=~/.local/share/task\nnews.version=3.5.0\n")
+        tasks.record_success(data)
+        ctx = Context("taskwarrior", Check(provider="taskwarrior"), checking=False)
+        with (
+            patch.object(tasks, "hook_ready", return_value=True),
+            patch.dict(os.environ),
+        ):
+            os.environ["TASKRC"] = str(rc)
+            os.environ["TASKDATA"] = str(data)
+            shell = tasks.check(ctx)
+            os.environ.pop("TASKRC")
+            os.environ.pop("TASKDATA")
+            service = tasks.check(ctx)
+        self.assertEqual(shell.state, "ok")
+        self.assertEqual(service.state, "ok")
+        self.assertEqual(shell.last_success, service.last_success)
+        self.assertEqual(service.metrics["data_location"], str(data))

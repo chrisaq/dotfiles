@@ -77,7 +77,8 @@ def check(ctx):
         else f"Last successful sync {int(age // 3600)}h {int(age % 3600 // 60)}m ago"
     )
     details = [
-        "Warn after " + str(threshold // 3600) + " hours without a successful sync."
+        "Task store: " + str(data),
+        "Warn after " + str(threshold // 3600) + " hours without a successful sync.",
     ]
     actions = [action("Sync Taskwarrior")]
     if not hook_ready(folder):
@@ -93,7 +94,12 @@ def check(ctx):
             "Run a successful sync to establish the local timestamp; old database times are not evidence of sync."
         )
     return ctx.result(
-        state, summary, details=details, last_success=stamp, actions=actions
+        state,
+        summary,
+        details=details,
+        last_success=stamp,
+        actions=actions,
+        metrics={"data_location": str(data)},
     )
 
 
