@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json,os,subprocess
+import json,subprocess,sys
 from pathlib import Path
 import typer
 from rich.console import Console
@@ -9,7 +9,9 @@ from .config import load,config_path,DEFAULTS,toggle
 from .model import Settings
 from .util import Problem,run,require,atomic_text
 
-app=typer.Typer(invoke_without_command=True,no_args_is_help=False,add_completion=False,pretty_exceptions_enable=False,help='Inspect and maintain sync, configuration, services and updates.')
+from .guide import QUICKSTART
+
+app=typer.Typer(context_settings={'help_option_names':['-h','--help']},epilog=QUICKSTART,invoke_without_command=True,no_args_is_help=False,add_completion=False,pretty_exceptions_enable=False,help='Inspect and maintain sync, configuration, services and updates. New machine? Start with cq_maintenance guide.')
 config_app=typer.Typer(help='Shared defaults and machine-local overrides.');app.add_typer(config_app,name='config')
 console=Console()
 
@@ -17,7 +19,21 @@ console=Console()
 def main(ctx:typer.Context):
     if ctx.invoked_subcommand is None:
         from .dashboard import MaintenanceApp
-        MaintenanceApp().run()
+        if not sys.stdin.isatty() or not sys.stdout.isatty():
+            guide()
+            return
+        MaintenanceApp(startup_guide=True).run()
+
+
+@app.command('guide')
+def guide():
+    """First-time machine setup: prerequisites, monitoring, service setup and first sync."""
+    from rich.markdown import Markdown
+    from .guide import GUIDE
+    console.print(Markdown(GUIDE))
+
+app.command('help',hidden=True)(guide)
+app.command('h',hidden=True)(guide)
 
 def output_results(rows,json_output):
     if json_output:print(json.dumps([row.model_dump() for row in rows],ensure_ascii=False))
@@ -133,10 +149,11 @@ def review(id:str):
     collect([id])
 
 @app.command()
-def tui(select:str|None=typer.Option(None,'--select')):
+def tui(select:str|None=typer.Option(None,'--select'),view:str=typer.Option('health','--view')):
     """Open the live Textual dashboard; repairs require explicit actions."""
     from .dashboard import MaintenanceApp
-    MaintenanceApp(select=select).run()
+    if view not in ('health','setup'):raise typer.BadParameter('View must be health or setup')
+    MaintenanceApp(select=select,view=view).run()
 
 @app.command()
 def waybar():
@@ -149,9 +166,11 @@ def menu():
     """Dynamic Rofi action menu for enabled checks; no repairs on opening."""
     from .engine import snapshot
     settings=load();rows=snapshot(settings)
-    choices=[('Dashboard',['tui']),('Refresh all checks',['check','--all']),('Fix / sync all safely',['fix','--all'])]
+    choices=[('Dashboard',['tui']),('Machine setup',['tui','--view','setup']),('Refresh all checks',['check','--all']),('Fix / sync all safely',['fix','--all'])]
     for row in rows:
         if row.id=='monitor':continue
+        if row.id.startswith('setup:'):
+            choices.append((row.id+' · setup',['tui','--view','setup','--select',row.id.split(':',1)[1]]));continue
         choices.extend([(row.id+' · details',['tui','--select',row.id]),(row.id+' · refresh',['check',row.id])])
         for a in row.actions:
             args=['open',row.id] if a.id=='open' else ['review',row.id] if not a.safe else ['fix',row.id]
@@ -167,14 +186,9 @@ def menu():
 def setup():
     """Install/enable only the monitoring timer. Never repairs other services."""
     load()
-    directory=Path(os.environ.get('XDG_CONFIG_HOME') or Path.home()/'.config')/'systemd/user'
-    directory.mkdir(parents=True,exist_ok=True)
-    files={
-      'cq-maintenance.service':'# Managed by cq_maintenance setup.\n[Unit]\nDescription=Collect maintenance observations (no repairs)\n\n[Service]\nType=oneshot\nExecStart=%h/.local/bin/cq_maintenance check --due --quiet\nEnvironment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin\nTimeoutStartSec=5min\nUMask=0077\n',
-      'cq-maintenance.timer':'# Managed by cq_maintenance setup.\n[Unit]\nDescription=Check maintenance status every minute\n\n[Timer]\nOnStartupSec=30s\nOnUnitInactiveSec=60s\nUnit=cq-maintenance.service\n\n[Install]\nWantedBy=timers.target\n'}
-    if os.environ.get('CQ_MAINTENANCE_CONFIG') or os.environ.get('CQ_CONFIG_DIR'):
-        selected=str(config_path().resolve()).replace('\\','\\\\').replace('\"','\\\"').replace('%','%%')
-        files['cq-maintenance.service']=files['cq-maintenance.service'].replace('[Service]','[Service]\nEnvironment=\"CQ_MAINTENANCE_CONFIG='+selected+'\"')
+    from .provision.units import directory as unit_directory,expected
+    directory=unit_directory();directory.mkdir(parents=True,exist_ok=True)
+    files={path.name:content for path,content in expected().items()}
     for name,content in files.items():
         path=directory/name
         if path.is_symlink() or path.exists() and not path.read_text().startswith('# Managed by cq_maintenance setup.\n'):raise Problem('Refusing to replace an unrelated '+name)
@@ -183,10 +197,54 @@ def setup():
     require(run(['systemctl','--user','enable','--now','cq-maintenance.timer']))
     console.print('Monitoring enabled. Existing sync schedules are unchanged.')
 
+@app.command('setup-status')
+def setup_status(id:str|None=typer.Argument(None),json_output:bool=typer.Option(False,'--json')):
+    """Inspect machine setup now; no packages, credentials or configuration are changed."""
+    from .provision.core import inspect_one,inspect_all
+    rows=[inspect_one(id,save=True)] if id else inspect_all(save=True)
+    if json_output:print(json.dumps([r.model_dump() for r in rows]))
+    else:
+        for row in rows:
+            console.print(Text(f'{row.id}: {row.status} · {row.summary}'))
+            for detail in row.details:console.print(Text('  '+detail))
+
+@app.command('setup-plan')
+def setup_plan(id:str,action:str='apply',json_output:bool=typer.Option(False,'--json')):
+    """Inspect and preview a setup dependency plan without applying it."""
+    from .provision.core import plan
+    result=plan(id,action)
+    if json_output:print(result.model_dump_json(indent=2))
+    else:show_setup_plan(result)
+
+def show_setup_plan(result):
+    console.print(Text('Setup '+result.id+' · '+result.action))
+    for reason in result.blockers:console.print(Text('BLOCKED: '+reason,style='red'))
+    for n,step in enumerate(result.steps,1):
+        console.print(Text(f'{n}. {step.title}'))
+        if step.options.get('packages'):console.print(Text('   '+', '.join(step.options['packages'])))
+    for change in result.changes:console.print(Text('  '+change))
+    if not result.steps and not result.blockers:console.print('Already ready; no changes required.')
+
+@app.command('setup-apply')
+def setup_apply(id:str,action:str='apply',dry_run:bool=False,yes:bool=typer.Option(False,'--yes','-y'),expected_plan:str|None=typer.Option(None,'--expected-plan',hidden=True)):
+    """Apply one reviewed setup dependency plan; AUR and sudo prompts remain interactive."""
+    from .provision.core import plan,apply
+    result=plan(id,action)
+    import hashlib
+    if expected_plan and hashlib.sha256(result.model_dump_json().encode()).hexdigest()!=expected_plan:raise Problem('Setup plan changed since preview; inspect it again.')
+    show_setup_plan(result)
+    if dry_run:return
+    if result.blockers:raise Problem('Resolve the listed blockers, then re-plan.')
+    if not result.steps:return
+    if not yes and not Confirm.ask('Apply this setup dependency plan?',default=False):return
+    outcome=apply(result,lambda text:Confirm.ask(text,default=False),lambda text:console.print(Text(text)))
+    console.print(Text(outcome.id+': '+outcome.status))
+
 @config_app.command('example')
 def config_example():
     import tomli_w
-    print(tomli_w.dumps(Settings(checks=DEFAULTS).model_dump()))
+    from .config import SETUP_DEFAULTS
+    print(tomli_w.dumps(Settings(checks=DEFAULTS,setup=SETUP_DEFAULTS).model_dump()))
 
 @config_app.command('show')
 def config_show():
@@ -198,6 +256,8 @@ def config_validate():
     from .providers import get
     settings=load()
     for config in settings.checks.values():get(config.provider)
+    from .provision.recipes import PROVIDERS
+    if any(item.provider not in PROVIDERS for item in settings.setup.values()):raise Problem('Unknown setup provider')
     console.print('Valid configuration: '+str(config_path()))
 
 @config_app.command('enable')

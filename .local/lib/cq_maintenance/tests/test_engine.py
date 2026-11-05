@@ -13,7 +13,7 @@ class Isolated(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.home=Path(self.tmp.name)
         self.env=patch.dict(os.environ,{'HOME':str(self.home),'XDG_CONFIG_HOME':str(self.home/'config'),'XDG_STATE_HOME':str(self.home/'state'),'XDG_CACHE_HOME':str(self.home/'cache'),'XDG_RUNTIME_DIR':str(self.home/'runtime'),'CQ_MAINTENANCE_CONFIG':str(self.home/'config/config.toml')},clear=False);self.env.start();self.addCleanup(self.env.stop)
         (self.home/'runtime').mkdir(mode=0o700)
-        self.settings=Mock();self.settings.checks={'test':Check(provider='command')};self.settings.max_workers=2;self.settings.waybar_signal=12
+        self.settings=Mock();self.settings.setup={};self.settings.checks={'test':Check(provider='command')};self.settings.max_workers=2;self.settings.waybar_signal=12
         patcher=patch('cq_maintenance.engine.load',return_value=self.settings);patcher.start();self.addCleanup(patcher.stop)
         patcher=patch('cq_maintenance.engine.signal_bar');patcher.start();self.addCleanup(patcher.stop)
 
@@ -21,7 +21,7 @@ class EngineTests(Isolated):
     def test_disabled_excluded_and_stale_never_green(self):
         engine.save(Result(id='test',state='ok',summary='old',checked_at=now()-1000))
         atomic_json(state_dir()/'collector.json',{'heartbeat':now()})
-        self.assertEqual(engine.snapshot(self.settings)[0].state,'unknown')
+        self.assertEqual(next(r for r in engine.snapshot(self.settings) if r.id=='test').state,'unknown')
         self.settings.checks['test'].enabled=False
         self.assertEqual(engine.snapshot(self.settings),[])
         self.assertEqual(engine.snapshot(self.settings,True)[0].state,'disabled')

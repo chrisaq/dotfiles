@@ -4,6 +4,7 @@ from pathlib import Path
 from .model import Settings
 
 DEFAULTS = {
+ 'taskwarrior': {'provider':'taskwarrior','interval':60,'options':{'stale_seconds':86400}},
  'dotfiles': {'provider':'git', 'options':{'profile':'dotfiles'}},
  'dotlocal': {'provider':'git', 'options':{'profile':'dotlocal'}},
  'crypt-sync': {'provider':'crypt'},
@@ -15,6 +16,14 @@ DEFAULTS = {
  'aur': {'provider':'packages','interval':21600,'timeout':120,'options':{'kind':'aur'}},
  'flatpak': {'provider':'packages','enabled':False,'interval':21600,'timeout':120,'options':{'kind':'flatpak'}},
  'failed-units': {'provider':'units','options':{'ignore':[]}},
+}
+
+SETUP_DEFAULTS = {
+ 'taskwarrior': {'provider':'taskwarrior'},
+ 'maintenance': {'provider':'maintenance'},
+ 'mail': {'provider':'mail'},
+ 'paru': {'provider':'paru'},
+ 'gopass-jsonapi': {'provider':'browser','options':{'browsers':['firefox'],'gnupghome':'~/.config/gnupg','password_store':'~/Sync/Password-Store'}},
 }
 
 def xdg(kind):
@@ -35,20 +44,29 @@ def merge(a,b):
 
 def load():
     path=config_path()
-    data={'checks':DEFAULTS}
+    data={'checks':DEFAULTS,'setup':SETUP_DEFAULTS}
     for source in (path,path.with_name('config.local.toml')):
         if source.exists(): data=merge(data,tomllib.loads(source.read_text()))
     settings=Settings.model_validate(data)
-    for name in settings.checks:
+    for name in list(settings.checks)+list(settings.setup):
         if not re.fullmatch('[a-z0-9][a-z0-9_.-]*',name): raise ValueError('Invalid check ID: '+name)
     return settings
 
 def toggle(name, enabled):
     import tomli_w
-    from .util import atomic_json, atomic_text
+    from .util import atomic_text
     settings=load()
     if name not in settings.checks: raise ValueError('Unknown check: '+name)
     path=config_path().with_name('config.local.toml')
     data=tomllib.loads(path.read_text()) if path.exists() else {}
     data=merge(data,{'checks':{name:{'enabled':enabled}}})
     atomic_text(path,tomli_w.dumps(data))
+
+
+def toggle_setup(name, enabled):
+    import tomli_w
+    from .util import atomic_text
+    if name not in load().setup:raise ValueError('Unknown setup item: '+name)
+    path=config_path().with_name('config.local.toml')
+    data=tomllib.loads(path.read_text()) if path.exists() else {}
+    atomic_text(path,tomli_w.dumps(merge(data,{'setup':{name:{'enabled':enabled}}})))

@@ -37,6 +37,13 @@ class Check(BaseModel):
     timeout: int = Field(default=30, ge=1, le=3600)
     options: dict[str, Any] = Field(default_factory=dict)
 
+class SetupItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    provider: str
+    enabled: bool = True
+    waybar: bool = False
+    options: dict[str, Any] = Field(default_factory=dict)
+
 class Settings(BaseModel):
     model_config = ConfigDict(extra='forbid')
     theme: Literal['macchiato', 'latte'] = 'macchiato'
@@ -45,3 +52,4 @@ class Settings(BaseModel):
     waybar_signal: int = Field(default=12, ge=1, le=20)
     max_workers: int = Field(default=4, ge=1, le=8)
     checks: dict[str, Check] = Field(default_factory=dict)
+    setup: dict[str, SetupItem] = Field(default_factory=dict)

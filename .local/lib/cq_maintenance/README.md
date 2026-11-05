@@ -4,6 +4,17 @@ Linux maintenance observations and explicit repairs. The executable in
 `~/.local/bin/cq_maintenance` declares pinned uv dependencies and imports this
 package from `~/.local/lib`. No arguments opens the Textual dashboard.
 
+Start with `cq_maintenance guide` (aliases `help` and `h`) for the first-machine
+walkthrough: restore prerequisites, choose checks, enable monitoring, review
+service setup, then establish successful sync timestamps. `--help` / `-h` lists
+commands and a startup checklist. Command help also accepts `-h`.
+
+The dashboard has a **Startup guide** button and `?` / `h` shortcuts. On a machine
+missing monitor units or timer enablement, no-argument interactive startup opens
+the guide automatically. Otherwise it opens health with a visible guide hint.
+Without an interactive terminal, no arguments prints the guide. Opening guidance
+never performs setup; **Open Setup** opens the reviewed checklist.
+
 ```sh
 cq_maintenance setup                 # enable only the observing timer
 cq_maintenance status --json         # cached; no network or repairs
@@ -150,3 +161,124 @@ Successful foreground mail/contact repairs clear only the corresponding stale
 `cq-mail.service` / `cq-contacts.service` failure flag. They do not restart units.
 To force early observations from the CLI, use `cq_maintenance check <id>` or
 `cq_maintenance check --all`; middle-clicking the icon performs the latter.
+
+## Machine setup
+
+Press `t` / **Setup** in the dashboard, or start directly with:
+
+```sh
+cq_maintenance tui --view setup
+cq_maintenance setup-status --json
+cq_maintenance setup-plan gopass-jsonapi
+cq_maintenance setup-apply gopass-jsonapi --dry-run
+cq_maintenance setup-apply gopass-jsonapi
+cq_maintenance setup-apply paru --action rebuild
+```
+
+Inspection and preview do not install packages, change configuration, decrypt
+secrets, launch a password listener or open authentication prompts. Setup has
+its own readiness states and is hidden from Waybar by default. The existing
+`cq_maintenance setup` command still only installs/enables the observing timer.
+Missing monitor units or an absent timer enablement link produce a cheap cached
+health warning even after a manual check; stopped collectors expire by heartbeat.
+Enabled mail checks continue to report missing mail setup in ordinary health.
+
+The initial recipes are:
+
+* `maintenance`: generate owned monitor units and enable/start its timer.
+* `mail`: reuse `cq_mailctl setup`; link generated units and enable/start only
+  the timers required by enabled mail/contact checks with `expected_timer=true`.
+  Restore private settings, GPG keys and password-store credentials separately.
+  Setup readiness does not require unlocking keys or synchronizing mail.
+* `paru`: test `paru --version`; bootstrap or explicitly rebuild stable paru
+  directly from `https://aur.archlinux.org/paru.git` in a private user cache.
+  Install missing `base-devel`/`git` first, display the PKGBUILD and commit, ask
+  for build review, then run `makepkg -si` as the normal user. Never use the
+  broken helper to repair itself. The explicit rebuild action is available even
+  when the startup test succeeds. Switching away from `paru-git` is not automatic.
+* `gopass-jsonapi`: install missing `gopass-jsonapi-git`, gopass and GnuPG, then
+  configure the selected native messaging targets. Zen/Firefox is the default;
+  Chrome, Chromium, Brave and Vivaldi are optional `browsers` values. Preserve
+  existing extension allowlists and wrapper customizations. Set `GNUPGHOME` and
+  `PASSWORD_STORE_DIR`, and align gopass's `[mounts] path` while preserving other
+  mounts/settings. Existing key/store directories must already be restored.
+  A locked key is a runtime condition, not a setup defect.
+
+Shared defaults are in `config.toml`; machine overrides use the adjacent
+`config.local.toml`. Setup enable/disable in the UI writes only that local file:
+
+```toml
+[setup.gopass-jsonapi]
+enabled = true
+waybar = false
+
+[setup.gopass-jsonapi.options]
+browsers = ["firefox"]
+gnupghome = "~/.config/gnupg"
+password_store = "~/Sync/Password-Store"
+```
+
+An explicit `waybar=true` exposes that item's cached readiness in health and
+refreshes it during collection. It opens the same Setup view for review; setup
+is never part of safe Fix all. Unsupported/disabled items are omitted. A stale
+opted-in observation becomes unknown after 15 minutes.
+
+Plans include dependencies once, install repository prerequisites before AUR
+builds, and stop dependent work after a failure. Installed prerequisites remain
+installed. Review/confirmation and normal sudo/AUR prompts remain interactive.
+No implicit full upgrade occurs: use the separate **Arch upgrade** action when
+needed; never refresh only the live pacman database with `pacman -Sy`.
+Configuration/source fingerprints reject stale UI previews before execution;
+configuration is checked again between steps. Browser writes are atomic with
+private previous copies under `$XDG_STATE_HOME/cq/maintenance/setup/recovery`.
+Action history records summaries rather than credentials. Inspect the recovery
+copies to restore a generated config; packages are not automatically rolled back.
+Do not sync setup state, recovery copies or build caches.
+
+The live native wrapper/manifests and gopass config are generated local files,
+not public dotfiles. The portable recipe and options are tracked instead.
+Ansible remains the initial machine provisioning layer. Reusable setup recipes
+handle later readiness and repair; no deprecated MkDocs recipe is included.
+
+## Extending setup
+
+Register a provider object in `provision.recipes.PROVIDERS` and add a
+`[setup.<id>]` configuration with that provider. The interface is:
+
+* `inspect(ctx) -> Observation`: bounded, read-only readiness inspection.
+* `plan(ctx, action) -> (list[Step], blockers, changes)`: declarative dependencies;
+  no downloads or configuration changes.
+* `watched(ctx) -> list[Path]`: files fingerprinted for review/apply safety.
+* `apply(ctx, step)`: execute one reviewed step; inspection verifies completion.
+
+Step kinds are extensible. IDs identify shared dependency nodes; `requires`
+forms a checked acyclic graph. `core.ordered` consolidates `pacman` requirements.
+Reuse `packages.pacman_step`, `paru_steps` and `aur_steps`; delegate those package
+steps to `packages.apply`. Use `core.replace_file` for owned generated files and
+private recovery. Providers must validate ownership before planning writes,
+respect foreground authentication and keep secrets out of results/history.
+
+
+## Taskwarrior sync freshness
+
+The enabled `taskwarrior` health check warns after 24 hours without a recorded
+successful sync (`checks.taskwarrior.options.stale_seconds = 86400`). It checks
+local metadata only, never the server or task descriptions. Sync is available
+through `cq_maintenance fix taskwarrior`, safe Fix all and the Waybar menu.
+Failed sync commands preserve the last successful timestamp.
+
+The `taskwarrior` setup item links the portable `cq_task-sync-hook` into the
+configured Taskwarrior hooks directory (default `<data.location>/hooks`). It
+preserves existing hooks and refuses to replace a foreign file. The on-exit
+hook records successful manual `task sync` commands and triggers a local cache
+refresh, which signals Waybar. It requires hooks enabled and Taskwarrior 3.5.x
+(the verified API; 3.x versions >=3.5 are accepted, 4.x requires revalidation).
+The check deliberately runs its local `_get` queries with hooks off.
+
+Taskwarrior's database has no last-sync timestamp. Old database modification
+times are not used as a baseline: the first successful tracked sync establishes
+one. Records are private, machine local and keyed by data directory. Commands
+run with `rc.hooks=off` or using an uninstalled/custom hooks directory are not
+tracked, except syncs run by maintenance itself, whose exit status is recorded.
+Disable `[checks.taskwarrior]` on machines that do not use Taskwarrior. Its setup
+item is hidden from Waybar; the normal freshness check remains visible.

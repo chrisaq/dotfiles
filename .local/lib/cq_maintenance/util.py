@@ -53,7 +53,7 @@ def lock(name):
         yield
     finally:os.close(fd)
 
-def run(argv, *, timeout=30, env=None, foreground=False, input=None):
+def run(argv, *, timeout=30, env=None, foreground=False, input=None, cwd=None):
     argv=[str(a) for a in argv]
     environment=dict(os.environ)
     environment['PATH']=str(Path.home()/'.local/bin')+os.pathsep+environment.get('PATH','/usr/bin:/bin')
@@ -61,8 +61,8 @@ def run(argv, *, timeout=30, env=None, foreground=False, input=None):
         environment.update(GIT_TERMINAL_PROMPT='0',GCM_INTERACTIVE='never',GIT_OPTIONAL_LOCKS='0',SSH_ASKPASS='/bin/false',GIT_SSH_COMMAND='ssh -oBatchMode=yes -oIdentityAgent=none -oConnectTimeout=10 -oNumberOfPasswordPrompts=0')
     if env:environment.update(env)
     try:
-        if foreground:return subprocess.run(argv,env=environment,timeout=timeout)
-        process=subprocess.Popen(argv,env=environment,text=True,stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
+        if foreground:return subprocess.run(argv,env=environment,timeout=timeout,cwd=cwd)
+        process=subprocess.Popen(argv,env=environment,text=True,stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True,cwd=cwd)
         try:out,err=process.communicate(input=input,timeout=timeout)
         except subprocess.TimeoutExpired:
             os.killpg(process.pid,signal.SIGTERM)

@@ -5,3 +5,6 @@
 # Alternative, tracks entire $HOME, but hides it, does not require -f:
 # dotfiles config --local status.showUntrackedFiles no
 # dotlocal config --local status.showUntrackedFiles no
+
+# Generated native password host wrapper; portable setup recipe is tracked.
+/.config/gopass/gopass_wrapper.sh

@@ -1,0 +1,65 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["pydantic==2.14.1"]
+# ///
+#:usage: cq_task-sync-hook [Taskwarrior hook context]
+#:desc: Record successful Taskwarrior sync timestamps for cq_maintenance.
+"""Taskwarrior 3 on-exit hook; never writes task content or opens authentication."""
+
+import sys
+from pathlib import Path
+
+
+def main():
+    context = dict(arg.split(":", 1) for arg in sys.argv[1:] if ":" in arg)
+    # Drain protocol input without retaining or logging tasks.
+    for _ in sys.stdin:
+        pass
+    if context.get("command") not in ("sync", "synchronize"):
+        return
+    # Verified against 3.5: sync errors throw before Context::run calls onExit.
+    version = tuple(
+        int(n) for n in context.get("version", "0").split(".")[:2] if n.isdigit()
+    )
+    if version < (3, 5) or version >= (4,):
+        return
+    data = context.get("data")
+    if not data or not Path(data).is_absolute():
+        return
+    sys.path.insert(0, str(Path.home() / ".local/lib"))
+    from cq_maintenance.providers.taskwarrior import record_success
+
+    record_success(data)
+    # Refresh the cached check after manual sync too; never recurse into hooks.
+    import subprocess
+    from cq_maintenance.config import load
+
+    ids = [
+        id
+        for id, item in load().checks.items()
+        if item.enabled and item.provider == "taskwarrior"
+    ]
+    if ids:
+        subprocess.Popen(
+            [
+                str(Path.home() / ".local/bin/cq_maintenance"),
+                "check",
+                ids[0],
+                "--quiet",
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        # A bookkeeping failure must not turn a completed task sync into failure.
+        print(
+            "cq_maintenance could not record the sync timestamp; inspect its taskwarrior check."
+        )

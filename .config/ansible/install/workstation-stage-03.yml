@@ -8,5 +8,5 @@
 - name: Xiaomi Scale
   import_playbook: ../playbooks/306-xiaomi-weight.yml
 
-- name: MkDocs
-  import_playbook: ../playbooks/308-mkdocs.yml
+# MkDocs retired: current wikis are published by Zensical in Kubernetes.
+# The legacy 308-mkdocs.yml playbook remains available as historical material.

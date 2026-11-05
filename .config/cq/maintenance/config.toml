@@ -112,3 +112,44 @@ timeout = 30
 
 [checks.failed-units.options]
 ignore = []
+
+# Setup items are inspected on demand, independently of the health checklist.
+# Per-machine overrides belong in config.local.toml. Opt in with waybar=true.
+[setup.maintenance]
+provider = "maintenance"
+enabled = true
+waybar = false
+
+[setup.mail]
+provider = "mail"
+enabled = true
+waybar = false
+
+[setup.paru]
+provider = "paru"
+enabled = true
+waybar = false
+
+[setup.gopass-jsonapi]
+provider = "browser"
+enabled = true
+waybar = false
+
+[setup.gopass-jsonapi.options]
+browsers = ["firefox"] # Zen uses Firefox native messaging; other browsers are opt-in.
+gnupghome = "~/.config/gnupg"
+password_store = "~/Sync/Password-Store"
+
+[checks.taskwarrior]
+provider = "taskwarrior"
+enabled = true
+interval = 60
+timeout = 30
+
+[checks.taskwarrior.options]
+stale_seconds = 86400
+
+[setup.taskwarrior]
+provider = "taskwarrior"
+enabled = true
+waybar = false

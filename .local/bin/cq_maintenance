@@ -9,7 +9,7 @@
 #   "tomli-w==1.2.0",
 # ]
 # ///
-#:usage: cq_maintenance [status|check|fix|open|waybar|menu|setup|config]
+#:usage: cq_maintenance [guide|--help|status|check|fix|open|waybar|menu|setup|setup-status|setup-plan|setup-apply|config]
 #:no-args: true
 #:desc: Inspect and maintain sync, configuration, service and package health.
 """Desktop maintenance dashboard; checking never performs repairs."""

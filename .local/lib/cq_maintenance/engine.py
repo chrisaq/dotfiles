@@ -1,5 +1,5 @@
 from __future__ import annotations
-import concurrent.futures,json,os,time,hashlib
+import concurrent.futures,hashlib
 from pathlib import Path
 from .model import Result,now
 from .config import load
@@ -28,8 +28,14 @@ def snapshot(settings=None,include_disabled=False):
         if job.get('active') and now()-job.get('started_at',0)<job.get('timeout',3600):item.activity=job.get('activity','running')
         results.append(item)
     monitor=read_json(state_dir()/'collector.json',{})
-    if results and now()-monitor.get('heartbeat',0)>180:
+    from .provision.units import bootstrap_hint
+    hint=bootstrap_hint(settings)
+    if hint:
+        results.insert(0,Result(id='monitor',state='warning',summary=hint,details=['Run cq_maintenance setup or open the Setup checklist.']))
+    elif results and now()-monitor.get('heartbeat',0)>180:
         results.insert(0,Result(id='monitor',state='unknown',summary='Collector has not run recently',checked_at=monitor.get('heartbeat',0),stale=True))
+    from .provision.core import visible
+    results.extend(visible(settings))
     return results
 
 def save(result):
@@ -92,6 +98,9 @@ def collect(ids=None,due=False):
             for future in concurrent.futures.as_completed(futures):
                 future.result();atomic_json(state_dir()/'collector.json',{'heartbeat':now(),'running':True})
         atomic_json(state_dir()/'collector.json',{'heartbeat':now(),'running':False})
+    from .provision.core import inspect_one
+    for setup_id,item in settings.setup.items():
+        if item.enabled and item.waybar:inspect_one(setup_id,settings,True)
     signal_bar(settings.waybar_signal)
     return snapshot(settings)
 
