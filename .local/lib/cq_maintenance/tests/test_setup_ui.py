@@ -93,3 +93,20 @@ class SetupUITests(unittest.IsolatedAsyncioTestCase):
 
     async def test_blocked(self):
         await self.exercise((60, 24), "macchiato", True)
+
+    async def test_setup_enabled_column_and_keyboard_toggle(self):
+        settings=Settings(setup={'paru':{'provider':'paru'}})
+        def toggle(id,enabled):settings.setup[id].enabled=enabled
+        def observe(*args):return [Observation(id='paru',status='ready' if settings.setup['paru'].enabled else 'disabled',summary='Fixture')]
+        with patch('cq_maintenance.dashboard.load',return_value=settings),patch('cq_maintenance.dashboard.snapshot',return_value=[]),patch('cq_maintenance.provision.ui.load',return_value=settings),patch('cq_maintenance.provision.ui.inspect_all',side_effect=observe),patch('cq_maintenance.provision.ui.plan',return_value=Plan(id='paru')),patch('cq_maintenance.provision.ui.read_json',return_value=[]),patch('cq_maintenance.provision.ui.toggle_setup',side_effect=toggle) as change,patch.object(MaintenanceApp,'launch') as launch:
+            app=MaintenanceApp(select='paru',view='setup')
+            async with app.run_test(size=(80,30)) as pilot:
+                await pilot.pause();await app.workers.wait_for_complete();await pilot.pause()
+                table=app.screen.query_one('#su-items')
+                self.assertEqual(table.get_row('paru')[1].plain,'Yes')
+                await pilot.press('e');await app.workers.wait_for_complete();await pilot.pause()
+                self.assertEqual(table.get_row('paru')[1].plain,'No')
+                change.assert_called_once_with('paru',False)
+                await pilot.press('e');await app.workers.wait_for_complete();await pilot.pause()
+                self.assertEqual(table.get_row('paru')[1].plain,'Yes')
+                launch.assert_not_called()

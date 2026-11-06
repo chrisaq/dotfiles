@@ -49,6 +49,7 @@ def sync_mirror(system):
 def sync(system):
     try:
         with system.lock('contacts'):
+            system.status('contacts','running','Syncing contacts with Radicale')
             sync_mirror(system)
             system.status('contacts', 'ok', 'Read-only Radicale mirror refreshed')
     except MailBusy:

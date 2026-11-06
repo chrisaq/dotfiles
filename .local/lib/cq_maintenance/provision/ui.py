@@ -30,6 +30,7 @@ class SetupScreen(ModalScreen):
     BINDINGS = [
         Binding("escape", "close", "Health", priority=True),
         Binding("ctrl+r", "refresh", "Inspect", priority=True),
+        Binding("e", "toggle", "Enable/disable", priority=True),
     ]
 
     def __init__(self, selected=None):
@@ -55,20 +56,20 @@ class SetupScreen(ModalScreen):
                 ("plan", "Preview plan"),
                 ("apply", "Apply selected"),
                 ("rebuild", "Rebuild paru"),
-                ("toggle", "Enable/disable"),
+                ("toggle", "Enable/disable (e)"),
                 ("upgrade", "Arch upgrade"),
                 ("close", "Health"),
             ]:
                 yield Button(label, id="su-" + id)
         yield Static(
-            "Viewing and planning never install packages or decrypt credentials.",
+            "e Enable/disable selected item · Viewing and planning never install packages.",
             id="su-status",
             markup=False,
         )
 
     def on_mount(self):
         self.set_class(self.app.size.width < 110, "narrow")
-        self.query_one("#su-items", DataTable).add_columns("Setup", "State", "Summary")
+        self.query_one("#su-items", DataTable).add_columns("Setup", "Enabled", "State", "Summary")
         self.action_refresh()
 
     def on_resize(self, event):
@@ -98,9 +99,12 @@ class SetupScreen(ModalScreen):
             self.rows = {r.id: r for r in observations}
             table = self.query_one("#su-items", DataTable)
             table.clear()
+            settings = load()
             for row in observations:
+                enabled = settings.setup[row.id].enabled
                 table.add_row(
                     row.id,
+                    Text("Yes" if enabled else "No", style="green" if enabled else "grey50"),
                     Text(row.status, style=COLORS[row.status]),
                     row.summary,
                     key=row.id,
@@ -197,12 +201,17 @@ class SetupScreen(ModalScreen):
             self.preview("rebuild")
         elif key == "apply":
             self.apply_selected()
-        elif key == "toggle" and self.selected:
-            toggle_setup(self.selected, not load().setup[self.selected].enabled)
-            self.action_refresh()
+        elif key == "toggle":
+            self.action_toggle()
         elif key == "upgrade":
             self.app.launch(["review", "arch"])
             self.action_refresh()
+
+    def action_toggle(self):
+        if self.busy or not self.selected:
+            return
+        toggle_setup(self.selected, not load().setup[self.selected].enabled)
+        self.action_refresh()
 
     def apply_selected(self):
         if (

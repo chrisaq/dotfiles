@@ -40,6 +40,9 @@ class MailFixture(unittest.TestCase):
         notifier = patch.object(self.system, 'notify_unlock', return_value=True)
         self.notify = notifier.start()
         self.addCleanup(notifier.stop)
+        status_notify = patch.object(self.system, 'notify_maintenance')
+        status_notify.start()
+        self.addCleanup(status_notify.stop)
         import importlib.util
         spec = importlib.util.spec_from_file_location('fixture_builder', ROOT / 'build-config.py')
         builder = importlib.util.module_from_spec(spec)
@@ -418,6 +421,24 @@ class MailFixture(unittest.TestCase):
         (self.system.state/'unlock-notification.json').unlink()
         with patch('mailcore.shutil.which',return_value='/fake/notify-send'),patch.object(self.system,'run',side_effect=MailError('No desktop bus')):
             self.assertFalse(MailSystem.notify_unlock(self.system))
+
+
+    def test_contacts_announces_running_before_credential_retry(self):
+        self.system.status('contacts','unlock-required','Previous attempt needed unlock')
+        observed=[]
+        def mirror(system):
+            observed.append(json.loads((system.state/'contacts-status.json').read_text())['state'])
+        with patch.object(mailcontacts,'sync_mirror',side_effect=mirror):
+            mailcontacts.sync(self.system)
+        self.assertEqual(observed,['running'])
+        self.assertEqual(json.loads((self.system.state/'contacts-status.json').read_text())['state'],'ok')
+
+    def test_status_change_requests_only_a_cached_refresh(self):
+        with patch('mailcore.Path.home',return_value=self.base),patch('mailcore.subprocess.Popen') as popen:
+            helper=self.base/'.local/bin/cq_maintenance';helper.parent.mkdir(parents=True);helper.write_text('# fixture')
+            MailSystem.notify_maintenance(self.system)
+        self.assertEqual(popen.call_args.args[0],[str(helper),'notify'])
+        self.assertTrue(popen.call_args.kwargs['start_new_session'])
 
 
 if __name__ == '__main__':

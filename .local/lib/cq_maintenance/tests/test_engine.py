@@ -281,7 +281,7 @@ class MailUnlockTests(Isolated):
                         row=mail.check(ctx)
                     self.assertEqual(row.state,'pending')
                     self.assertEqual(row.last_success,success)
-                    self.assertIn('unlock required',row.summary)
+                    self.assertIn('last attempt needed unlock',row.summary)
 
     def test_timer_and_real_failures_keep_higher_severity(self):
         from datetime import datetime,timezone
@@ -292,3 +292,46 @@ class MailUnlockTests(Isolated):
                 ctx=Context('mail',Check(provider='mail'))
                 with patch.object(ctx,'run',side_effect=[subprocess.CompletedProcess([],0,json.dumps(data),''),subprocess.CompletedProcess([],0,timer,'')]):
                     self.assertEqual(mail.check(ctx).state,expected)
+
+
+class MailProgressTests(Isolated):
+    def test_live_progress_replaces_cached_failure_without_running_commands(self):
+        from datetime import datetime,timezone
+        from cq_maintenance.providers import mail
+        state=self.home/'mail-state';state.mkdir()
+        settings=self.home/'.config/mutt/settings.json';settings.parent.mkdir(parents=True)
+        settings.write_text(json.dumps({'state':str(state)}))
+        stamp=datetime.fromtimestamp(now(),timezone.utc).isoformat()
+        previous=Result(id='mail',state='error',summary='Previous attempt failed',checked_at=now(),metrics={'component':'mail','timer_active':True})
+        ctx=Context('mail',Check(provider='mail'),previous)
+        for record,expected,activity in [('running','pending','syncing'),('ok','ok',''),('error','error',''),('unlock-required','pending','')]:
+            with self.subTest(record=record):
+                atomic_json(state/'mail-status.json',{'state':record,'last_attempt':stamp,'last_success':stamp,'message':'Fixture progress'})
+                with patch.object(ctx,'run',side_effect=AssertionError('Snapshot must be local-only')):
+                    row=mail.overlay(ctx,previous)
+                self.assertEqual(row.state,expected)
+                self.assertEqual(row.activity,activity)
+                self.assertEqual(row.checked_at,previous.checked_at)
+                self.assertIn('Fixture progress',row.details)
+
+    def test_running_status_is_pending_until_timeout_not_old_success_warning(self):
+        from datetime import datetime,timezone
+        from cq_maintenance.providers import mail
+        ctx=Context('contacts',Check(provider='mail',options={'component':'contacts'}))
+        stamp=lambda seconds:datetime.fromtimestamp(now()-seconds,timezone.utc).isoformat()
+        data={'state':'running','last_attempt':stamp(10),'last_success':stamp(86400),'message':'Syncing'}
+        row=mail.from_status(ctx,data,True)
+        self.assertEqual(row.state,'pending');self.assertEqual(row.activity,'syncing')
+        self.assertIn('Syncing',row.summary)
+        data['last_attempt']=stamp(2200)
+        row=mail.from_status(ctx,data,True)
+        self.assertEqual(row.state,'warning');self.assertEqual(row.activity,'')
+        self.assertIn('stalled',row.summary)
+
+    def test_unlock_status_describes_last_attempt_not_live_key_state(self):
+        from cq_maintenance.providers import mail
+        ctx=Context('mail',Check(provider='mail'))
+        row=mail.from_status(ctx,{'state':'unlock-required'},True)
+        self.assertEqual(row.state,'pending')
+        self.assertIn('last attempt needed unlock',row.summary)
+        self.assertTrue(any('Refresh only reads status' in s for s in row.details))

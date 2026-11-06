@@ -162,6 +162,12 @@ def waybar():
     render()
 
 @app.command()
+def notify():
+    """Refresh Waybar from cached/local status; no checks, authentication or repairs."""
+    from .engine import notify_bar
+    notify_bar()
+
+@app.command()
 def menu():
     """Dynamic Rofi action menu for enabled checks; no repairs on opening."""
     from .engine import snapshot

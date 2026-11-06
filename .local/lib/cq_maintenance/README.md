@@ -305,3 +305,24 @@ updates, not packages removed from the AUR. Failed metadata queries report
 unknown and are not treated as update counts. Set an override in the adjacent
 `config.local.toml` for a different machine policy. Upgrades still require an
 explicit reviewed action and are excluded from safe Fix all.
+
+
+The health and Setup tables have an **Enabled** column (`Yes`/`No`). Disabled
+items remain listed. Select a row and press **e** to toggle it on this machine;
+health also labels the button Enable/Disable to show the next action. Changes
+are written only to `config.local.toml`. Toggling a health check controls its
+monitoring, not the underlying service or timer. The collector's automatic
+health row is marked `Auto` and has no direct toggle.
+
+
+Mail/contact Refresh (including Waybar middle-click) reads status; it never tests
+credentials or retries sync. Pending unlock text describes **the last attempt**,
+not whether the key is currently locked. After unlocking, use Sync or wait for the
+timer. Both components announce running before retrying credentials. The TUI/bar
+read current local progress directly, so an old cached failure/unlock status does
+not linger during a retry. Mail status changes signal a cached-only Waybar refresh
+via `cq_maintenance notify`; this runs no checks, syncs or authentication.
+A running attempt is pending, with its last-success age still visible. If no
+progress is recorded for 35 minutes (`running_timeout=2100` seconds), it warns
+that sync may have stalled. Actual outcomes and independent failures retain their
+own severity; starting a sync does not hide other failed services or checks.

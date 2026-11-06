@@ -173,6 +173,19 @@ class MailSystem:
             if self.notify_unlock():
                 previous["unlock_notified"] = True
                 atomic_write(path, json.dumps(previous, indent=2) + "\n")
+        self.notify_maintenance()
+
+    def notify_maintenance(self):
+        """Prompt a cached-only bar refresh after progress/outcome changes."""
+        helper = Path.home() / '.local/bin/cq_maintenance'
+        if not helper.is_file():
+            return
+        try:
+            subprocess.Popen([str(helper), 'notify'], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+        except OSError:
+            pass
 
     def notify_unlock(self):
         """One notice per locked period; mail/contacts share a 15-minute cooldown."""

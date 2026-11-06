@@ -35,13 +35,13 @@ class MaintenanceApp(App):
         self.register_theme(Theme(name='catppuccin-macchiato',primary='#8aadf4',secondary='#c6a0f6',accent='#c6a0f6',foreground='#cad3f5',background='#24273a',surface='#1e2030',panel='#363a4f',success='#a6da95',warning='#eed49f',error='#ed8796',dark=True))
     def compose(self)->ComposeResult:
         yield Header()
-        yield Static('New machine? ? Startup guide · t Setup · r Refresh health',id='hint')
+        yield Static('e Enable/disable selected check · t Setup · ? Startup guide',id='hint')
         with Horizontal(id='body'):
             yield DataTable(id='checks',cursor_type='row')
             with VerticalScroll(id='detail-pane'):
                 yield Static(id='detail')
         with HorizontalScroll(id='buttons'):
-            for id,label in [('refresh','Refresh'),('fix_all','Fix all'),('fix_selected','Fix selected'),('review','Review'),('open','Open'),('toggle','Toggle'),('setup','Setup'),('guide','Startup guide')]:yield Button(label,id=id)
+            for id,label in [('refresh','Refresh'),('fix_all','Fix all'),('fix_selected','Fix selected'),('review','Review'),('open','Open'),('toggle','Enable/disable (e)'),('setup','Setup'),('guide','Startup guide')]:yield Button(label,id=id)
         yield Footer()
     def check_action(self,action,parameters):
         if isinstance(self.screen,ModalScreen) and action in {'refresh','fix_all','fix_selected','review','open','toggle','quit','setup','guide'}:return False
@@ -50,7 +50,7 @@ class MaintenanceApp(App):
         self.screen.set_class(event.size.width<110,'narrow')
     def on_mount(self):
         self.theme='catppuccin-'+load().theme
-        self.query_one('#checks',DataTable).add_columns('Check','State','Status')
+        self.query_one('#checks',DataTable).add_columns('Check','Enabled','State','Status')
         self.repaint();self.set_interval(2,self.repaint)
         if self.initial_view=='setup':self.call_after_refresh(self.action_setup)
         elif self.startup_guide:
@@ -58,12 +58,17 @@ class MaintenanceApp(App):
             if bootstrap_hint(load()):self.call_after_refresh(self.action_guide)
     def repaint(self):
         table=self.query_one('#checks',DataTable);previous_selection=self.selected
-        try:rows=snapshot(include_disabled=True)
+        try:
+            settings=load()
+            rows=snapshot(settings,include_disabled=True)
         except Exception:
             self.query_one('#detail',Static).update('Configuration/cache unavailable. Run config validate.');return
         self.rows={row.id:row for row in rows}
         table.clear()
-        for row in rows:table.add_row(row.id,Text(row.state,style=COLORS[row.state]),row.summary,key=row.id)
+        for row in rows:
+            config=settings.setup.get(row.id.split(':',1)[1]) if row.id.startswith('setup:') else settings.checks.get(row.id)
+            enabled=Text('Yes' if config.enabled else 'No',style=COLORS['ok' if config.enabled else 'disabled']) if config else Text('Auto' if row.id=='monitor' else '—',style=COLORS['disabled'])
+            table.add_row(row.id,enabled,Text(row.state,style=COLORS[row.state]),row.summary,key=row.id)
         if previous_selection in self.rows:
             index=list(self.rows).index(previous_selection);table.move_cursor(row=index)
         elif rows:self.selected=rows[0].id
@@ -74,7 +79,13 @@ class MaintenanceApp(App):
         row=self.rows.get(self.selected)
         if not row:return
         events=[event for event in read_json(state_dir()/'actions.json',[]) if event.get('id')==row.id][-5:]
-        lines=[row.id.upper(),row.state+' · '+row.summary,'Checked '+age(row.checked_at)]
+        settings=load()
+        config=settings.setup.get(row.id.split(':',1)[1]) if row.id.startswith('setup:') else settings.checks.get(row.id)
+        button=self.query_one('#toggle',Button)
+        button.disabled=config is None
+        button.label=('Disable (e)' if config.enabled else 'Enable (e)') if config else 'Enable/disable (e)'
+        enabled=('Yes · e to disable' if config.enabled else 'No · e to enable') if config else 'Automatic'
+        lines=[row.id.upper(),'Enabled on this machine: '+enabled,row.state+' · '+row.summary,'Checked '+age(row.checked_at)]
         if row.last_success:lines.append('Last operation success '+age(row.last_success))
         if row.activity:lines.append('Activity: '+row.activity)
         detail_lines=[line.replace(str(Path.home())+'/', '~/') for line in row.details]

@@ -20,9 +20,12 @@ def snapshot(settings=None,include_disabled=False):
             if include_disabled:results.append(Result(id=id,state='disabled',summary='Disabled on this machine'))
             continue
         item=previous(id) or Result(id=id,state='unknown',summary='Not checked yet',checked_at=0)
+        if config.provider=='mail':
+            from .providers.mail import overlay
+            item=overlay(Context(id,config,item),item)
         if now()-item.checked_at>max(180,config.interval*3):
             item.stale=True
-            if item.state not in ('error','warning'):item.state='unknown'
+            if item.state not in ('error','warning') and not (config.provider=='mail' and item.activity):item.state='unknown'
             item.details.insert(0,'Observation is stale; run a check.')
         job=read_json(state_dir()/'jobs'/(id+'.json'),{})
         if job.get('active') and now()-job.get('started_at',0)<job.get('timeout',3600):item.activity=job.get('activity','running')
