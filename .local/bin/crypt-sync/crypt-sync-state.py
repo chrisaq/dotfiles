@@ -100,7 +100,7 @@ def gpg(args,**kwargs):
 def verify(local,vault):
     a=fingerprint(local);b=fingerprint(vault)
     response=gpg(['--decrypt',str(vault)])
-    if response.returncode:raise Blocked('GPG unlock required or encrypted copy unavailable')
+    if response.returncode:raise Blocked('GPG decryption failed; check key availability, card access and unlock state')
     matches=hashlib.sha256(response.stdout).hexdigest()==a['sha']
     del response
     if fingerprint(local)!=a or fingerprint(vault)!=b:raise Blocked('File changed during verification')
@@ -157,8 +157,9 @@ def main():
                 elif state in ('encrypt','decrypt') and not args.verify:transfer(local,vault,state)
                 elif state in ('conflict','invalid'):raise Blocked('Independent changes or invalid paths; review required')
                 print(name+': '+('verified' if state=='unverified' else state))
-            except (Blocked,OSError):
-                blocked+=1;print(name+': blocked; review copies or unlock GPG',file=sys.stderr)
+            except (Blocked,OSError) as error:
+                reason=str(error) if isinstance(error,Blocked) else 'File access failed; check paths and permissions'
+                blocked+=1;print(name+': blocked; '+reason,file=sys.stderr)
         if args.resolve and not found:raise Blocked('Unknown mapping name')
         with locked('state.lock'):
             data=ledger();data['last_attempt']=time.time();data['last_exit']=1 if blocked else 0

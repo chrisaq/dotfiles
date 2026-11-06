@@ -17,6 +17,6 @@ def check(ctx):
 def execute(ctx,id):
     args=[script(ctx),'--safe']
     result=ctx.run(args,env=environment(ctx),foreground=True,timeout=600)
-    if result.returncode:raise Problem('Some crypt-sync entries remain blocked; review conflicts or unlock GPG')
+    if result.returncode:raise Problem('Some crypt-sync entries remain blocked; see the per-file reasons above')
     return 'Guarded crypt-sync completed'
 def open(ctx):return ['cq_maintenance','tui','--select',ctx.id]

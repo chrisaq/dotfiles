@@ -65,7 +65,9 @@ round trip. Real configuration files and the normal GPG keyring are not used.
 `crypt-sync.sh --check --json` reports mapping/fingerprint state without decrypting
 or changing files. `--safe` transfers only unambiguous changes and verifies existing
 unverified matching copies in memory when GPG is available. Two changed sides or
-unverified differing copies remain blocked. `--resolve NAME --prefer local|vault`
+unverified differing copies remain blocked. Per-file output distinguishes differing
+copies from GPG decryption failures; an unlocked card does not choose between
+different versions. `--resolve NAME --prefer local|vault`
 is an explicit authoritative-source selection; it is never done by monitoring.
 The no-argument timestamp policy above remains unchanged.
 

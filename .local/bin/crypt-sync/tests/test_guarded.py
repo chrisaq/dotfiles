@@ -1,5 +1,5 @@
 """Guarded crypt-sync; only disposable homes and fake cryptographic payloads."""
-import importlib.util,os,subprocess,tempfile,unittest
+import contextlib,importlib.util,io,os,subprocess,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('guarded',Path(__file__).resolve().parents[1]/'crypt-sync-state.py')
@@ -59,3 +59,20 @@ class GuardedSync(unittest.TestCase):
         self.local.write_text('local');self.vault.write_text('cipher:remote')
         with patch.object(guarded,'gpg',side_effect=self.fake_gpg):self.assertFalse(guarded.verify(self.local,self.vault))
         self.assertEqual(self.inspect(),'unverified')
+
+    def test_mismatch_reports_source_review_without_suggesting_unlock(self):
+        self.local.write_text('local');self.vault.write_text('cipher:remote');output=io.StringIO()
+        with patch('sys.argv',['helper','--safe']),patch.object(guarded,'gpg',side_effect=self.fake_gpg),contextlib.redirect_stderr(output):
+            self.assertEqual(guarded.main(),1)
+        self.assertIn('Copies differ without a verified baseline',output.getvalue())
+        self.assertNotIn('unlock',output.getvalue())
+        self.assertEqual(self.local.read_text(),'local');self.assertEqual(self.vault.read_text(),'cipher:remote')
+
+    def test_failed_decryption_reports_gpg_failure_without_source_selection(self):
+        self.local.write_text('local');self.vault.write_text('cipher:remote');output=io.StringIO()
+        response=subprocess.CompletedProcess([],2,b'',b'private diagnostic must not be printed')
+        with patch('sys.argv',['helper','--safe']),patch.object(guarded,'gpg',return_value=response),contextlib.redirect_stderr(output):
+            self.assertEqual(guarded.main(),1)
+        self.assertIn('GPG decryption failed',output.getvalue())
+        self.assertNotIn('Copies differ',output.getvalue())
+        self.assertNotIn('private diagnostic',output.getvalue())
