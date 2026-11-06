@@ -343,7 +343,12 @@ A repository with missing/unsafe upstream or fetch configuration reports
 Successful interactive pulls do not require the same tracking configuration as a
 safe background fetch. This known setup condition is not reported as unknown;
 ahead/behind counts are omitted until verified. No new commit is required.
-Repair repository-local fetch/upstream metadata, then refresh the check. The
+Run `cq_maintenance fix dotfiles` or `cq_maintenance fix dotlocal` (or select
+Fix in the TUI) to verify the remote branch and repair repository-local
+fetch/upstream metadata. This preserves HEAD, working files and tags; it creates
+no commit and does not push. A later Fix can fast-forward a clean behind-only
+repository. An ambiguous remote/branch requires explicit `options.remote` and
+`options.remote_branch` before automatic repair is offered. The
 monitor does not fetch into local branch refs or invent a remote verification
 timestamp. Genuine remote connection failures remain unknown; conflicts retain
 error priority.

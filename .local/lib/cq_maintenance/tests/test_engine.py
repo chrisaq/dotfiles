@@ -1,4 +1,4 @@
-import contextlib,json,os,subprocess,sys,tempfile,time,tomllib,unittest
+import json,os,subprocess,sys,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch,Mock
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
@@ -172,7 +172,64 @@ class GitTests(Isolated):
         self.assertTrue(row.metrics['tracking_setup_required'])
         self.assertNotIn('ahead',row.metrics)
         self.assertTrue(any('no new commit is needed' in line for line in row.details))
+        self.assertTrue(any(a.safe and a.id=='fix' for a in row.actions))
+        self.assertTrue(any('cq_maintenance fix test' in line for line in row.details))
+
+    def test_bare_clone_tracking_fix_preserves_head_and_files(self):
+        from cq_maintenance.providers import git
+        bare=self.home/'dotfiles.git'
+        self.git(['clone','--bare',str(self.remote),str(bare)])
+        self.git(['--git-dir='+str(bare),'read-tree','HEAD'])
+        # A bare clone has no normal remote tracking configuration.
+        ctx=Context('dotfiles',Check(provider='git',options={'git_dir':str(bare),'work_tree':str(self.work)}))
+        before=self.git(['--git-dir='+str(bare),'rev-parse','HEAD'])
+        (self.work/'one').write_text('local edit')
+        row=git.check(ctx)
+        self.assertEqual(row.state,'pending');self.assertIn('run fix',row.summary)
+        git.execute(ctx,'fix')
+        self.assertEqual(before,self.git(['--git-dir='+str(bare),'rev-parse','HEAD']))
+        self.assertEqual((self.work/'one').read_text(),'local edit')
+        row=git.check(ctx)
+        self.assertFalse(row.metrics.get('tracking_setup_required',False))
+        self.assertEqual(row.metrics['dirty'],1)
+        self.assertEqual((row.metrics['ahead'],row.metrics['behind']),(0,0))
+        (self.work/'one').write_text('one')
+        self.assertEqual(git.check(ctx).state,'ok')
+
+    def test_unsafe_tracking_fix_verifies_without_moving_local_branch(self):
+        from cq_maintenance.providers import git
+        other=self.home/'other';self.git(['clone',str(self.remote),str(other)])
+        self.git(['config','user.name','Test'],other);self.git(['config','user.email','test@example.org'],other)
+        (other/'two').write_text('remote');self.git(['add','two'],other);self.git(['commit','-m','remote'],other);self.git(['push'],other)
+        self.git(['config','remote.origin.fetch','+refs/heads/*:refs/heads/*'],self.work)
+        before=self.git(['rev-parse','HEAD'],self.work)
+        git.execute(self.ctx,'fix')
+        self.assertEqual(before,self.git(['rev-parse','HEAD'],self.work))
+        self.assertFalse((self.work/'two').exists())
+        row=git.check(self.ctx)
+        self.assertEqual(row.metrics['behind'],1)
+        self.assertEqual(self.git(['config','remote.origin.fetch'],self.work),'+refs/heads/*:refs/remotes/origin/*')
+
+    def test_missing_remote_branch_leaves_config_untouched(self):
+        from cq_maintenance.providers import git
+        branch=self.git(['branch','--show-current'],self.work)
+        self.git(['config','--unset-all',f'branch.{branch}.remote'],self.work)
+        self.ctx.config.options['remote_branch']='does-not-exist'
+        config=self.work/'.git/config';before=config.read_bytes()
+        with self.assertRaises(Problem):git.execute(self.ctx,'fix')
+        self.assertEqual(config.read_bytes(),before)
+        self.assertFalse(config.with_name('config.lock').exists())
+
+    def test_ambiguous_remotes_require_selection(self):
+        from cq_maintenance.providers import git
+        branch=self.git(['branch','--show-current'],self.work)
+        self.git(['config','--unset-all',f'branch.{branch}.remote'],self.work)
+        self.git(['remote','rename','origin','first'],self.work)
+        self.git(['remote','add','second',str(self.remote)],self.work)
+        row=git.check(self.ctx)
+        self.assertEqual(row.state,'pending')
         self.assertFalse(any(a.safe for a in row.actions))
+        with self.assertRaises(Problem):git.execute(self.ctx,'fix')
 
     def test_fast_forward_works_only_without_local_changes(self):
         from cq_maintenance.providers import git
