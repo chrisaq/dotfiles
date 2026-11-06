@@ -153,7 +153,27 @@ class GitTests(Isolated):
         self.git(['config','remote.origin.fetch','+refs/heads/*:refs/heads/*'],self.work)
         before=self.git(['rev-parse','HEAD'],self.work)
         result=git.check(self.ctx)
-        self.assertEqual(result.state,'unknown');self.assertEqual(before,self.git(['rev-parse','HEAD'],self.work))
+        self.assertEqual(result.state,'pending');self.assertEqual(before,self.git(['rev-parse','HEAD'],self.work))
+        self.assertTrue(result.metrics['tracking_setup_required'])
+        self.assertIn('tracking setup needed',result.summary)
+        self.assertNotIn('↑',result.summary)
+    def test_missing_tracking_is_pending_with_local_changes_and_no_fetch(self):
+        from cq_maintenance.providers import git
+        branch=self.git(['branch','--show-current'],self.work)
+        self.git(['config','--unset-all',f'branch.{branch}.remote'],self.work)
+        (self.work/'one').write_text('Local change')
+        original=Context.run
+        def call(ctx,args,**kwargs):
+            if 'fetch' in args:raise AssertionError('Do not fetch without safe tracking')
+            return original(ctx,args,**kwargs)
+        with patch.object(Context,'run',autospec=True,side_effect=call):row=git.check(self.ctx)
+        self.assertEqual(row.state,'pending')
+        self.assertEqual(row.metrics['dirty'],1)
+        self.assertTrue(row.metrics['tracking_setup_required'])
+        self.assertNotIn('ahead',row.metrics)
+        self.assertTrue(any('no new commit is needed' in line for line in row.details))
+        self.assertFalse(any(a.safe for a in row.actions))
+
     def test_fast_forward_works_only_without_local_changes(self):
         from cq_maintenance.providers import git
         other=self.home/'other';self.git(['clone',str(self.remote),str(other)])
@@ -335,3 +355,17 @@ class MailProgressTests(Isolated):
         self.assertEqual(row.state,'pending')
         self.assertIn('last attempt needed unlock',row.summary)
         self.assertTrue(any('Refresh only reads status' in s for s in row.details))
+
+
+class CryptReadinessTests(Isolated):
+    def test_unverified_pairs_are_pending_and_real_conflicts_keep_priority(self):
+        from cq_maintenance.providers import crypt
+        for states,expected in [(['unverified']*3,'pending'),(['unverified','encrypt'],'pending'),(['unverified','conflict'],'warning'),(['unverified','invalid'],'error'),(['ok'],'ok')]:
+            with self.subTest(states=states):
+                data={'entries':[{'name':str(i)+'.gpg','state':state} for i,state in enumerate(states)],'last_success':None}
+                ctx=Context('crypt-sync',Check(provider='crypt'))
+                with patch.object(ctx,'run',return_value=subprocess.CompletedProcess([],0,json.dumps(data),'')):
+                    row=crypt.check(ctx)
+                self.assertEqual(row.state,expected)
+                self.assertEqual(row.metrics['counts']['unverified'],states.count('unverified'))
+                if 'unverified' in states:self.assertTrue(any('Verification pending on this machine' in line for line in row.details))

@@ -326,3 +326,24 @@ A running attempt is pending, with its last-success age still visible. If no
 progress is recorded for 35 minutes (`running_timeout=2100` seconds), it warns
 that sync may have stalled. Actual outcomes and independent failures retain their
 own severity; starting a sync does not hide other failed services or checks.
+
+
+Crypt-sync pairs without a verified baseline report **pending**, with an explicit
+verification action, rather than unknown. On a newly configured machine, run
+`cq_maintenance fix crypt-sync` with GPG available to compare existing copies in
+memory and record the local baseline. Matching timestamps alone are insufficient;
+legacy timestamp-only sync can leave unchanged pairs unverified. Verification
+state stays machine-local. Differing copies without a baseline require explicit
+source review; no authoritative copy is guessed. Independent conflicts retain
+warning severity, and invalid paths remain errors.
+
+
+A repository with missing/unsafe upstream or fetch configuration reports
+**pending: tracking setup needed**, retaining its verified local change count.
+Successful interactive pulls do not require the same tracking configuration as a
+safe background fetch. This known setup condition is not reported as unknown;
+ahead/behind counts are omitted until verified. No new commit is required.
+Repair repository-local fetch/upstream metadata, then refresh the check. The
+monitor does not fetch into local branch refs or invent a remote verification
+timestamp. Genuine remote connection failures remain unknown; conflicts retain
+error priority.

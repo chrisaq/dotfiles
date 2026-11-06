@@ -1,4 +1,4 @@
-import json,re,tomllib,time
+import re,tomllib,time
 from datetime import datetime
 from pathlib import Path
 from ..model import now
@@ -27,7 +27,7 @@ def inspect(ctx, refresh=True):
             if row[0] in 'RC' or row[1] in 'RC':i+=1
         i+=1
     metrics={'dirty':len(statuses),'staged':sum(s[0]!=' ' for s in statuses),'unstaged':sum(s[1]!=' ' for s in statuses),'conflicts':sum(s in ('DD','AU','UD','UA','DU','AA','UU') for s in statuses),'git_dir':str(directory)}
-    details=[];remote_unknown=False
+    details=[];remote_unknown=False;tracking_setup=False
     branch=git('symbolic-ref','--short','HEAD')
     if branch.returncode:return ctx.result('warning','Detached HEAD; review repository',metrics=metrics,actions=[action('Open workbench',False,'open')]),prefix,None
     metrics['branch']=branch.stdout.strip()
@@ -37,7 +37,10 @@ def inspect(ctx, refresh=True):
     valid=bool(remote and re.fullmatch(r'[A-Za-z0-9_.-]+',remote) and remote!='.' and rules)
     valid=valid and all(rule.startswith('^refs/heads/') or bool(re.fullmatch(r'\+?refs/heads/[^:]+:refs/remotes/'+re.escape(remote)+r'/[^:]+',rule)) for rule in rules)
     if upstream.returncode or not valid or not upstream.stdout.strip().startswith('refs/remotes/'+remote+'/'):
-        remote_unknown=True;details.append('Missing or unsafe upstream/fetch configuration; repair in the dotfiles workbench.')
+        remote_unknown=True;tracking_setup=True
+        metrics['tracking_setup_required']=True
+        details.append('Tracking setup needed: missing or unsafe upstream/fetch configuration; repair in the dotfiles workbench.')
+        details.append('Pull can succeed without the safe remote-tracking configuration required for background checks. This is local Git metadata; no new commit is needed.')
     else:
         previous=ctx.previous.metrics if ctx.previous else {}
         stamp=previous.get('remote_checked_at',0)
@@ -81,9 +84,13 @@ def inspect(ctx, refresh=True):
     in_progress=any((directory/name).exists() for name in ('MERGE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','rebase-merge','rebase-apply'))
     metrics['in_progress']=in_progress
     ahead=metrics.get('ahead',0);behind=metrics.get('behind',0)
-    summary=f'{len(statuses)} changed · ↑{ahead} ↓{behind}'
+    summary=f'{len(statuses)} changed'
+    if 'ahead' in metrics and 'behind' in metrics:summary+=f' · ↑{ahead} ↓{behind}'
     state='ok'
     if metrics['conflicts'] or in_progress or (ahead and behind):state='error';details.append('Conflict, divergence or Git operation requires manual review.')
+    elif tracking_setup:
+        state='pending'
+        summary+=' · tracking setup needed'
     elif remote_unknown:
         state='warning' if metrics.get('auth_blocked') else 'unknown'
         summary+=' · SSH unlock required' if metrics.get('auth_blocked') else ' · remote unknown'

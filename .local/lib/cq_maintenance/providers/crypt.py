@@ -1,4 +1,4 @@
-import json,os
+import json
 from pathlib import Path
 from ..util import require,Problem
 from .base import action
@@ -9,9 +9,10 @@ def environment(ctx):
 def check(ctx):
     data=json.loads(require(ctx.run([script(ctx),'--check','--json'],env=environment(ctx))).stdout)
     rows=data['entries'];counts={state:sum(row['state']==state for row in rows) for state in ('ok','encrypt','decrypt','unverified','conflict','invalid','missing')}
-    state='error' if counts['invalid'] else 'warning' if counts['conflict'] else 'unknown' if counts['unverified'] else 'pending' if counts['encrypt'] or counts['decrypt'] else 'ok'
+    state='error' if counts['invalid'] else 'warning' if counts['conflict'] else 'pending' if counts['unverified'] or counts['encrypt'] or counts['decrypt'] else 'ok'
     summary=f'→vault {counts["encrypt"]} · →local {counts["decrypt"]} · review {counts["conflict"]+counts["unverified"]}'
     details=[f'{row["name"]}: {row["state"]}' for row in rows if row['state'] not in ('ok','missing')]
+    if counts['unverified']:details.append('Verification pending on this machine: run cq_maintenance fix crypt-sync with GPG available. Equal timestamps alone do not establish a verified baseline.')
     return ctx.result(state,summary,details=details,metrics={'counts':counts,'entries':rows},last_success=data.get('last_success'),actions=[action('Guarded sync / verify unchanged copies'),action('Review a conflict',False,'resolve')])
 def execute(ctx,id):
     args=[script(ctx),'--safe']
