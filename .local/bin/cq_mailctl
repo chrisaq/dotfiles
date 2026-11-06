@@ -32,7 +32,7 @@ from rich.text import Text
 
 # Configuration and support modules stay here when this executable lives in ~/.local/bin.
 sys.path.insert(0, str(Path.home() / '.config/mutt'))
-from mailcore import ROOT, MailError, MailBusy, MailSystem
+from mailcore import ROOT, MailError, MailBusy, MailUnlockRequired, MailSystem
 
 
 # ---- Application and output conventions ----
@@ -360,6 +360,10 @@ def main():
     os.umask(0o077)
     try:
         app()
+    except MailUnlockRequired as error:
+        scheduled = os.environ.get('CQ_MAIL_SCHEDULED') == '1'
+        errors.print(f'cq_mailctl: {"deferred: " if scheduled else ""}{error}', style='yellow', markup=False)
+        raise SystemExit(75 if scheduled else 1)
     except MailBusy as error:
         errors.print(f'cq_mailctl: {error}', markup=False)
         raise SystemExit(75)

@@ -46,3 +46,20 @@ Tests use disposable homes/mail and the public example:
 ```sh
 uv run --with typer==0.27.3 --with rich==15.0.0 --with reportlab==5.0.1 --with vobject==0.9.9 python -m unittest discover -s tests -v
 ```
+
+
+Scheduled credential unlock is deferred work: when GPG reports a PIN/passphrase
+is needed, the helper records `unlock-required`, preserves `last_success`, and
+exits 75 (accepted by the generated systemd units). Timers retry normally and
+maintenance keeps the actionable unlock/freshness warning. Run `cq_mailctl sync`
+and `cq_mailctl contacts sync` interactively to unlock and sync immediately.
+Interactive unlock failure still exits 1. Missing credentials, other GPG failures,
+and backend/transport errors still fail the service; backend error text is not
+copied into status. Only GPG's machine-coded unlock errors qualify for deferral.
+
+
+A normal desktop notification explains the scheduled unlock pause once per locked
+period. Mail and contacts share a 15-minute cooldown, and timer retries do not
+repeat it. A successful sync rearms the notice. An unavailable desktop bus or
+notifier does not fail sync. Set `"notify_unlock": false` in private mail settings
+to disable these notices.

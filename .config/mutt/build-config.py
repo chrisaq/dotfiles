@@ -210,6 +210,7 @@ Environment="CQ_MAIL_RUNTIME={s['runtime']}"
 Environment=GNUPGHOME={s['gnupghome']}
 Environment=PASSWORD_STORE_DIR={s['password_store']}
 ExecStart={helper} {command}
+# 75 means busy or scheduled credential unlock deferred; health retains the warning.
 SuccessExitStatus=75
 TimeoutStartSec=35min
 UMask=0077

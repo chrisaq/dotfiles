@@ -13,7 +13,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from mailcore import ROOT, MailSystem, MailError, MailBusy
+from mailcore import ROOT, MailSystem, MailError, MailBusy, MailUnlockRequired
 import mailcontacts
 import mailui
 
@@ -37,6 +37,9 @@ class MailFixture(unittest.TestCase):
         self.env = patch.dict(os.environ, CQ_MAIL_CONFIG=str(settings_path))
         self.env.start()
         self.system = MailSystem()
+        notifier = patch.object(self.system, 'notify_unlock', return_value=True)
+        self.notify = notifier.start()
+        self.addCleanup(notifier.stop)
         import importlib.util
         spec = importlib.util.spec_from_file_location('fixture_builder', ROOT / 'build-config.py')
         builder = importlib.util.module_from_spec(spec)
@@ -171,7 +174,7 @@ class MailFixture(unittest.TestCase):
                 with self.system.lock():
                     self.fail('Overlapping lock accepted')
         self.system.scheduled = True
-        failure = subprocess.CompletedProcess([], 2, '', 'sensitive backend error')
+        failure = subprocess.CompletedProcess([], 2, '', '[GNUPG:] ERROR pkdecrypt_failed 67108949\nsensitive backend error')
         with patch.object(self.system, 'run', return_value=failure) as run:
             with self.assertRaisesRegex(MailError, 'unlock required'):
                 self.system.secret('mail')
@@ -179,7 +182,7 @@ class MailFixture(unittest.TestCase):
             self.assertEqual(command[0], 'gpg')
             self.assertIn('error', command)
             self.assertIn('--batch', command)
-        with patch.object(self.system, 'secret', side_effect=MailError('mail: unlock required')), patch.object(self.system, 'run') as run:
+        with patch.object(self.system, 'secret', side_effect=MailUnlockRequired('mail: unlock required')), patch.object(self.system, 'run') as run:
             with self.assertRaises(MailError):
                 self.system.sync()
             run.assert_not_called()
@@ -351,6 +354,70 @@ class MailFixture(unittest.TestCase):
             smtp.return_value.__enter__.return_value.send_message.assert_not_called()
             context = smtp.return_value.__enter__.return_value.starttls.call_args.kwargs['context']
             self.assertTrue(context.check_hostname)
+
+
+    def test_only_machine_coded_pin_failures_are_deferred(self):
+        self.system.scheduled = True
+        for stderr, expected in [
+            ('[GNUPG:] NO_SECKEY redacted\n[GNUPG:] ERROR pkdecrypt_failed 67108949', MailUnlockRequired),
+            ('[GNUPG:] ERROR pkdecrypt_failed 177', MailUnlockRequired),
+            ('[GNUPG:] ERROR pkdecrypt_failed 11', MailUnlockRequired),
+            ('[GNUPG:] ERROR pkdecrypt_failed 17', MailError),
+            ('[GNUPG:] ERROR pkdecrypt_failed 9', MailError),
+            ('unlock required localized or sensitive error text', MailError),
+            ('[GNUPG:] ERROR pkdecrypt_failed invalid', MailError),
+        ]:
+            with self.subTest(stderr=stderr),patch.object(self.system,'run',return_value=subprocess.CompletedProcess([],2,'',stderr)):
+                with self.assertRaises(expected) as error:
+                    self.system.secret('mail')
+                self.assertIs(type(error.exception),expected)
+                self.assertNotIn('sensitive',str(error.exception))
+        with patch.object(self.system,'run',return_value=subprocess.CompletedProcess([],0,'','')):
+            with self.assertRaisesRegex(MailError,'empty'):
+                self.system.secret('mail')
+
+    def test_deferred_sync_preserves_success_for_mail_and_contacts(self):
+        self.system.scheduled = True
+        for component,operation in [('mail',self.system.sync),('contacts',lambda:mailcontacts.sync(self.system))]:
+            self.system.status(component,'ok','Earlier successful sync')
+            path=self.system.state/(component+'-status.json')
+            previous=json.loads(path.read_text())['last_success']
+            with patch.object(self.system,'secret',side_effect=MailUnlockRequired('unlock required')),patch.object(self.system,'run') as run:
+                with self.assertRaises(MailUnlockRequired):operation()
+                run.assert_not_called()
+            status=json.loads(path.read_text())
+            self.assertEqual(status['state'],'unlock-required')
+            self.assertEqual(status['last_success'],previous)
+            # Actual failures remain errors, even if a message resembles a lock.
+            with patch.object(self.system,'secret',side_effect=MailError('unlock required text; actual failure')):
+                with self.assertRaises(MailError):operation()
+            self.assertEqual(json.loads(path.read_text())['state'],'error')
+
+
+    def test_unlock_notice_only_once_until_success(self):
+        self.system.scheduled = True
+        for _ in range(3):
+            self.system.status('mail','running','Credential preflight')
+            self.system.status('mail','unlock-required','unlock required')
+        self.assertEqual(self.notify.call_count,1)
+        self.system.status('mail','ok','Synced')
+        self.system.status('mail','unlock-required','unlock required again')
+        self.assertEqual(self.notify.call_count,2)
+        self.system.scheduled = False
+        self.system.status('contacts','unlock-required','Interactive failure')
+        self.assertEqual(self.notify.call_count,2)
+
+    def test_mail_and_contacts_share_notification_cooldown_and_failure_is_nonfatal(self):
+        success=subprocess.CompletedProcess([],0,'','')
+        with patch('mailcore.shutil.which',return_value='/fake/notify-send'),patch.object(self.system,'run',return_value=success) as run:
+            self.assertTrue(MailSystem.notify_unlock(self.system))
+            self.assertTrue(MailSystem.notify_unlock(self.system))
+            run.assert_called_once()
+            self.assertIn('--urgency=normal',run.call_args.args[0])
+            self.assertEqual(run.call_args.kwargs['timeout'],5)
+        (self.system.state/'unlock-notification.json').unlink()
+        with patch('mailcore.shutil.which',return_value='/fake/notify-send'),patch.object(self.system,'run',side_effect=MailError('No desktop bus')):
+            self.assertFalse(MailSystem.notify_unlock(self.system))
 
 
 if __name__ == '__main__':

@@ -48,7 +48,7 @@ refresh signal as each check/repair completes, without waiting for slower
 providers in the same batch. Green means healthy observations; amber
 means pending work/warnings; red means errors; grey means unknown/stale. Running
 work adds an activity mark without hiding errors. Left-click opens the dashboard;
-middle-click forces fresh checks; right-click opens a dynamic Rofi action menu. No desktop notifications are sent.
+middle-click forces fresh checks; right-click opens a dynamic Rofi action menu. Ordinary maintenance checks send no desktop notifications. Scheduled mail/contact unlock pauses send a deduplicated notification through cq_mailctl.
 
 Dashboard keys: r refresh, f safe batch, s fix selected, v review, o open,
 e enable/disable on this machine, Ctrl+T theme, q quit. Repairs are reviewed before
@@ -289,3 +289,19 @@ Taskwarrior's `data.location` must be set in its private taskrc (for this setup,
 `TASKDATA` export. The systemd collector does not inherit interactive shell
 variables; otherwise it can query a different replica and report no sync even
 when shell syncs succeed. Health details show the replica actually inspected.
+
+
+Mail/contact sync waiting for a GPG unlock reports **pending**, including when
+there is no recorded success yet or the previous sync is old. Its age remains
+visible. An inactive expected timer still warns; actual sync failures remain
+errors. The unlock desktop notification is independent of that health severity.
+
+
+Package update severity is configurable in `[checks.<id>.options]` through
+`error_threshold`: Arch defaults to 20 (1–19 pending; 20 or more error/red).
+AUR defaults to 0, disabling count-based escalation: any number of available
+updates remains pending. Zero updates is healthy. The count is available
+updates, not packages removed from the AUR. Failed metadata queries report
+unknown and are not treated as update counts. Set an override in the adjacent
+`config.local.toml` for a different machine policy. Upgrades still require an
+explicit reviewed action and are excluded from safe Fix all.

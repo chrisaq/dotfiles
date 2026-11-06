@@ -6,7 +6,7 @@ import runpy
 import subprocess
 import tomllib
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 from typer.testing import CliRunner
 from mailcore import ROOT, helper_path
@@ -167,3 +167,20 @@ class SetupAndGuide(unittest.TestCase):
                 self.assertNotEqual(result.exit_code,0)
                 run.assert_not_called()
         self.assertNotIn('install-wiki-guide',runner.invoke(app,['--help']).output)
+
+
+class DeferredExitTests(unittest.TestCase):
+    def test_only_scheduled_unlock_and_busy_are_successful_deferrals(self):
+        from mailcore import MailError, MailBusy, MailUnlockRequired
+        for scheduled, error, expected in [
+            ('1', MailUnlockRequired('PIN needed'), 75),
+            ('0', MailUnlockRequired('PIN needed'), 1),
+            ('1', MailError('Missing credential'), 1),
+            ('1', MailError('unlock required text is not a typed deferral'), 1),
+            ('1', MailBusy('already running'), 75),
+        ]:
+            with self.subTest(scheduled=scheduled,error=type(error).__name__):
+                with patch('os.umask'),patch.dict(os.environ,CQ_MAIL_SCHEDULED=scheduled),patch.dict(cli['main'].__globals__,app=Mock(side_effect=error)):
+                    with self.assertRaises(SystemExit) as result:
+                        cli['main']()
+                self.assertEqual(result.exception.code,expected)

@@ -44,7 +44,11 @@ def check(ctx):
         raise Problem(kind+' update query failed; metadata may be unavailable')
     if revision!=local_revision(ctx.options):raise Problem('Installed packages changed during query; retry after the package transaction')
     lines=[row.strip() for row in result.stdout.splitlines() if row.strip()]
-    return ctx.result('pending' if lines else 'ok',f'{len(lines)} updates available' if lines else 'Up to date',details=lines[:100],metrics={'updates':len(lines),'kind':kind,'local_revision':revision},actions=[action('Review and upgrade packages',False,'upgrade')] if lines else [])
+    threshold=ctx.options.get('error_threshold',20 if kind=='arch' else 0)
+    if isinstance(threshold,bool) or not isinstance(threshold,int) or threshold<0:
+        raise Problem('Package error_threshold must be a non-negative integer (0 disables escalation)')
+    state='error' if threshold and len(lines)>=threshold else 'pending' if lines else 'ok'
+    return ctx.result(state,f'{len(lines)} updates available' if lines else 'Up to date',details=lines[:100],metrics={'updates':len(lines),'kind':kind,'local_revision':revision,'error_threshold':threshold},actions=[action('Review and upgrade packages',False,'upgrade')] if lines else [])
 def execute(ctx,id):
     if id!='upgrade':raise Problem('Upgrades are separate from safe Fix all')
     kind=ctx.options.get('kind','arch')

@@ -222,6 +222,25 @@ class PackageTests(Isolated):
         self.assertFalse(packages.invalidated(config,Result(id='test',state='pending',summary='Old')))
         (database/'db.lck').unlink()
         self.assertTrue(packages.invalidated(config,Result(id='test',state='pending',summary='Old')))
+    def test_package_count_severity_boundaries_and_overrides(self):
+        from cq_maintenance.providers import packages
+        for kind,count,override,expected in [
+            ('arch',0,None,'ok'),('arch',1,None,'pending'),
+            ('arch',19,None,'pending'),('arch',20,None,'error'),('arch',21,None,'error'),
+            ('aur',1,None,'pending'),('aur',20,None,'pending'),('aur',100,None,'pending'),
+            ('arch',20,0,'pending'),('arch',4,5,'pending'),('arch',5,5,'error'),
+        ]:
+            with self.subTest(kind=kind,count=count,override=override):
+                options={'kind':kind}
+                if override is not None:options['error_threshold']=override
+                ctx=Context('test',Check(provider='packages',options=options))
+                output=''.join(f'pkg-{i} 1 -> 2\n' for i in range(count))
+                with patch.object(packages,'helper',return_value='paru'),patch.object(Context,'run',return_value=subprocess.CompletedProcess([],0,output,'')):
+                    row=packages.check(ctx)
+                self.assertEqual(row.state,expected)
+                self.assertEqual(row.metrics['updates'],count)
+                self.assertTrue(all(not a.safe for a in row.actions))
+
     def test_empty_aur_query_exit_one_means_up_to_date(self):
         from cq_maintenance.providers import packages
         for helper in ('paru','yay'):
@@ -246,3 +265,30 @@ class PackageTests(Isolated):
         from cq_maintenance.providers import packages
         with patch.object(Context,'run',return_value=subprocess.CompletedProcess([],1,'','')):
             with self.assertRaises(Problem):packages.check(Context('test',Check(provider='packages')))
+
+
+class MailUnlockTests(Isolated):
+    def test_expected_unlock_is_pending_even_with_old_or_absent_success(self):
+        from datetime import datetime,timezone
+        from cq_maintenance.providers import mail
+        for component in ('mail','contacts'):
+            for success in (None,now()-60,now()-86400):
+                with self.subTest(component=component,success=success):
+                    stamp=datetime.fromtimestamp(success,timezone.utc).isoformat() if success else None
+                    data={component:{'state':'unlock-required','message':'Unlock GPG to resume','last_success':stamp}}
+                    ctx=Context(component,Check(provider='mail',options={'component':component}))
+                    with patch.object(ctx,'run',side_effect=[subprocess.CompletedProcess([],0,json.dumps(data),''),subprocess.CompletedProcess([],0,'active','')]):
+                        row=mail.check(ctx)
+                    self.assertEqual(row.state,'pending')
+                    self.assertEqual(row.last_success,success)
+                    self.assertIn('unlock required',row.summary)
+
+    def test_timer_and_real_failures_keep_higher_severity(self):
+        from datetime import datetime,timezone
+        from cq_maintenance.providers import mail
+        for record,timer,expected in [('unlock-required','inactive','warning'),('error','active','error'),('error','inactive','error'),('ok','active','warning')]:
+            with self.subTest(record=record,timer=timer):
+                data={'mail':{'state':record,'last_success':datetime.fromtimestamp(now()-86400,timezone.utc).isoformat()}}
+                ctx=Context('mail',Check(provider='mail'))
+                with patch.object(ctx,'run',side_effect=[subprocess.CompletedProcess([],0,json.dumps(data),''),subprocess.CompletedProcess([],0,timer,'')]):
+                    self.assertEqual(mail.check(ctx).state,expected)

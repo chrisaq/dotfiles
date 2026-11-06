@@ -28,6 +28,10 @@ class MailError(Exception):
     pass
 
 
+class MailUnlockRequired(MailError):
+    """Credentials need interactive unlocking; a scheduled attempt can defer."""
+
+
 class MailBusy(MailError):
     """An existing operation owns the lock; its status must remain untouched."""
     pass
@@ -163,7 +167,37 @@ class MailSystem:
         previous.update(state=state, message=message, last_attempt=now)
         if state == "ok":
             previous["last_success"] = now
+            previous.pop("unlock_notified", None)
         atomic_write(path, json.dumps(previous, indent=2) + "\n")
+        if self.scheduled and state == "unlock-required" and not previous.get("unlock_notified"):
+            if self.notify_unlock():
+                previous["unlock_notified"] = True
+                atomic_write(path, json.dumps(previous, indent=2) + "\n")
+
+    def notify_unlock(self):
+        """One notice per locked period; mail/contacts share a 15-minute cooldown."""
+        notifier = shutil.which("notify-send")
+        if not notifier or not self.settings.get("notify_unlock", True):
+            return False
+        try:
+            with self.lock("unlock-notification"):
+                path = self.state / "unlock-notification.json"
+                record = json.loads(path.read_text()) if path.exists() else {}
+                if not isinstance(record, dict):
+                    record = {}
+                if 0 <= time.time() - record.get("last_sent", 0) < 900:
+                    return True
+                result = self.run([notifier, "--app-name=cq_mailctl", "--icon=mail-unread",
+                                   "--urgency=normal", "Mail sync paused: GPG unlock needed",
+                                   "Run cq_mailctl sync or cq_mailctl contacts sync to unlock. "
+                                   "Timers will retry automatically."], check=False, timeout=5)
+                if result.returncode:
+                    return False
+                atomic_write(path, json.dumps({"last_sent": time.time()}) + "\n")
+                return True
+        except (MailError, OSError, ValueError, TypeError):
+            # An absent desktop bus/notifier must not fail or indefinitely delay sync.
+            return False
 
     def secret(self, service):
         entry = self.settings["credentials"][service]
@@ -175,13 +209,29 @@ class MailSystem:
             raise MailError(f"Missing {service} credential entry")
         if self.scheduled:
             # Direct read of the standard store guarantees no pinentry or Git activity.
-            result = self.run(["gpg", "--batch", "--pinentry-mode", "error", "--quiet",
+            result = self.run(["gpg", "--batch", "--pinentry-mode", "error", "--quiet", "--status-fd", "2",
                                "--decrypt", path], check=False, timeout=15)
         else:
             result = self.run(["gopass", "show", "--nosync", "--nofuzzysearch",
                                "--password", entry], check=False, timeout=120)
-        if result.returncode or not result.stdout.splitlines():
-            raise MailError(f"{service}: unlock required or credential unavailable; run manual sync")
+        if result.returncode:
+            if self.scheduled:
+                # Machine-readable libgpg-error codes; never classify by localized
+                # stderr or copy backend output into status/logs. GPG can emit
+                # NO_SECKEY alongside this when a smartcard PIN is locked.
+                codes = []
+                for line in result.stderr.splitlines():
+                    fields = line.split()
+                    if len(fields) == 4 and fields[:2] == ["[GNUPG:]", "ERROR"] and fields[2] == "pkdecrypt_failed":
+                        try:
+                            codes.append(int(fields[3]) & 0xffff)
+                        except ValueError:
+                            pass
+                if not any(code in (11, 85, 177) for code in codes):
+                    raise MailError(f"{service}: credential decryption failed; check GPG key/card access and the encrypted credential")
+            raise MailUnlockRequired(f"{service}: unlock required; run manual sync, then scheduled sync resumes automatically")
+        if not result.stdout.splitlines():
+            raise MailError(f"Invalid empty {service} credential")
         value = result.stdout.splitlines()[0]
         if not value or "\r" in value or "\0" in value:
             raise MailError(f"Invalid {service} credential")
@@ -262,7 +312,7 @@ class MailSystem:
         except MailBusy:
             raise
         except MailError as error:
-            self.status("mail", "unlock-required" if "unlock required" in str(error) else "error", str(error))
+            self.status("mail", "unlock-required" if isinstance(error, MailUnlockRequired) else "error", str(error))
             raise
 
     def rule_preview(self, history=False):

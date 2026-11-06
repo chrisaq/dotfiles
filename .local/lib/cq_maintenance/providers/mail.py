@@ -17,17 +17,19 @@ def check(ctx):
     timestamp=datetime.fromisoformat(stamp).timestamp() if stamp else None
     age=now()-timestamp if timestamp else None
     record=data.get('state','unknown')
-    state='error' if record=='error' else 'warning' if record=='unlock-required' else 'unknown' if age is None else 'warning' if age>ctx.options.get('stale_seconds',1200) else 'ok'
+    state='error' if record=='error' else 'pending' if record=='unlock-required' else 'unknown' if age is None else 'warning' if age>ctx.options.get('stale_seconds',1200) else 'ok'
     details=[data.get('message','No sync recorded')]
     if ctx.options.get('expected_timer',True):
         result=ctx.run(['systemctl','--user','is-active',f'cq-{component}.timer'])
-        if result.stdout.strip()!='active':state='warning';details.append('Expected timer is not active; enable explicitly with cq_mailctl timers-install.')
+        if result.stdout.strip()!='active':
+            if state!='error':state='warning'
+            details.append('Expected timer is not active; enable explicitly with cq_mailctl timers-install.')
     summary=('Never synced' if age is None else f'Last success {int(max(age,0)//60)}m ago')+(' · unlock required' if record=='unlock-required' else '')
     return ctx.result(state,summary,details=details,last_success=timestamp,metrics={'component':component},activity='syncing' if record=='running' else '',actions=[action('Sync '+component)])
 def execute(ctx,id):
     args=['cq_mailctl','setup'] if ctx.config.provider=='mail_setup' else ['cq_mailctl','contacts','sync'] if ctx.options.get('component',ctx.id)=='contacts' else ['cq_mailctl','sync']
     result=ctx.run(args,foreground=True,timeout=2100)
-    if result.returncode==75:return 'Sync already running; existing operation left to finish'
+    if result.returncode==75:return 'Sync deferred: sync already running or scheduled credentials need unlocking; inspect mail status'
     require(result)
     if ctx.config.provider=='mail':
         component=ctx.options.get('component',ctx.id)

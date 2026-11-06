@@ -12,8 +12,8 @@ DEFAULTS = {
  'contacts': {'provider':'mail', 'options':{'component':'contacts','expected_timer':True,'stale_seconds':1200}},
  'mail-setup': {'provider':'mail_setup', 'interval':300},
  'syncthing': {'provider':'syncthing', 'timeout':60},
- 'arch': {'provider':'packages','interval':21600,'timeout':150,'options':{'kind':'arch'}},
- 'aur': {'provider':'packages','interval':21600,'timeout':120,'options':{'kind':'aur'}},
+ 'arch': {'provider':'packages','interval':21600,'timeout':150,'options':{'kind':'arch','error_threshold':20}},
+ 'aur': {'provider':'packages','interval':21600,'timeout':120,'options':{'kind':'aur','error_threshold':0}},
  'flatpak': {'provider':'packages','enabled':False,'interval':21600,'timeout':120,'options':{'kind':'flatpak'}},
  'failed-units': {'provider':'units','options':{'ignore':[]}},
 }

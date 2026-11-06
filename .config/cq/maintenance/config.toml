@@ -85,6 +85,7 @@ timeout = 150
 
 [checks.arch.options]
 kind = "arch"
+error_threshold = 20 # 1–19 pending; 20+ error/red.
 
 [checks.aur]
 provider = "packages"
@@ -94,6 +95,7 @@ timeout = 120
 
 [checks.aur.options]
 kind = "aur"
+error_threshold = 0 # Any count of available AUR updates remains pending.
 
 [checks.flatpak]
 provider = "packages"
