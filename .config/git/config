@@ -266,3 +266,5 @@
     path = nvim
 [mergetool "vimdiff3"]
     path = nvim
+[credential "https://bitbucket.org"]
+	username = cqvigsta
