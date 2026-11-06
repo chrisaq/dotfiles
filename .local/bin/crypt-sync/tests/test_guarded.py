@@ -18,7 +18,7 @@ class GuardedSync(unittest.TestCase):
         payload=b'cipher:'+data if '--encrypt' in args else data.removeprefix(b'cipher:')
         if '--output' in args:Path(args[args.index('--output')+1]).write_bytes(payload);payload=b''
         return subprocess.CompletedProcess(args,0,payload,b'')
-    def inspect(self):return guarded.status()['entries'][0]['state']
+    def inspect(self):return guarded.status(guarded=True)['entries'][0]['state']
     def transfer(self):
         with patch.object(guarded,'gpg',side_effect=self.fake_gpg):guarded.transfer(self.local,self.vault,'encrypt')
     def test_check_does_not_decrypt_or_create_state(self):
@@ -76,3 +76,18 @@ class GuardedSync(unittest.TestCase):
         self.assertIn('GPG decryption failed',output.getvalue())
         self.assertNotIn('Copies differ',output.getvalue())
         self.assertNotIn('private diagnostic',output.getvalue())
+
+    def test_default_check_accepts_equal_timestamps_without_baseline_or_decryption(self):
+        self.local.write_text('local');self.vault.write_text('cipher:remote')
+        os.utime(self.local,ns=(123456789000,123456789000));os.utime(self.vault,ns=(123456789000,123456789000))
+        with patch.object(guarded,'gpg',side_effect=AssertionError('must not decrypt')):
+            self.assertEqual(guarded.status()['entries'][0]['state'],'ok')
+        self.assertFalse(guarded.root().exists())
+
+    def test_default_check_uses_timestamps_even_when_hash_baseline_disagrees(self):
+        self.local.write_text('one');self.transfer()
+        self.local.write_text('local');self.vault.write_text('cipher:remote')
+        for local_time,vault_time,expected in ((200,100,'encrypt'),(100,200,'decrypt'),(200,200,'ok')):
+            os.utime(self.local,ns=(local_time,local_time));os.utime(self.vault,ns=(vault_time,vault_time))
+            self.assertEqual(guarded.status()['entries'][0]['state'],expected)
+        self.assertEqual(self.inspect(),'conflict')

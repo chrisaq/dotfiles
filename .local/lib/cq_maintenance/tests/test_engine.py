@@ -415,14 +415,22 @@ class MailProgressTests(Isolated):
 
 
 class CryptReadinessTests(Isolated):
-    def test_unverified_pairs_are_pending_and_real_conflicts_keep_priority(self):
+    def test_timestamp_plan_drives_maintenance_status(self):
         from cq_maintenance.providers import crypt
-        for states,expected in [(['unverified']*3,'pending'),(['unverified','encrypt'],'pending'),(['unverified','conflict'],'warning'),(['unverified','invalid'],'error'),(['ok'],'ok')]:
+        for states,expected in [(['encrypt'],'pending'),(['decrypt'],'pending'),(['encrypt','decrypt'],'pending'),(['invalid'],'error'),(['ok','missing'],'ok')]:
             with self.subTest(states=states):
                 data={'entries':[{'name':str(i)+'.gpg','state':state} for i,state in enumerate(states)],'last_success':None}
                 ctx=Context('crypt-sync',Check(provider='crypt'))
                 with patch.object(ctx,'run',return_value=subprocess.CompletedProcess([],0,json.dumps(data),'')):
                     row=crypt.check(ctx)
                 self.assertEqual(row.state,expected)
-                self.assertEqual(row.metrics['counts']['unverified'],states.count('unverified'))
-                if 'unverified' in states:self.assertTrue(any('Verification pending on this machine' in line for line in row.details))
+                self.assertNotIn('review',row.summary)
+                self.assertEqual(row.metrics['counts']['encrypt'],states.count('encrypt'))
+
+    def test_fix_invokes_normal_crypt_sync_without_guarded_policy(self):
+        from cq_maintenance.providers import crypt
+        ctx=Context('crypt-sync',Check(provider='crypt'),checking=False)
+        with patch.object(ctx,'run',return_value=subprocess.CompletedProcess([],0,'','')) as run:
+            self.assertEqual(crypt.execute(ctx,'fix'),'Crypt-sync completed')
+        self.assertEqual(run.call_args.args[0],[crypt.script(ctx)])
+        self.assertTrue(run.call_args.kwargs['foreground'])

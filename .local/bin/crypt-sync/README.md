@@ -60,10 +60,13 @@ Run `bash -n crypt-sync.sh`, `shellcheck crypt-sync.sh`, and
 failure cases, and a disposable GPG key for an isolated encryption/decryption
 round trip. Real configuration files and the normal GPG keyring are not used.
 
-## Guarded maintenance interface
+## Status and optional guarded interface
 
-`crypt-sync.sh --check --json` reports mapping/fingerprint state without decrypting
-or changing files. `--safe` transfers only unambiguous changes and verifies existing
+`crypt-sync.sh --check --json` reports the normal timestamp-based sync plan without
+decrypting or changing files. Equal timestamps are synchronized, regardless of
+content baselines. Maintenance uses this plan and runs normal no-argument
+crypt-sync for Fix. The guarded policy below is available only when explicitly
+requested. `--safe` transfers only unambiguous changes and verifies existing
 unverified matching copies in memory when GPG is available. Two changed sides or
 unverified differing copies remain blocked. Per-file output distinguishes differing
 copies from GPG decryption failures; an unlocked card does not choose between

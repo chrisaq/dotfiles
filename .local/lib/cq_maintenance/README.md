@@ -21,9 +21,9 @@ cq_maintenance status --json         # cached; no network or repairs
 cq_maintenance check --all           # refresh, including remote metadata
 cq_maintenance check dotfiles
 cq_maintenance fix --all --dry-run    # refresh and preview; no repairs/decryption
-cq_maintenance fix --all             # confirm guarded syncs; excludes upgrades
+cq_maintenance fix --all             # confirm syncs; excludes upgrades
 cq_maintenance fix mail
-cq_maintenance review crypt-sync     # choose a source for an ambiguous pair
+cq_maintenance fix crypt-sync        # run normal timestamp-based sync
 cq_maintenance review failed-units   # inspect/restart one specific unit
 cq_maintenance review arch           # explicitly review a package upgrade
 cq_maintenance open dotfiles         # existing cq_dotfiles-tui
@@ -75,13 +75,11 @@ be repaired explicitly in the dotfiles workbench. Untracked home files are not
 recursively scanned. If tool source/config changes during a batch, rerun with the
 updated version before continuing.
 
-Crypt-sync checks use verified local fingerprints, not equal timestamps alone.
-An initial existing pair is unverified until a foreground guarded sync compares
-its decrypted contents in memory. Different copies require explicit source review.
-Independent two-sided changes block replacement. The maintenance tool always uses
-`crypt-sync.sh --safe`; the existing no-argument timestamp policy remains available
-for established manual callers. Successful transfers record baselines even through
-that legacy entrypoint. Nothing decrypts during monitoring.
+Crypt-sync checks use the existing timestamp policy: newer local files need
+upload, newer vault files need download, and equal timestamps are synchronized.
+`cq_maintenance fix crypt-sync` runs normal crypt-sync with that same policy.
+No per-machine content baseline or manual source choice is required. Monitoring
+never decrypts; missing pairs are skipped and invalid paths remain errors.
 
 Syncthing checks service/API, local and connected-peer completion, folder errors,
 progress and conflict filenames. Idle is not stale simply because no files changed.
@@ -328,14 +326,7 @@ that sync may have stalled. Actual outcomes and independent failures retain thei
 own severity; starting a sync does not hide other failed services or checks.
 
 
-Crypt-sync pairs without a verified baseline report **pending**, with an explicit
-verification action, rather than unknown. On a newly configured machine, run
-`cq_maintenance fix crypt-sync` with GPG available to compare existing copies in
-memory and record the local baseline. Matching timestamps alone are insufficient;
-legacy timestamp-only sync can leave unchanged pairs unverified. Verification
-state stays machine-local. Differing copies without a baseline require explicit
-source review; no authoritative copy is guessed. Independent conflicts retain
-warning severity, and invalid paths remain errors.
+
 
 
 A repository with missing/unsafe upstream or fetch configuration reports

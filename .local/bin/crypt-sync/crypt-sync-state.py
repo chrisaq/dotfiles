@@ -60,13 +60,15 @@ def mappings():
     return result
 
 def key(local,vault):return str(local)+'\0'+str(vault)
-def inspect(name,local,vault,data):
+def inspect(name,local,vault,data,guarded=False):
     row={'name':name,'local':str(local),'vault':str(vault)}
     try:
         a=fingerprint(local);b=fingerprint(vault);baseline=data.get('entries',{}).get(key(local,vault))
         if a is None and b is None:state='missing'
         elif a is None:state='decrypt'
         elif b is None:state='encrypt'
+        elif not guarded:
+            state='encrypt' if a['mtime_ns']>b['mtime_ns'] else 'decrypt' if a['mtime_ns']<b['mtime_ns'] else 'ok'
         elif baseline is None:state='unverified'
         else:
             changed_a=a['sha']!=baseline['local'];changed_b=b['sha']!=baseline['vault']
@@ -75,9 +77,9 @@ def inspect(name,local,vault,data):
     except (OSError,Blocked):row.update(state='invalid')
     return row
 
-def status():
+def status(guarded=False):
     data=ledger()
-    return {'schema_version':1,'last_success':data.get('last_success'),'entries':[inspect(n,a,b,data) for n,a,b in mappings()]}
+    return {'schema_version':1,'last_success':data.get('last_success'),'entries':[inspect(n,a,b,data,guarded=guarded) for n,a,b in mappings()]}
 
 def record(local,vault,source=None,expected=None,destination=None,expected_dest=None):
     a=fingerprint(local);b=fingerprint(vault)
@@ -148,7 +150,7 @@ def main():
             if args.resolve and name!=args.resolve:continue
             found=True
             try:
-                row=inspect(name,local,vault,ledger());state=row['state']
+                row=inspect(name,local,vault,ledger(),guarded=True);state=row['state']
                 if args.resolve:
                     if not args.prefer:raise Blocked('Choose --prefer local or vault explicitly')
                     transfer(local,vault,'encrypt' if args.prefer=='local' else 'decrypt')
