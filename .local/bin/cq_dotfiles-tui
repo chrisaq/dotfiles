@@ -75,6 +75,33 @@ def xdg_dir(kind: str, home: Path) -> Path:
     return Path(value) if value else home / default
 
 
+def interactive_auth_environment(environment: dict[str, str], home: Path) -> dict[str, str]:
+    """Supply shell-independent GPG agent discovery for reviewed foreground Git."""
+    env = dict(environment)
+    config = Path(env.get("XDG_CONFIG_HOME") or home / ".config") / "gnupg"
+    if not env.get("GNUPGHOME") and config.is_dir():
+        env["GNUPGHOME"] = str(config)
+    # Explicit/forwarded agents remain authoritative. Only fill an absent socket
+    # for a configured GPG home; never source shell startup or enumerate secrets.
+    if not env.get("SSH_AUTH_SOCK") and env.get("GNUPGHOME"):
+        try:
+            result = subprocess.run(
+                ["gpgconf", "--list-dirs", "agent-ssh-socket"],
+                env=env, capture_output=True, text=True, timeout=5,
+            )
+            path = result.stdout.strip()
+            if result.returncode == 0 and path and Path(path).is_absolute() and Path(path).is_socket():
+                env["SSH_AUTH_SOCK"] = path
+        except (OSError, subprocess.TimeoutExpired):
+            pass  # Let SSH report its usual authentication failure/fallback.
+    try:
+        if os.isatty(0):
+            env["GPG_TTY"] = os.ttyname(0)
+    except OSError:
+        pass
+    return env
+
+
 def config_path(home: Path | None = None) -> Path:
     return xdg_dir("config", home or Path.home()) / "cq" / "dotfiles-tui" / "config.toml"
 
@@ -429,7 +456,7 @@ class Repository:
             prefix += ["-C", str(self.home), f"--git-dir={self.git_dir}", f"--work-tree={self.home}"]
         return prefix + args
 
-    def environment(self, *, read: bool = False) -> dict[str, str]:
+    def environment(self, *, read: bool = False, interactive: bool = False) -> dict[str, str]:
         selectors = {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
                      "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_PREFIX", "GIT_NAMESPACE", "GIT_GLOB_PATHSPECS",
                      "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS"}
@@ -439,6 +466,8 @@ class Repository:
             env = {k: v for k, v in env.items() if not k.startswith(("GIT_CONFIG", "GIT_AUTHOR", "GIT_COMMITTER"))}
             env.update({"HOME": str(self.home), "XDG_CONFIG_HOME": str(xdg_dir("config", self.home))})
             env["GIT_CONFIG_NOSYSTEM"] = "1"
+        if interactive and self.home == Path.home():
+            env = interactive_auth_environment(env, self.home)
         if read:
             env.update({"GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0"})
         return env
@@ -998,7 +1027,10 @@ choose a remote/branch and establish upstream tracking. Fetch updates remote
 knowledge; Pull is fast-forward only and refuses divergence.
 
 Git receives the foreground terminal for commits and remote operations so GPG,
-SSH, credentials, and hooks can interact normally. Press Enter to return afterwards.
+SSH, credentials, and hooks can interact normally. When launched from a desktop
+menu without SSH_AUTH_SOCK, foreground operations discover the configured GPG
+SSH-agent socket. Explicit or forwarded agents are preserved; shell startup files
+are never sourced. Press Enter to return afterwards.
 
 ## Browser shortcuts
 
@@ -2302,7 +2334,7 @@ class DotfilesApp(App):
             console.print(f"\n[bold cyan]{repo.name} · {action}[/bold cyan]")
             console.print(Text(shlex.join(argv), style="dim"))
             with repo.lock:
-                result = subprocess.run(argv, env=repo.environment(), cwd=repo.home)
+                result = subprocess.run(argv, env=repo.environment(interactive=True), cwd=repo.home)
             try:
                 input("\nPress Enter to return to the workbench… ")
             except (EOFError, KeyboardInterrupt):
