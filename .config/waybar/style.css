@@ -170,13 +170,13 @@ background:  #161320;
 }
 #battery{
     font-weight: normal;
-    font-size: 22px;
+    font-size: 16px;
     color: #a6d189;
     background:  rgba(23, 23, 23, 0.0);
     opacity: 1;
     margin: 0px 0px 0px 0px;
-    padding-left: 0px;
-    padding-right: 0px;
+    padding-left: 6px;
+    padding-right: 6px;
 
 }
 
@@ -358,7 +358,11 @@ font-weight: normal;
 }
 
 
-#battery.critical:not(.charging) {
+#battery.warning:not(.charging):not(.plugged) {
+    color: #e5c890;
+}
+
+#battery.critical:not(.charging):not(.plugged) {
     color: red;
 }
 

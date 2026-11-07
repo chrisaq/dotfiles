@@ -17,7 +17,7 @@
     // positions generated based on config.ctl //
     "modules-left": ["custom/smallspacer","custom/smallspacer","ext/workspaces","custom/spacer","custom/submap-options","custom/spacer","mpris"],
     "modules-center": ["custom/padd","custom/l_end","custom/r_end","hyprland/window","custom/padd"],
-    "modules-right": ["custom/padd","custom/l_end","group/expand","network","custom/maintenance","custom/idlelock","group/expand-3","group/expand-2","group/expand-4","power-profiles-daemon","custom/smallspacer","memory","cpu","clock","custom/smallspacer","custom/notification","custom/padd"],
+    "modules-right": ["custom/padd","custom/l_end","group/expand","network","custom/maintenance","custom/idlelock","group/expand-3","group/expand-2","battery","power-profiles-daemon","custom/smallspacer","memory","cpu","clock","custom/smallspacer","custom/notification","custom/padd"],
 
 
     // Cached maintenance status: collector checks; the bar only reads observations.
@@ -55,15 +55,6 @@
         "tooltip": false,
     },
 
-    "upower": {
-        "icon-size": 20,
-        "format": "",
-        "format-alt": "{}<span color='orange'>[{time}]</span>",
-        "tooltip": true,
-        "tooltip-spacing": 20,
-        "on-click-right": "pkill waybar & hyprctl dispatch \"hl.dsp.exec_cmd('waybar')\""
-    },
-
     "power-profiles-daemon": {
         "format": "{icon}",
         "tooltip-format": "Power profile: {profile}\nDriver: {driver}",
@@ -81,17 +72,6 @@
         "native-path": "/org/freedesktop/UPower/devices/headset_dev_A6_98_9A_0D_D3_49",
         "show-icon": false,
         "tooltip": false,
-    },
-
-    "group/expand-4": {
-        "orientation": "horizontal",
-        "drawer": {
-            "transition-duration": 600,
-            "children-class": "not-power",
-            "transition-to-left": true,
-            "click-to-reveal": true
-        },
-        "modules": ["upower","upower/headset"]
     },
 
     "custom/smallspacer":{
@@ -379,23 +359,23 @@
     },
 
 
+    // Always show the system battery percentage; clicks never toggle its format.
     "battery": {
+        "interval": 10,
         "states": {
-            "good": 95,
             "warning": 30,
             "critical": 20
         },
-        "format": "{icon}",
-        "rotate": 0,
-        "format-charging": "<span color='#a6d189'>󱐋</span>",
-        "format-plugged": "󰂄",
-        // "format-alt": "<<span weight='bold' color='#c2864a'>{time} <span weight='bold' color='white'>| <span weight='bold' color='#82d457'>{capacity}%</span></span></span>",
-        "format-icons": ["󰝦","󰪞","󰪟","󰪠","󰪡","󰪢","󰪣","󰪤","󰪥"],
-        //  "format-icons": ["","","","","","","",""],
-        //"format-icons": ["󰂎", "󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],
-        "on-click-right": "pkill waybar & hyprctl dispatch \"hl.dsp.exec_cmd('waybar')\"",
-        //  "format-icons": [<i class='fa-solid fa-wifi-slash'></i>],
-
+        "format": "{icon} {capacity}%",
+        "format-charging": "󱐋 {capacity}%",
+        "format-plugged": "󰂄 {capacity}%",
+        "format-full": "󰁹 {capacity}%",
+        "format-icons": ["󰂎", "󰁺", "󰁼", "󰁾", "󰂀", "󰂂", "󰁹"],
+        "tooltip": true,
+        "tooltip-format": "<b>Battery: {capacity}%</b>\n{timeTo}\nPower rate: {power:.1f} W\nBattery health: {health}% of design capacity\nCharge cycles: {cycles}\n\nRight-click: battery monitor",
+        "tooltip-format-charging": "<b>Charging: {capacity}%</b>\n{timeTo}\nCharging rate: {power:.1f} W\nBattery health: {health}% of design capacity\nCharge cycles: {cycles}\n\nRight-click: battery monitor",
+        "tooltip-format-discharging": "<b>Battery: {capacity}%</b>\n{timeTo}\nDischarge rate: {power:.1f} W\nBattery health: {health}% of design capacity\nCharge cycles: {cycles}\n\nRight-click: battery monitor",
+        "on-click-right": "ghostty -e battop"
     },
 
     "backlight": {
