@@ -101,7 +101,11 @@ export GOPATH="$XDG_DATA_HOME"/go
 export TASKDATA="$XDG_DATA_HOME"/task
 export TASKRC="$XDG_CONFIG_HOME"/task/taskrc
 export MBSYNCRC="$XDG_DATA_HOME"/isync/mbsyncrc
-export PI_CODING_AGENT_DIR="$HOME/.config/pi/agent"
+# omp shares PI_CODING_AGENT_DIR with pi; exporting it for pi hijacks omp's agent dir
+# and makes herdr refuse the omp integration (same extensions dir). omp defaults to
+# ~/.omp/agent and pi to ~/.pi/agent; both are symlinks to the XDG dirs. Unset so
+# panes inheriting the old value from the herdr server env also recover.
+unset PI_CODING_AGENT_DIR
 export KUBECONFIG="$XDG_CONFIG_HOME"/kube/config
 # if [[ -f  "$XDG_CONFIG_HOME"/k3s/k3s-home.yaml ]]; then
 #     export KUBECONFIG=$KUBECONFIG:"$XDG_CONFIG_HOME"/k3s/k3s-home.yaml
