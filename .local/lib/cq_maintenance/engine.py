@@ -133,7 +133,7 @@ def fix(ids=None,action_id='fix',dry_run=False):
     # Refuse concurrent fix batches; checks remain independent and share provider locks.
     with lock('repairs'):
         items=plans(ids)
-        order={'git':0,'crypt':2,'mail_setup':3,'mail':4,'syncthing':5}
+        order={'git':0,'crypt':2,'mail_setup':3,'mail':4,'pass_sync':4,'syncthing':5}
         items.sort(key=lambda item:order.get(item[1].provider,6))
         setup_blocked=False;crypt_blocked=False
         source_before=source_signature()

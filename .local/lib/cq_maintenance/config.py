@@ -4,6 +4,7 @@ from pathlib import Path
 from .model import Settings
 
 DEFAULTS = {
+ 'pass-sync': {'provider':'pass_sync','interval':300,'options':{'warning_seconds':604800,'error_seconds':1209600}},
  'taskwarrior': {'provider':'taskwarrior','interval':60,'options':{'stale_seconds':86400}},
  'dotfiles': {'provider':'git', 'options':{'profile':'dotfiles'}},
  'dotlocal': {'provider':'git', 'options':{'profile':'dotlocal'}},

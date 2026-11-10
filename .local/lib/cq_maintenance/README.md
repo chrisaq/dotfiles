@@ -343,3 +343,19 @@ repository. An ambiguous remote/branch requires explicit `options.remote` and
 monitor does not fetch into local branch refs or invent a remote verification
 timestamp. Genuine remote connection failures remain unknown; conflicts retain
 error priority.
+
+
+Password-store KeePass export freshness is monitored by `pass-sync` (provider
+`pass_sync`, enabled by default). The generated `passwords.kdbx` modification time
+is OK through one week, warning above one week, and error above two weeks. Missing
+or empty exports are errors. Checks read metadata only; no decryption, network,
+PIN entry or per-machine baseline is needed. Syncthing preserves the export
+modification time across machines. This checks export age, not phone completion.
+
+`cq_maintenance fix pass-sync` runs the documented `cq_pass-sync export` using
+`empty.kdbx` as the base and `passwords.kdbx` as output. It runs in the foreground
+and may ask for the KeePass password/GPG unlock; Fix all includes it. Configure
+`options.store`, `kdbx`, `base_kdbx`, `warning_seconds` (604800) and `error_seconds`
+(1209600). The store defaults to PASSWORD_STORE_DIR then ~/Sync/Password-Store;
+relative database paths resolve within the store. Toggle per machine with `e` in
+the health TUI or a `checks.pass-sync.enabled` local override.

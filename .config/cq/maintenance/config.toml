@@ -155,3 +155,17 @@ stale_seconds = 86400
 provider = "taskwarrior"
 enabled = true
 waybar = false
+
+# Generated KeePass export freshness. Per-machine overrides go in config.local.toml.
+[checks.pass-sync]
+provider = "pass_sync"
+enabled = true
+interval = 300
+timeout = 30
+
+[checks.pass-sync.options]
+warning_seconds = 604800 # More than one week: warning.
+error_seconds = 1209600 # More than two weeks: error/red.
+# store = "~/Sync/Password-Store" # Default: PASSWORD_STORE_DIR, then this path.
+kdbx = "passwords.kdbx"
+base_kdbx = "empty.kdbx"
