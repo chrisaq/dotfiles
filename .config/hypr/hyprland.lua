@@ -290,6 +290,9 @@ hl.bind(mainMod .. " + " .. "SHIFT" .. " + " .. "C", hl.dsp.window.close())
 
 hl.bind(mainMod .. " + " .. "space", hl.dsp.exec_cmd("fuzzel"))
 
+-- Tap Super+V to start recording, then tap again to transcribe into the focused app.
+hl.bind(mainMod .. " + " .. "V", hl.dsp.exec_cmd("~/.local/bin/cq_whisper_type toggle"))
+
 -- bind = $mainMod, P, pseudo, # dwindle
 
 -- bind = $mainMod, M, workspace, setlayout, master
