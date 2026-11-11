@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+#:usage: cq_whisper_type start|stop
+#:no-args: false
+#:desc: Record speech and type a Whisper transcription into the focused application.
+
+set -euo pipefail
+
+endpoint='https://whisper.k8s.int.kotelett.no/inference'
+runtime_dir=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}
+state_dir="$runtime_dir/cq-whisper-type"
+mkdir -p "$state_dir"
+chmod 700 "$state_dir"
+pid_file="$state_dir/recorder.pid"
+audio_file="$state_dir/recording.wav"
+language_file="$state_dir/language"
+
+notify() {
+    command -v notify-send >/dev/null 2>&1 && notify-send -a 'Whisper input' "$1" "$2"
+}
+
+case "${1:-}" in
+    start)
+        if [[ -s "$pid_file" ]] && kill -0 "$(<"$pid_file")" 2>/dev/null; then
+            exit 0
+        fi
+        language=$(hyprctl devices -j | python3 -c '
+import json, sys
+devices = json.load(sys.stdin).get("keyboards", [])
+active = next((d.get("active_keymap", "") for d in devices if d.get("main")), "")
+print("no" if "Norwegian" in active else "en")
+')
+        printf '%s\n' "$language" > "$language_file"
+        rm -f "$audio_file"
+        nohup pw-record --rate 16000 --channels 1 --format s16 "$audio_file" \
+            >/dev/null 2>&1 </dev/null &
+        printf '%s\n' "$!" > "$pid_file"
+        notify 'Listening' "Whisper input ($language); release Super+V to transcribe"
+        ;;
+    stop)
+        [[ -s "$pid_file" ]] || exit 0
+        pid=$(<"$pid_file")
+        rm -f "$pid_file"
+        trap 'rm -f "$audio_file" "$language_file"' EXIT
+        if ! kill -0 "$pid" 2>/dev/null; then
+            notify 'Recording failed' 'The audio recorder stopped unexpectedly.'
+            exit 1
+        fi
+        kill -INT "$pid"
+        for _ in {1..40}; do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 0.05
+        done
+        if kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null || true
+            notify 'Recording failed' 'The audio recorder did not stop cleanly.'
+            exit 1
+        fi
+        [[ -s "$audio_file" ]] || { notify 'No audio' 'No recording was captured.'; exit 1; }
+        language=$(<"$language_file")
+        if ! response=$(curl --fail --silent --show-error --max-time 90 "$endpoint" \
+            -F "file=@$audio_file" -F "language=$language" -F 'response_format=json' 2>&1); then
+            notify 'Whisper request failed' "$response"
+            exit 1
+        fi
+        transcript=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("text", "").strip())' <<<"$response") || {
+            notify 'Whisper response error' 'The server returned invalid JSON.'
+            exit 1
+        }
+        if [[ -n "$transcript" ]]; then
+            wtype -- "$transcript"
+            notify 'Transcribed' "$transcript"
+        else
+            notify 'No speech detected' 'Whisper returned an empty transcript.'
+        fi
+        ;;
+    *)
+        echo "Usage: $0 start|stop" >&2
+        exit 2
+        ;;
+esac
