@@ -105,8 +105,6 @@ return {
         }),
         sources = {
           { name = "nvim_lsp" },
-          { name = "copilot"},
-          { name = "codeium" },
           { name = "luasnip" },
           { name = "buffer" },
           { name = "nvim_lua" },

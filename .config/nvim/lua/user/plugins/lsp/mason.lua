@@ -38,7 +38,6 @@ return {
         -- "zk@v0.10.1",
         "taplo",
         "terraformls",
-        "tflint",
         "vuels",
         "yamlls",
         "eslint",
@@ -52,7 +51,7 @@ return {
         "isort", -- python formatter
         "black", -- python formatter
         "pylint",
-        "eslint_d",
+        "tflint",
       },
     })
   end,

@@ -105,10 +105,9 @@ return {
   "moll/vim-bbye", -- closing buffers will not remove windows
   -- Programming
   "nvim-lua/plenary.nvim", -- library of common lua functions
-  "nvim-lua/popup.nvim", -- utility package for popups
   {
     "MeanderingProgrammer/render-markdown.nvim",
-    opts = { file_types = { "markdown", "Avante" } },
+    opts = { file_types = { "markdown" } },
     -- dependencies = { 'nvim-treesitter/nvim-treesitter', 'echasnovski/mini.nvim' }, -- if you use the mini.nvim suite
     dependencies = { "echasnovski/mini.icons" }, -- if you use standalone mini plugins
   },
@@ -169,40 +168,6 @@ return {
       })
     end,
   },
-  {
-    "Exafunction/codeium.nvim",
-    -- locking to this commit until https://github.com/Exafunction/codeium-vim/issues/236 or 232 is resolved
-    commit = "937667b2cadc7905e6b9ba18ecf84694cf227567",
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-      "hrsh7th/nvim-cmp",
-    },
-    config = function()
-      require("codeium").setup({
-        enable_chat = true,
-      })
-    end,
-  },
-  {
-    "robitx/gp.nvim",
-    config = function()
-      local conf = {
-        -- For customization, refer to Install > Configuration in the Documentation/Readme
-        providers = {
-          openai = {
-            endpoint = "https://api.openai.com/v1/chat/completions",
-            secret = { "bash", "-c", "cat ~/.config/tokens/openai.token" },
-          },
-          anthropic = {
-            endpoint = "https://api.anthropic.com/v1/messages",
-            secret = { "bash", "-c", "cat ~/.config/tokens/claude.token" },
-          },
-        },
-      }
-      require("gp").setup(conf)
-      -- Setup shortcuts here (see Usage > Shortcuts in the Documentation/Readme)
-    end,
-  },
   -- Formatting
   -- Fuzzy search
   {
@@ -239,9 +204,7 @@ return {
       require("mini.icons").setup({
         lsp = {
           ellipsis_char = { glyph = '…', hl = 'MiniIconsRed' },
-          copilot = { glyph = '', hl = 'MiniIconsOrange' },
           supermaven = { glyph = '', hl = 'MiniIconsYellow' },
-          codeium = { glyph = '', hl = 'MiniIconsGreen' },
           otter = { glyph = '🦦', hl = 'MiniIconsCyan' },
           cody = { glyph = '', hl = 'MiniIconsAzure' },
           cmp_r = { glyph = 'R', hl = 'MiniIconsBlue' },
@@ -413,7 +376,7 @@ return {
     dependencies = { "MunifTanjim/nui.nvim", "nvim-lua/plenary.nvim" },
     config = function()
       require("hardtime").setup({
-        disabled_filetypes = { "qf", "netrw", "NvimTree", "lazy", "mason", "oil", "Bot", "vim", "help", "Avante", "trouble", "MundoDiff" },
+        disabled_filetypes = { "qf", "netrw", "NvimTree", "lazy", "mason", "oil", "Bot", "vim", "help", "trouble", "MundoDiff" },
         hint = true,
       })
       key_map("n", "<f4>", "<cmd>hardtime toggle<cr>", { desc = "hardtime toggle" })
