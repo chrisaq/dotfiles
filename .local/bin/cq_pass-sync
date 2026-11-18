@@ -17,6 +17,11 @@ Sync a pass/gopass password-store with KeePass .kdbx files.
 Main workflow:
   password-store -> passwords.kdbx -> KeePassDX on Android
 
+Usual export from an empty template:
+  cd "$PASSWORD_STORE_DIR" && cq_pass-sync export --base-kdbx empty.kdbx
+  --kdbx passwords.kdbx is already the default in the resolved store.
+  Bare export uses passwords.kdbx itself as the base, not empty.kdbx.
+
 Optional writeback workflow:
   android.kdbx -> password-store
 
@@ -73,7 +78,15 @@ app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
     rich_markup_mode="rich",
-    help="Sync pass/gopass password-store entries with KeePass .kdbx files.",
+    help=(
+        "Sync pass/gopass password-store entries with KeePass .kdbx files.\n\n"
+        "[bold]Usual export from an empty template:[/bold]\n\n"
+        '\b\ncd "$PASSWORD_STORE_DIR" && cq_pass-sync export --base-kdbx empty.kdbx\n\n'
+        "This reads empty.kdbx as the template and writes passwords.kdbx in the resolved store; "
+        "--kdbx passwords.kdbx is already the default.\n\n"
+        "Bare [bold]cq_pass-sync export[/bold] uses passwords.kdbx itself as the base, "
+        "not empty.kdbx."
+    ),
 )
 
 

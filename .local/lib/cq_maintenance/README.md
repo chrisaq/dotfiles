@@ -359,3 +359,11 @@ and may ask for the KeePass password/GPG unlock; Fix all includes it. Configure
 (1209600). The store defaults to PASSWORD_STORE_DIR then ~/Sync/Password-Store;
 relative database paths resolve within the store. Toggle per machine with `e` in
 the health TUI or a `checks.pass-sync.enabled` local override.
+
+In the health TUI, select `pass-sync` and press `s` (Fix selected), then choose
+Continue. The confirmation shows the password-store, template and output paths.
+The dashboard switches to the terminal for export progress and password/GPG
+prompts; press Enter when the command finishes to return. The detail pane keeps
+the last requested action's completion, failure or cancellation visible across
+refreshes for the current dashboard session. If an interactive terminal cannot
+be opened, it shows the equivalent CLI command instead of silently returning.

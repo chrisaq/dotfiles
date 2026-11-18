@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 from rich.text import Text
-from textual.app import App,ComposeResult
+from textual.app import App,ComposeResult,SuspendNotSupported
 from textual.theme import Theme
 from textual.binding import Binding
 from textual.containers import Horizontal,Vertical,VerticalScroll,HorizontalScroll
@@ -14,12 +14,13 @@ from .util import run,read_json,state_dir,Problem
 from .view import COLORS,age
 
 class ConfirmAction(ModalScreen[bool]):
-    DEFAULT_CSS='ConfirmAction {align:center middle;} ConfirmAction > Vertical {width:76; height:auto; max-height:80%; padding:1 2; background:$surface; border:round $warning;} ConfirmAction Horizontal {height:3; align:center middle;}'
+    DEFAULT_CSS='ConfirmAction {align:center middle;} ConfirmAction > Vertical {width:90%; max-width:76; height:80%; max-height:24; padding:1 2; background:$surface; border:round $warning;} ConfirmAction #confirmation-body {height:1fr;} ConfirmAction Horizontal {height:3; align:center middle;}'
     def __init__(self,title,body):super().__init__();self.title_text=title;self.body=body
     def compose(self):
         with Vertical():
             yield Label(self.title_text)
-            yield Static(Text(self.body))
+            with VerticalScroll(id='confirmation-body'):
+                yield Static(Text(self.body))
             with Horizontal():yield Button('Cancel',id='cancel');yield Button('Continue',id='yes',variant='warning')
     def on_button_pressed(self,event):
         event.stop()
@@ -32,6 +33,7 @@ class MaintenanceApp(App):
     BINDINGS=[Binding('r','refresh','Refresh'),Binding('f','fix_all','Fix all'),Binding('s','fix_selected','Fix selected'),Binding('v','review','Review'),Binding('o','open','Open'),Binding('e','toggle','Enable/disable'),Binding('ctrl+t','theme','Theme'),Binding('q','quit','Quit'),Binding('t','setup','Setup'),Binding('question_mark','guide','Guide'),Binding('h','guide','Guide',show=False)]
     def __init__(self,select=None,view='health',startup_guide=False):
         super().__init__();self.startup_guide=startup_guide;self.selected=select;self.rows={};self.initial_view=view;self.setup_selection=select if view=='setup' else None
+        self.action_status={}
         self.register_theme(Theme(name='catppuccin-macchiato',primary='#8aadf4',secondary='#c6a0f6',accent='#c6a0f6',foreground='#cad3f5',background='#24273a',surface='#1e2030',panel='#363a4f',success='#a6da95',warning='#eed49f',error='#ed8796',dark=True))
     def compose(self)->ComposeResult:
         yield Header()
@@ -88,6 +90,7 @@ class MaintenanceApp(App):
         lines=[row.id.upper(),'Enabled on this machine: '+enabled,row.state+' · '+row.summary,'Checked '+age(row.checked_at)]
         if row.last_success:lines.append('Last operation success '+age(row.last_success))
         if row.activity:lines.append('Activity: '+row.activity)
+        if row.id in self.action_status:lines+=['','Last requested action:',self.action_status[row.id]]
         detail_lines=[line.replace(str(Path.home())+'/', '~/') for line in row.details]
         lines+=['']+detail_lines+['','Available actions:']+[a.label+(' [safe batch]' if a.safe else ' [review]') for a in row.actions]
         if events:lines+=['','Recent actions:']+[event['state']+': '+event['message'] for event in events]
@@ -103,26 +106,82 @@ class MaintenanceApp(App):
     def launch(self,args):
         import sys
         code=None
+        selected=args[1] if len(args)>1 and args[0] in {'fix','review','open'} and not args[1].startswith('-') else self.selected
+        command='cq_maintenance '+' '.join(args)
+        message='Running '+command+'; follow the output and prompts in the terminal.'
+        if selected:self.action_status[selected]=message
+        self.show_detail()
         try:
             with self.suspend():
-                result=run([Path.home()/'.local/bin/cq_maintenance',*args],foreground=True,timeout=86400)
-                if sys.stdin.isatty():input('\nPress Enter to return to the dashboard…')
-            code=result.returncode
-            if result.returncode:self.notify(f'Action failed (exit {result.returncode}); inspect its output or unit logs.',severity='error',timeout=10)
+                # Always leave suspend normally: terminal restoration must also
+                # happen when process startup, execution or input fails.
+                print('\nRunning '+command+'\n',flush=True)
+                try:
+                    result=run([Path.home()/'.local/bin/cq_maintenance',*args],foreground=True,timeout=86400)
+                    code=result.returncode
+                    message=(f'Completed: {command} (exit 0). See Recent actions below for the result.' if code==0
+                             else f'Failed: {command} (exit {code}). Inspect the terminal output and Recent actions below.')
+                except KeyboardInterrupt:
+                    code=130;message='Interrupted: '+command+'. Check current status before retrying.'
+                except Exception as error:
+                    message='Failed: '+command+'. '+(str(error) if isinstance(error,Problem) else type(error).__name__+' while running the terminal action.')
+                print('\n'+message,flush=True)
+                if sys.stdin.isatty():
+                    try:input('\nPress Enter to return to the dashboard…')
+                    except (EOFError,KeyboardInterrupt):pass
+        except SuspendNotSupported:
+            message='Could not open the interactive terminal. Run '+command+' in a terminal to see output and password prompts.'
         except Exception as error:
-            self.notify(str(error) if isinstance(error,Problem) else 'Could not run the terminal action. Use the CLI or inspect unit logs.',severity='error',timeout=10)
+            message='Could not run '+command+': '+(str(error) if isinstance(error,Problem) else type(error).__name__+'. Use the CLI or inspect unit logs.')
+        if selected:self.action_status[selected]=message
+        self.notify(message,severity='information' if code==0 else 'error',timeout=10)
         self.repaint()
         return code
     def confirm(self,args,body):
-        self.push_screen(ConfirmAction('Review maintenance action',body),lambda accepted:self.launch(args) if accepted else None)
+        selected=self.selected
+        if selected:self.action_status[selected]='Awaiting confirmation: choose Continue to start, or Cancel to leave everything unchanged.'
+        self.show_detail()
+        def decided(accepted):
+            if accepted:self.launch(args)
+            else:
+                if selected:self.action_status[selected]='Cancelled before starting; no maintenance command was run.'
+                self.show_detail()
+                self.notify('Action cancelled; nothing was run.')
+        self.push_screen(ConfirmAction('Review maintenance action',body),decided)
     def action_fix_all(self):
         labels=[row.id+': '+a.label for row in self.rows.values() for a in row.actions if a.safe and a.id=='fix' and row.state!='disabled']
         self.confirm(['fix','--all','--yes'],'Recheck and run available safe actions:\n\n'+'\n'.join(labels)+'\n\nNo upgrades, commits, publishing, blanket restarts or ambiguous overwrites. GPG may need unlocking.')
     def action_fix_selected(self):
         if self.selected=='monitor' or (self.selected or '').startswith('setup:'):self.action_setup();return
         row=self.rows.get(self.selected)
-        if row and row.state!='disabled' and any(a.safe and a.id=='fix' for a in row.actions):self.confirm(['fix',row.id,'--yes'],row.summary+'\n\nRecheck and perform the guarded fix?')
-        else:self.notify('No safe fix available; use Review or Open.')
+        config=load().checks.get(self.selected)
+        if row and row.state!='disabled' and config and config.enabled and config.provider=='pass_sync' and not any(a.safe and a.id=='fix' for a in row.actions):
+            # An unchecked/failed cached observation may have no actions. This
+            # provider's metadata-only check can recover its Fix action without
+            # opening GPG or exporting anything. Execution still rechecks it.
+            from .providers.base import Context
+            from .providers.pass_sync import check
+            try:
+                row=check(Context(row.id,config))
+                self.rows[row.id]=row
+            except Exception as error:
+                self.action_status[row.id]='No export started: '+(str(error) if isinstance(error,Problem) else 'could not check export status ('+type(error).__name__+').')
+                self.show_detail()
+                self.notify(self.action_status[row.id],severity='error',timeout=10)
+                return
+        if row and row.state!='disabled' and config and config.enabled and any(a.safe and a.id=='fix' for a in row.actions):
+            body=row.summary+'\n\nRecheck and perform the guarded fix?'
+            if config and config.provider=='pass_sync':
+                from .providers.base import Context
+                from .providers.pass_sync import paths
+                store,database,base=paths(Context(row.id,config))
+                body=('Export password store to KeePass?\n\nStore: '+str(store)+'\nTemplate: '+str(base)+'\nOutput: '+str(database)
+                      +'\n\nChoose Continue to start. The dashboard will switch to the terminal to show export progress and any KeePass password or GPG unlock prompts. Press Enter after completion to return here.')
+            self.confirm(['fix',row.id,'--yes'],body)
+        else:
+            if self.selected:self.action_status[self.selected]='No fix started: no safe fix is available. Refresh the checks or use Review or Open.'
+            self.show_detail()
+            self.notify('No safe fix available; refresh the checks or use Review or Open.')
     def action_review(self):
         if self.selected=='monitor' or (self.selected or '').startswith('setup:'):self.action_setup();return
         if self.selected and self.selected!='monitor' and self.rows[self.selected].state!='disabled':
