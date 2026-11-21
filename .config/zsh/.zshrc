@@ -821,133 +821,60 @@ alias cq_snd_restart="systemctl --user restart pipewire pipewire-pulse wireplumb
 alias tfinit='terraform init -backend-config=tf-init.conf'
 alias helm-completion='source <(helm completion zsh)'
 cq_wg_diag() {
-  : "#:desc: diagnose WireGuard routing, endpoint reachability and peer status"
-  : "#:usage: cq_wg_diag [iface]"
-  : "#:no-args: false"
-  cq_config_source wg || return 1
-  local iface="${1:-wg-home}"
-  local ep host
-  ep="$(sudo wg show "$iface" endpoints 2>/dev/null | awk 'NR==1 {print $2}')"
-  host="${ep%:*}"
-  echo "== ip route =="
-  ip route
-  echo
-  echo "== ip rule =="
-  ip rule
-  echo
-  echo "== wg show =="
-  sudo wg show "$iface"
-  echo
-  if [[ -n "$host" ]]; then
-    echo "== route to endpoint ($host) =="
-    ip route get "$host"
-  fi
-  echo
-  echo "== ping tunnel gateway (${CQ_WG_DIAG_GATEWAY:-10.1.0.1}) =="
-  ping -c1 -W1 "${CQ_WG_DIAG_GATEWAY:-10.1.0.1}" 2>/dev/null || echo "no reply"
-}
-cq_wg_portal() {
-  : "#:desc: temporarily disable wg-home to complete captive portal login, then re-enable it"
-  : "#:usage: cq_wg_portal"
-  : "#:no-args: true"
-  cq_config_source wg || return 1
-  local url="${CQ_WG_PORTAL_URL:-http://neverssl.com/}"
-  echo "[wg] bringing down wg-home..."
-  sudo networkctl down wg-home 2>/dev/null || true
-  echo "[portal] opening ${url} (login to the portal, then press Enter here)..."
-  if command -v xdg-open >/dev/null 2>&1; then
-    xdg-open "$url" >/dev/null 2>&1 || true
-  else
-    echo "xdg-open not found; open ${url} manually."
-  fi
-  read -r "?[portal] press Enter when you're online... "
-  echo "[wg] re-enabling wg-home..."
-  sudo networkctl reconfigure wg-home
-  echo "[wg] status:"
-  sudo wg show wg-home 2>/dev/null || sudo wg show 2>/dev/null || true
-}
-cq_wg_home() {
-  : "#:desc: enable split-tunnel WireGuard (home LAN only)"
-  : "#:usage: cq_wg_home"
-  : "#:no-args: true"
-  cq_config_source wg || return 1
-  sudo networkctl down "${CQ_WG_FULL_IFACE:-wg-full}" 2>/dev/null || true
-  sudo networkctl reconfigure "${CQ_WG_HOME_IFACE:-wg-home}"
-}
-cq_wg_full() {
-  : "#:desc: enable full-tunnel WireGuard (all traffic via home)"
-  : "#:usage: cq_wg_full"
-  : "#:no-args: true"
-  cq_config_source wg || return 1
-  sudo networkctl down "${CQ_WG_HOME_IFACE:-wg-home}" 2>/dev/null || true
-  sudo networkctl reconfigure "${CQ_WG_FULL_IFACE:-wg-full}"
+    : "#:desc: diagnose WireGuard activation, routing, handshake and DNS"
+    : "#:usage: cq_wg_diag [iface] [--verbose]"
+    : "#:no-args: false"
+    cq_config_source wg || return 1
+    local -a targets
+    [[ -z ${CQ_WG_DIAG_GATEWAY:-} ]] || targets=(--target "$CQ_WG_DIAG_GATEWAY")
+    sudo /usr/local/libexec/cq-wg diag "${targets[@]}" "$@"
 }
 cq_wg_reset() {
-    : "#:desc: re-resolve WireGuard endpoint and reset peer endpoint"
-    : "#:usage: cq_wg_reset [iface]"
+    : "#:desc: repair and verify the selected WireGuard tunnel"
+    : "#:usage: cq_wg_reset [iface] [--dry-run]"
     : "#:no-args: false"
-    local iface="${1:-wg-home}"
-    local netdev ep host port ip peer
-    netdev="$(
-    sudo awk -v iface="$iface" '
-        FNR == 1 { file=FILENAME }
-        /^[[:space:]]*Name[[:space:]]*=/ {
-            line=$0
-            sub(/^[^=]*=/, "", line)
-            gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
-            if (line == iface) {
-                print file
-                exit
-            }
-        }
-    ' /etc/systemd/network/*.netdev
-    )"
-    [[ -n "$netdev" ]] || {
-        echo "Could not find netdev for $iface" >&2
-        return 1
-    }
-    ep="$(sudo awk -F= '
-        $1 ~ /^[[:space:]]*Endpoint[[:space:]]*$/ {
-            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
-            print $2
-            exit
-        }
-    ' "$netdev")"
-    [[ -n "$ep" ]] || {
-        echo "Could not read Endpoint= from $netdev" >&2
-        return 1
-    }
-    host="${ep%:*}"
-    port="${ep##*:}"
-    # Drop resolved/system DNS cache before resolving it again.
-    sudo resolvectl flush-caches 2>/dev/null || true
-    ip="$(getent ahostsv4 "$host" | awk 'NR == 1 {print $1}')"
-    [[ -n "$ip" ]] || {
-        echo "Could not resolve $host" >&2
-        return 1
-    }
-    echo "iface:      $iface"
-    echo "netdev:     $netdev"
-    echo "configured: $ep"
-    echo "resolved:   $ip:$port"
-    while read -r peer; do
-        [[ -n "$peer" ]] || continue
-        sudo wg set "$iface" peer "$peer" endpoint "$ip:$port" || return 1
-    done < <(sudo wg show "$iface" peers)
-    echo
-    echo "WireGuard status:"
-    sudo wg show "$iface"
-    echo
-    echo "Route to endpoint:"
-    ip route get "$ip"
+    cq_config_source wg || return 1
+    local -a targets
+    [[ -z ${CQ_WG_DIAG_GATEWAY:-} ]] || targets=(--target "$CQ_WG_DIAG_GATEWAY")
+    sudo /usr/local/libexec/cq-wg reset "${targets[@]}" "$@"
+}
+cq_wg_home() {
+    : "#:desc: enable split-tunnel WireGuard for this Wi-Fi network"
+    : "#:usage: cq_wg_home"
+    : "#:no-args: true"
+    sudo /usr/local/libexec/cq-wg home "$@"
+}
+cq_wg_full() {
+    : "#:desc: enable full-tunnel WireGuard for this Wi-Fi network"
+    : "#:usage: cq_wg_full"
+    : "#:no-args: true"
+    sudo /usr/local/libexec/cq-wg full "$@"
 }
 cq_wg_off() {
-  : "#:desc: disable all WireGuard tunnels"
-  : "#:usage: cq_wg_off"
-  : "#:no-args: true"
-  cq_config_source wg || return 1
-  sudo networkctl down "${CQ_WG_HOME_IFACE:-wg-home}" 2>/dev/null || true
-  sudo networkctl down "${CQ_WG_FULL_IFACE:-wg-full}" 2>/dev/null || true
+    : "#:desc: disable WireGuard for this Wi-Fi network"
+    : "#:usage: cq_wg_off"
+    : "#:no-args: true"
+    sudo /usr/local/libexec/cq-wg off "$@"
+}
+cq_wg_portal() {
+    : "#:desc: pause WireGuard temporarily for captive portal login"
+    : "#:usage: cq_wg_portal"
+    : "#:no-args: true"
+    cq_config_source wg || return 1
+    (
+        local token url="${CQ_WG_PORTAL_URL:-http://neverssl.com/}"
+        token=$(sudo /usr/local/libexec/cq-wg portal-start) || exit
+        trap 'sudo /usr/local/libexec/cq-wg portal-end "$token"' EXIT
+        trap 'exit 130' INT
+        trap 'exit 143' TERM HUP
+        print -r -- "[portal] Open $url and complete the login."
+        if command -v xdg-open >/dev/null 2>&1; then
+            xdg-open "$url" >/dev/null 2>&1 &!
+        fi
+        read -r "?Press Enter when the portal login is complete... " || exit
+        trap - EXIT
+        sudo /usr/local/libexec/cq-wg portal-end "$token"
+    )
 }
 # swap workspaces 1 and 2
 # make this a script for use in i3

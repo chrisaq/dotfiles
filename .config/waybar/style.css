@@ -429,3 +429,8 @@ font-weight: normal;
 #custom-maintenance.error { color: #ed8796; }
 #custom-maintenance.unknown, #custom-maintenance.disabled { color: #939ab7; }
 #custom-maintenance.running { border-bottom: 2px solid #8aadf4; }
+
+#custom-wireguard { padding: 0 6px; color: #a6da95; }
+#custom-wireguard.pending { color: #eed49f; }
+#custom-wireguard.fault { color: #ed8796; }
+#custom-wireguard.off, #custom-wireguard.unknown { color: #939ab7; }

@@ -1,0 +1,96 @@
+#!/usr/bin/bash
+set -euo pipefail
+
+if (( EUID != 0 )); then
+    echo "Usage: sudo $0 [policy.json]" >&2
+    exit 2
+fi
+if (( $# > 1 )); then
+    exit 2
+fi
+
+source_dir=$(dirname "$(realpath "$0")")
+unit_dir=/etc/systemd/system
+config=/etc/cq-wg.json
+
+# Preserve an existing policy. The original workstation script used literal
+# Bash arrays, which can be migrated without sourcing privileged shell code.
+if [[ $# == 1 || ! -e $config ]]; then
+    python3 - "${1:-}" "$config" <<'PY'
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import sys
+import tempfile
+
+source, destination = sys.argv[1:]
+if source:
+    settings = json.loads(Path(source).read_text())
+else:
+    settings = {"profiles": {"home": "wg-home", "full": "wg-full"},
+                "policy": {"off": [], "home": [], "full": [], "default": "home"}}
+    legacy = Path("/usr/local/bin/wg-policy")
+    if legacy.is_file():
+        text = legacy.read_text()
+        names = {"off": "NEVER_VPN_SSIDS", "home": "HOME_TUNNEL_SSIDS", "full": "FULL_TUNNEL_SSIDS"}
+        for mode, name in names.items():
+            match = re.search(rf"^{name}=\(([^\n]*)\)$", text, re.M)
+            if match:
+                settings["policy"][mode] = shlex.split(match[1])
+        match = re.search(r'^DEFAULT_TUNNEL="(home|full|none|off)"$', text, re.M)
+        if match:
+            settings["policy"]["default"] = "off" if match[1] == "none" else match[1]
+
+profiles, policy = settings["profiles"], settings["policy"]
+if (set(profiles) != {"home", "full"} or len(set(profiles.values())) != 2
+        or any(not re.fullmatch(r"[A-Za-z0-9_.][A-Za-z0-9_.-]{0,14}", iface)
+               for iface in profiles.values())
+        or policy["default"] not in ("home", "full", "off")
+        or any(not isinstance(policy[mode], list) or not all(isinstance(ssid, str) for ssid in policy[mode])
+               for mode in ("home", "full", "off"))):
+    sys.exit("Invalid WireGuard policy configuration")
+with tempfile.NamedTemporaryFile(mode="w", dir=Path(destination).parent, delete=False) as output:
+    json.dump(settings, output, indent=2)
+    output.write("\n")
+    os.chmod(output.name, 0o644)
+os.replace(output.name, destination)
+PY
+fi
+
+install -D -o root -g root -m 0755 "$source_dir/cq-wg" /usr/local/libexec/cq-wg
+if ! systemctl cat wg-policy.service >/dev/null 2>&1; then
+    install -D -m 0644 /dev/stdin "$unit_dir/wg-policy.service" <<'UNIT'
+[Unit]
+Description=Select WireGuard tunnel based on WiFi SSID
+After=systemd-networkd.service iwd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/cq-wg tick
+UNIT
+else
+    install -D -m 0644 /dev/stdin "$unit_dir/wg-policy.service.d/50-cq-wg.conf" <<'UNIT'
+[Service]
+ExecStart=
+ExecStart=/usr/local/libexec/cq-wg tick
+UNIT
+fi
+if ! systemctl cat wg-policy.timer >/dev/null 2>&1; then
+    install -D -m 0644 /dev/stdin "$unit_dir/wg-policy.timer" <<'UNIT'
+[Unit]
+Description=Re-evaluate WireGuard tunnel selection
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=20s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
+UNIT
+fi
+systemctl daemon-reload
+systemctl enable --now wg-policy.timer
+systemctl start wg-policy.service

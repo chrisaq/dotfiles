@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+    <requires lib="gtk+" version="3.20"/>
+    <object class="GtkMenu" id="menu">
+        <child>
+            <object class="GtkMenuItem" id="reconnect">
+                <property name="visible">True</property>
+                <property name="label">Reconnect</property>
+            </object>
+        </child>
+        <child>
+            <object class="GtkMenuItem" id="disconnect">
+                <property name="visible">True</property>
+                <property name="label">Disconnect for this Wi-Fi network</property>
+            </object>
+        </child>
+        <child>
+            <object class="GtkSeparatorMenuItem">
+                <property name="visible">True</property>
+            </object>
+        </child>
+        <child>
+            <object class="GtkMenuItem" id="split">
+                <property name="visible">True</property>
+                <property name="label">Connect split tunnel</property>
+            </object>
+        </child>
+        <child>
+            <object class="GtkMenuItem" id="full">
+                <property name="visible">True</property>
+                <property name="label">Connect full tunnel</property>
+            </object>
+        </child>
+        <child>
+            <object class="GtkMenuItem" id="automatic">
+                <property name="visible">True</property>
+                <property name="label">Resume automatic policy</property>
+            </object>
+        </child>
+        <child>
+            <object class="GtkSeparatorMenuItem">
+                <property name="visible">True</property>
+            </object>
+        </child>
+        <child>
+            <object class="GtkMenuItem" id="diagnose">
+                <property name="visible">True</property>
+                <property name="label">Run diagnostics</property>
+            </object>
+        </child>
+    </object>
+</interface>

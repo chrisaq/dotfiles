@@ -1,0 +1,734 @@
+#!/usr/bin/python3
+"""Control and inspect the workstation's networkd WireGuard profiles."""
+import argparse
+import contextlib
+import fcntl
+import ipaddress
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import shutil
+import subprocess
+import sys
+import time
+
+CONFIG = Path("/etc/cq-wg.json")
+RUNTIME = Path("/run/cq-wg")
+RECENT_HANDSHAKE = 180
+STATUS_TTL = 60
+NETWORK_DIR = Path("/etc/systemd/network")
+
+
+class Failure(Exception):
+    pass
+
+
+def run(*args, timeout=4):
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=timeout,
+                                env={**os.environ, "LC_ALL": "C"})
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise Failure(f"{args[0]} unavailable or timed out") from error
+    if result.returncode:
+        # Never echo arguments or raw stderr from commands that carry peer keys.
+        raise Failure(f"{args[0]} {args[1]} failed (exit {result.returncode})")
+    return result.stdout.strip()
+
+
+def attempt(*args, **kwargs):
+    try:
+        return run(*args, **kwargs)
+    except Failure:
+        return None
+
+
+def ip_json(*args):
+    return json.loads(run("ip", "-j", *args))
+
+
+def load(path):
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def sections(path):
+    current = None
+    blocks = []
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if line.startswith("[") and line.endswith("]"):
+            current = {}
+            blocks.append((line[1:-1], current))
+        elif current is not None and "=" in line and not line.startswith(("#", ";")):
+            key, _, value = line.partition("=")
+            current[key.strip()] = value.strip()
+    return blocks
+
+
+def profile_config(iface):
+    profile = {"link": iface, "address": None, "dns": [], "domains": [],
+               "routes": [], "peers": []}
+    status = describe(profile)
+    for suffix, status_key, name_section in (("netdev", "NetDevFile", "NetDev"),
+                                             ("network", "NetworkFile", "Match")):
+        path = status.get(status_key)
+        if path:
+            blocks = sections(Path(path))
+        else:
+            for path in sorted(NETWORK_DIR.glob(f"*.{suffix}")):
+                blocks = sections(path)
+                if any(section == name_section and iface in data.get("Name", "").split()
+                       for section, data in blocks):
+                    break
+            else:
+                continue
+        for section, data in blocks:
+            if section == "Network":
+                profile.update(address=data.get("Address"), dns=data.get("DNS", "").split(),
+                               domains=data.get("Domains", "").split())
+            elif section == "Address" and not profile["address"]:
+                profile["address"] = data.get("Address")
+            elif section == "Route" and data.get("Destination"):
+                profile["routes"].append({"destination": data["Destination"]})
+            elif section == "WireGuardPeer" and data.get("PublicKey") and data.get("Endpoint"):
+                profile["peers"].append({"public_key": data["PublicKey"], "endpoint": data["Endpoint"]})
+    return profile
+
+
+def save(name, data, mode):
+    tmp = RUNTIME / f".{name}.{os.getpid()}"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+    try:
+        with os.fdopen(fd, "w") as output:
+            json.dump(data, output)
+        tmp.replace(RUNTIME / name)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+@contextlib.contextmanager
+def lock():
+    RUNTIME.mkdir(mode=0o755, exist_ok=True)
+    with (RUNTIME / "lock").open("a") as file:
+        fcntl.flock(file, fcntl.LOCK_EX)
+        yield
+
+
+def association():
+    devices = attempt("iw", "dev") or ""
+    for iface in re.findall(r"^\s*Interface\s+(\S+)", devices, re.M):
+        output = attempt("iw", "dev", iface, "link") or ""
+        match = re.search(r"^\s*SSID: (.+)$", output, re.M)
+        if match:
+            return iface, match[1]
+    return None, None
+
+
+def intent(config, state, ssid):
+    override = state.get("override")
+    if override and ssid and ssid != override["ssid"]:
+        state.pop("override")
+        override = None
+    portal = state.get("portal")
+    if portal and (time.monotonic() >= portal["until"] or (ssid and ssid != portal["ssid"])):
+        state.pop("portal")
+        portal = None
+    if portal:
+        return "off", "portal"
+    if override:
+        return override["mode"], "manual"
+    if not ssid:
+        return None, "SSID unavailable"
+    policy = config["policy"]
+    for mode in ("off", "full", "home"):
+        if ssid in policy[mode]:
+            return mode, "automatic"
+    return policy["default"], "automatic"
+
+
+def remember_mode(state, mode, desired, source, ssid):
+    override = {"mode": mode, "ssid": ssid}
+    if mode == "off":
+        if source == "manual" and desired in ("home", "full"):
+            override["resume"] = desired
+        elif source == "manual" and desired == "off":
+            override["resume"] = state.get("override", {}).get("resume")
+    state["override"] = override
+    state.pop("portal", None)
+
+
+def resume_mode(config, state, ssid):
+    desired, source = intent(config, state, ssid)
+    if source == "portal":
+        raise Failure("Finish the captive portal login before reconnecting WireGuard")
+    if desired == "off" and source == "manual":
+        if not ssid:
+            raise Failure("Reconnect after Wi-Fi has associated")
+        override = state.pop("override")
+        if override.get("resume"):
+            state["override"] = {"mode": override["resume"], "ssid": ssid}
+        desired, _ = intent(config, state, ssid)
+    if desired not in ("home", "full"):
+        raise Failure("No tunnel selected by policy; choose Split tunnel or Full tunnel")
+    return desired
+
+
+def route(address, mark=None, fibmatch=False):
+    family = "-6" if ":" in address else "-4"
+    args = ["route", "get"]
+    if fibmatch:
+        args.append("fibmatch")
+    args.append(address)
+    if mark and mark != "off":
+        args.extend(("mark", mark))
+    return next(iter(ip_json(family, *args)), {})
+
+
+def host_port(endpoint):
+    host, port = endpoint.rsplit(":", 1)
+    if not 1 <= int(port) <= 65535:
+        raise ValueError("Invalid endpoint port")
+    return host.strip("[]"), int(port)
+
+
+def endpoint_text(address, port):
+    return f"[{address}]:{port}" if ":" in address else f"{address}:{port}"
+
+
+def resolve(endpoint, underlay):
+    host, port = host_port(endpoint)
+    try:
+        return [endpoint_text(str(ipaddress.ip_address(host)), port)]
+    except ValueError:
+        pass
+    if not underlay:
+        raise Failure("Endpoint lookup needs a Wi-Fi or Ethernet underlay")
+    output = attempt("resolvectl", "--interface", underlay, "--protocol=dns", "--cache=no",
+                     "--legend=no", "query", host)
+    addresses = []
+    for line in (output or "").splitlines():
+        for token in line.replace(f"{host}:", "", 1).split("--", 1)[0].split():
+            try:
+                addresses.append(endpoint_text(str(ipaddress.ip_address(token)), port))
+            except ValueError:
+                continue
+    if not addresses:
+        raise Failure(f"Endpoint DNS lookup failed for {host} on {underlay}")
+    return list(dict.fromkeys(addresses))
+
+
+def uplink(wifi, config):
+    tunnel_names = {profile["link"] for profile in config["profiles"].values()}
+    for family in ("-4", "-6"):
+        routes = ip_json(family, "route", "show", "default")
+        for entry in sorted(routes, key=lambda item: item.get("metric", 0)):
+            dev = entry.get("dev")
+            if dev and dev not in tunnel_names and dev != "lo":
+                return dev
+    return wifi
+
+
+def read_peers(iface, field):
+    output = run("wg", "show", iface, field)
+    return dict(line.split(None, 1) for line in output.splitlines() if len(line.split()) >= 2)
+
+
+def describe(profile):
+    iface = profile["link"]
+    raw = attempt("networkctl", "--json=short", "-n", "0", "status", iface)
+    return json.loads(raw) if raw else {}
+
+
+def is_up(iface):
+    try:
+        links = ip_json("link", "show", "dev", iface)
+    except Failure:
+        return False
+    return bool(links and "UP" in links[0].get("flags", []))
+
+
+def local_faults(profile, link):
+    iface = profile["link"]
+    addresses = {f"{entry['AddressString']}/{entry['PrefixLength']}"
+                 for entry in link.get("Addresses", []) if "AddressString" in entry}
+    faults = []
+    if profile["address"] and profile["address"] not in addresses:
+        faults.append("tunnel address missing")
+    for expected in profile["routes"]:
+        network = ipaddress.ip_network(expected["destination"])
+        if not any(entry.get("DestinationPrefixLength") == network.prefixlen
+                   and entry.get("DestinationString", str(network.network_address)) == str(network.network_address)
+                   and entry.get("Table", 254) == 254
+                   and entry.get("ConfigState") == "configured"
+                   for entry in link.get("Routes", [])):
+            faults.append(f"route {network} missing")
+    dns = attempt("resolvectl", "dns", iface)
+    domains = attempt("resolvectl", "domain", iface)
+    if dns is None or domains is None:
+        faults.append("per-link DNS state unavailable")
+    elif (not set(profile["dns"]) <= set(dns.partition(": ")[2].split())
+          or not set(profile["domains"]) <= set(domains.partition(": ")[2].split())):
+        faults.append("per-link DNS configuration missing")
+    return faults
+
+
+def status_profile(config, mode, desired, source):
+    profile = config["profiles"][mode]
+    iface = profile["link"]
+    expected = desired == mode
+    link = describe(profile)
+    up = is_up(iface)
+    if not link:
+        return up, ("fault" if expected or up else "unknown"), ["interface missing or networkd status unavailable"]
+    if not link.get("NetworkFile") or not link.get("NetDevFile") or link.get("Kind") != "wireguard":
+        return up, "fault", ["interface is not owned by the expected networkd configuration"]
+    if not up:
+        if expected:
+            return up, "fault", [f"{source} policy expects {iface}, but its administrative link is down"]
+        if desired is None:
+            return up, "unknown", ["interface down, policy intent unavailable"]
+        return up, "off", ["intentionally inactive"]
+    if desired is not None and not expected:
+        return up, "fault", [f"{iface} is up while {source} policy selects {desired}"]
+    faults = local_faults(profile, link)
+    mark = run("wg", "show", iface, "fwmark")
+    endpoints = read_peers(iface, "endpoints")
+    times = read_peers(iface, "latest-handshakes")
+    tunnel_names = {entry["link"] for entry in config["profiles"].values()}
+    ages = []
+    for peer in profile["peers"]:
+        key = peer["public_key"]
+        current = endpoints.get(key)
+        if current is None:
+            faults.append("configured peer is missing from the running interface")
+            continue
+        if current == "(none)":
+            faults.append("peer endpoint unset; check endpoint DNS on the underlay")
+            continue
+        host, _ = host_port(current)
+        try:
+            path = route(host, mark)
+        except Failure:
+            path = {}
+        if path.get("dev") in tunnel_names:
+            faults.append(f"endpoint {host} routes through {path['dev']}")
+        elif not path.get("dev"):
+            faults.append(f"no underlay route to endpoint {host}")
+        last = int(times.get(key, "0"))
+        ages.append(max(0, int(time.time()) - last) if last else None)
+    if faults:
+        return up, "fault", faults
+    if not ages or any(age is None or age > RECENT_HANDSHAKE for age in ages):
+        return up, "pending", ["no recent handshake; run a tunnel probe"]
+    return up, "ok", [f"latest handshake {max(ages)}s ago"]
+
+
+def probe(profile, targets, count, timeout):
+    iface = profile["link"]
+    failures = []
+    successful = False
+    for target in targets or profile["dns"]:
+        try:
+            address = str(ipaddress.ip_address(target))
+            if route(address).get("dev") != iface:
+                failures.append(f"{address} does not route through {iface}")
+                continue
+        except (ValueError, Failure):
+            failures.append(f"could not verify the tunnel route for {target}")
+            continue
+        if attempt("ping", "-n", "-I", iface, "-c", str(count), "-W", str(timeout), address,
+                   timeout=count * (timeout + 1) + 1) is None:
+            failures.append(f"no ICMP response from {address}")
+        else:
+            successful = True
+    for server in profile["dns"]:
+        try:
+            path = route(server)
+        except Failure:
+            path = {}
+        if path.get("dev") != iface:
+            failures.append(f"DNS server {server} does not route through {iface}")
+            continue
+        if not shutil.which("dig"):
+            failures.append("DNS probe unavailable: dig is missing")
+            continue
+        source = path.get("prefsrc") or path.get("src") or (profile["address"] or "").split("/")[0]
+        if not source:
+            failures.append(f"DNS source address for {server} unavailable")
+            continue
+        reply = attempt("dig", "-b", source, f"@{server}", "example.com.", "A", "+time=2",
+                        "+tries=1", "+noall", "+comments")
+        if reply and re.search(r"status: (NOERROR|NXDOMAIN),", reply):
+            successful = True
+        else:
+            failures.append(f"DNS server {server} did not return a usable response")
+    return successful, failures
+
+
+def safe_full_route(profile, endpoint, mark, tunnel_names):
+    host, _ = host_port(endpoint)
+    path = route(host, mark, fibmatch=True)
+    dev = path.get("dev")
+    if not dev or dev in tunnel_names or dev == "lo":
+        raise Failure(f"endpoint {host} has no usable underlay route")
+    address = ipaddress.ip_address(host)
+    rules = ip_json("-6" if address.version == 6 else "-4", "rule", "show")
+    if any(rule.get("table") not in ("local", "main", "default")
+           or set(rule) - {"priority", "src", "table", "protocol"} for rule in rules):
+        raise Failure(f"cannot prove endpoint {host} stays on {dev} with these routing rules")
+    destination = path.get("dst", "default")
+    prefix = ipaddress.ip_network(destination, strict=False).prefixlen if destination != "default" else 0
+    for entry in profile["routes"]:
+        added = ipaddress.ip_network(entry["destination"])
+        if address.version == added.version and address in added:
+            if prefix <= added.prefixlen:
+                raise Failure(f"endpoint {host} uses {destination} via {dev}; "
+                              f"the tunnel route {added} can capture it")
+    device = next(iter(ip_json("link", "show", "dev", dev)), {})
+    if device.get("link_type") != "ether" or "LOWER_UP" not in device.get("flags", []):
+        raise Failure(f"endpoint {host} does not have a verified Wi-Fi or Ethernet link")
+    return dev
+
+
+def check_full_config(profile, link):
+    if link.get("NetworkFileDropins") or link.get("NetDevFileDropins"):
+        raise Failure(f"{profile['link']}: cannot verify full-tunnel routing with networkd drop-ins")
+
+
+def preflight(config, mode, profile):
+    iface = profile["link"]
+    link = describe(profile)
+    if not link.get("NetworkFile") or not link.get("NetDevFile") or link.get("Kind") != "wireguard":
+        raise Failure(f"{iface} is missing or unmanaged; inspect the networkd .network and .netdev files")
+    if not profile["peers"] or not profile["address"]:
+        raise Failure(f"{iface}: an explicit address and WireGuard peer endpoint are required")
+    if mode != "full":
+        return
+    check_full_config(profile, link)
+    mark = run("wg", "show", iface, "fwmark")
+    endpoints = read_peers(iface, "endpoints")
+    names = {entry["link"] for entry in config["profiles"].values()}
+    for peer in profile["peers"]:
+        current = endpoints.get(peer["public_key"])
+        if not current or current == "(none)":
+            raise Failure(f"{iface} needs a resolved endpoint before full-tunnel activation")
+        safe_full_route(profile, current, mark, names)
+
+
+def reconcile(config, desired):
+    if desired is None:
+        return
+    profiles = config["profiles"]
+    if desired == "off":
+        for profile in profiles.values():
+            if is_up(profile["link"]):
+                print(f"Bringing down {profile['link']}", file=sys.stderr)
+                run("networkctl", "down", profile["link"])
+        return
+    profile = profiles[desired]
+    iface = profile["link"]
+    preflight(config, desired, profile)
+    previous = [entry["link"] for mode, entry in profiles.items()
+                if mode != desired and is_up(entry["link"])]
+    changed = []
+    was_up = is_up(iface)
+    try:
+        for other in previous:
+            run("networkctl", "down", other)
+            changed.append(other)
+        if not was_up:
+            print(f"Bringing up {iface}", file=sys.stderr)
+            run("networkctl", "up", iface)
+        elif any(fault != "per-link DNS state unavailable"
+                 for fault in local_faults(profile, describe(profile))):
+            print(f"Reconfiguring {iface}", file=sys.stderr)
+            run("networkctl", "reconfigure", iface)
+        if not is_up(iface):
+            raise Failure(f"{iface} is still down after activation")
+    except Failure:
+        if not was_up and is_up(iface):
+            attempt("networkctl", "down", iface)
+        for other in changed:
+            if attempt("networkctl", "up", other) is None:
+                print(f"Could not restore {other}", file=sys.stderr)
+        raise
+
+
+def reset(config, mode, desired, source, wifi, args):
+    profile = config["profiles"][mode]
+    iface = profile["link"]
+    if desired == "off" or (desired and desired != mode) or (desired is None and not is_up(iface)):
+        raise Failure(f"{iface} is inactive by policy or intent is unavailable; select its mode first")
+    if any(is_up(p["link"]) for other, p in config["profiles"].items() if other != mode):
+        raise Failure("Another tunnel is active; select the desired mode before resetting")
+    preflight(config, "home", profile)
+    if mode == "full":
+        check_full_config(profile, describe(profile))
+    mark = run("wg", "show", iface, "fwmark")
+    endpoints = read_peers(iface, "endpoints")
+    names = {entry["link"] for entry in config["profiles"].values()}
+    changes = []
+    for peer in profile["peers"]:
+        key = peer["public_key"]
+        if key not in endpoints:
+            raise Failure("Configured peer is missing; inspect the networkd .network and .netdev files")
+        current = endpoints[key]
+        try:
+            candidates = resolve(peer["endpoint"], uplink(wifi, config))
+        except Failure:
+            if current == "(none)":
+                raise
+            print("Endpoint DNS lookup failed; retaining the current runtime endpoint", file=sys.stderr)
+            candidates = [current]
+        for candidate in sorted(candidates, key=lambda entry: entry != current):
+            try:
+                if mode == "full":
+                    safe_full_route(profile, candidate, mark, names)
+                else:
+                    dev = route(host_port(candidate)[0], mark).get("dev")
+                    if not dev or dev in names or dev == "lo":
+                        raise Failure(f"endpoint {candidate} has no usable underlay route")
+                break
+            except Failure as error:
+                last_error = error
+        else:
+            raise last_error
+        if candidate != current:
+            changes.append((key, candidate, current))
+    if args.dry_run:
+        local = "activate" if not is_up(iface) else "leave interface up"
+        if is_up(iface) and local_faults(profile, describe(profile)):
+            local = "reconfigure"
+        print(f"{iface}: {local}; refresh {len(changes)} changed endpoint(s); verify handshake and traffic")
+        return
+    applied = []
+    try:
+        for key, candidate, old in changes:
+            run("wg", "set", iface, "peer", key, "endpoint", candidate)
+            applied.append((key, old))
+        reconcile(config, mode)
+    except Failure:
+        for key, old in applied:
+            if old != "(none)" and attempt("wg", "set", iface, "peer", key, "endpoint", old) is None:
+                print("Could not restore a previous endpoint", file=sys.stderr)
+        raise
+    result = 1
+    for retry in range(3):
+        result = diagnose(config, [mode], mode, source, args, quiet=retry < 2)
+        if result == 0:
+            print(f"{iface}: handshake and tunnel traffic verified")
+            return
+        if retry < 2:
+            time.sleep(1)
+    for key, old in applied:
+        if old != "(none)" and attempt("wg", "set", iface, "peer", key, "endpoint", old) is None:
+            print("Could not restore a previous endpoint", file=sys.stderr)
+    raise Failure(f"{iface} did not pass recovery verification")
+
+
+def endpoint_diagnostics(config, profile):
+    endpoints = read_peers(profile["link"], "endpoints")
+    wifi, _ = association()
+    link = uplink(wifi, config)
+    notes = []
+    for peer in profile["peers"]:
+        try:
+            candidates = resolve(peer["endpoint"], link)
+        except Failure as error:
+            notes.append(str(error))
+            continue
+        current = endpoints.get(peer["public_key"])
+        if current not in candidates and current not in (None, "(none)"):
+            notes.append(f"runtime endpoint {current} differs from configured DNS")
+    return notes
+
+
+def diagnose(config, modes, desired, source, args, quiet=False):
+    result = 0
+    for mode in modes:
+        profile = config["profiles"][mode]
+        iface = profile["link"]
+        try:
+            up, level, messages = status_profile(config, mode, desired, source)
+            if up and level in ("ok", "pending"):
+                successful, failures = probe(profile, args.target, args.ping_count, args.ping_timeout)
+                _, level, messages = status_profile(config, mode, desired, source)
+                if level == "pending":
+                    level = "fault"
+                    messages = ["handshake not verified; possible UDP filtering, server outage, or peer mismatch"]
+                elif level == "ok" and (not successful or failures):
+                    level = "fault"
+                messages += failures
+            if up and level == "fault" and not quiet:
+                messages += endpoint_diagnostics(config, profile)
+        except Failure as error:
+            level, messages = "unknown", [str(error)]
+        if level not in ("ok", "off"):
+            result = max(result, 2 if level == "unknown" else 1)
+        if quiet:
+            continue
+        print(f"{iface}: {level} — {'; '.join(messages)}")
+        if level in ("fault", "pending") and desired == mode:
+            print(f"  Recovery: cq_wg_reset {iface}")
+        if args.verbose:
+            link = describe(profile)
+            print(f"  Desired: {desired or 'unknown'} ({source})")
+            print(f"  Networkd: {link.get('AdministrativeState', 'unavailable')}")
+            print(f"  Config: {link.get('NetworkFile', 'unavailable')}")
+            for family in ("-4", "-6"):
+                details = attempt("ip", family, "route", "show", "table", "all", "dev", iface)
+                if details:
+                    print(details)
+            for field in ("dns", "domain"):
+                print(attempt("resolvectl", field, iface) or f"{field}: unavailable")
+            history = attempt("journalctl", "-b", "-u", "systemd-networkd", "-n", "5",
+                              "--no-pager", "-o", "cat", "-g",
+                              rf"{re.escape(iface)}:.*Failed to resolve host")
+            if history and "Failed to resolve host" in history:
+                print("  Earlier this boot, networkd logged endpoint resolution failures.")
+    return result
+
+
+def publish(config, desired, source, error=None):
+    active = [p["link"] for p in config["profiles"].values() if is_up(p["link"])]
+    iface = config["profiles"].get(desired, {}).get("link")
+    if error:
+        level, detail = "fault", error
+    elif iface:
+        try:
+            _, level, notes = status_profile(config, desired, desired, source)
+        except Failure as exc:
+            level, notes = "unknown", [str(exc)]
+        detail = "; ".join(notes)
+    elif desired == "off":
+        level, detail = ("fault", "unexpected active tunnel") if active else ("off", "intentionally off")
+    else:
+        level, detail = "unknown", "policy intent unavailable"
+    save("status.json", {"time": time.monotonic(), "level": level, "desired": desired,
+                         "source": source, "active": active, "iface": iface, "detail": detail}, 0o644)
+
+
+def render_status(waybar):
+    status = load(RUNTIME / "status.json")
+    age = time.monotonic() - status.get("time", -float("inf"))
+    if not 0 <= age <= STATUS_TTL:
+        status = {"level": "unknown", "detail": "WireGuard policy status unavailable or stale"}
+    level = status["level"]
+    iface = status.get("iface")
+    text = {"off": "VPN off", "unknown": "VPN ?", "fault": "VPN !",
+            "pending": f"{iface} …"}.get(level, iface)
+    active = ", ".join(status.get("active", [])) or "none"
+    tip = (f"Desired: {status.get('desired') or 'unknown'} ({status.get('source', 'unavailable')})\n"
+           f"Active: {active}\n{status['detail']}\ncq_wg_diag {iface or 'wg-home'}")
+    if waybar:
+        import html
+        print(json.dumps({"text": text, "tooltip": html.escape(tip), "class": level}))
+    else:
+        print(tip)
+    return 0
+
+
+def positive(value):
+    number = int(value)
+    if not 1 <= number <= 5:
+        raise argparse.ArgumentTypeError("must be in 1–5")
+    return number
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", choices=("diag", "check", "reset", "home", "full", "off",
+                                           "auto", "tick", "status", "waybar", "reconnect", "portal-start", "portal-end"))
+    parser.add_argument("interfaces", nargs="*")
+    parser.add_argument("--target", action="append")
+    parser.add_argument("--ping-count", type=positive, default=1)
+    parser.add_argument("--ping-timeout", type=positive, default=1)
+    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_intermixed_args()
+    cmd = args.command
+    if cmd in ("status", "waybar"):
+        return render_status(cmd == "waybar")
+    config = load(CONFIG)
+    if not config or os.geteuid():
+        raise Failure("Run the standalone installer and use sudo")
+    config["profiles"] = {mode: profile_config(iface) for mode, iface in config["profiles"].items()}
+    by_iface = {p["link"]: mode for mode, p in config["profiles"].items()}
+    modes = []
+    if cmd in ("diag", "check", "reset"):
+        if cmd != "check" and len(args.interfaces) > 1:
+            parser.error("expected one interface")
+        for iface in args.interfaces:
+            if iface not in by_iface:
+                parser.error(f"unknown profile {iface}")
+            modes.append(by_iface[iface])
+        if not modes:
+            modes = list(config["profiles"]) if cmd == "check" else ["home"]
+    elif len(args.interfaces) != (1 if cmd == "portal-end" else 0):
+        parser.error("unexpected arguments")
+    if args.dry_run and cmd != "reset":
+        parser.error("--dry-run requires reset")
+
+    if cmd in ("diag", "check") or args.dry_run:
+        wifi, ssid = association()
+        state = load(RUNTIME / "intent.json")
+        desired, source = intent(config, state, ssid)
+        if args.dry_run:
+            reset(config, modes[0], desired, source, wifi, args)
+            return 0
+        return diagnose(config, modes, desired, source, args)
+
+    with lock():
+        wifi, ssid = association()
+        state = load(RUNTIME / "intent.json")
+        desired, source = intent(config, state, ssid)
+        previous = state.copy()
+        token = None
+        if cmd in ("home", "full", "off"):
+            if not ssid:
+                raise Failure("A current Wi-Fi SSID is required to save a manual mode")
+            remember_mode(state, cmd, desired, source, ssid)
+        elif cmd == "auto":
+            state.clear()
+        elif cmd == "portal-start":
+            if not ssid or "portal" in state:
+                raise Failure("Portal pause requires Wi-Fi and no existing portal pause")
+            token = secrets.token_hex(16)
+            state["portal"] = {"token": token, "until": time.monotonic() + 600, "ssid": ssid}
+        elif cmd == "portal-end":
+            if state.get("portal", {}).get("token") != args.interfaces[0]:
+                return 0
+            state.pop("portal")
+        if cmd == "reconnect":
+            modes = [resume_mode(config, state, ssid)]
+        desired, source = intent(config, state, ssid)
+        try:
+            if cmd in ("reset", "reconnect"):
+                reset(config, modes[0], desired, source, wifi, args)
+            else:
+                reconcile(config, desired)
+        except Failure as error:
+            if cmd in ("home", "full", "off", "portal-start") or (
+                    cmd == "reconnect" and not is_up(config["profiles"][modes[0]]["link"])):
+                state = previous
+                desired, source = intent(config, state, ssid)
+            save("intent.json", state, 0o600)
+            publish(config, desired, source, str(error))
+            raise
+        save("intent.json", state, 0o600)
+        publish(config, desired, source)
+        if token:
+            print(token)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (Failure, OSError, ValueError) as error:
+        print(f"cq-wg: {error}", file=sys.stderr)
+        sys.exit(1)

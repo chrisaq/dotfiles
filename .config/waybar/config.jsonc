@@ -17,8 +17,26 @@
     // positions generated based on config.ctl //
     "modules-left": ["custom/smallspacer","custom/smallspacer","ext/workspaces","custom/spacer","custom/submap-options","custom/spacer","mpris"],
     "modules-center": ["custom/padd","custom/l_end","custom/r_end","hyprland/window","custom/padd"],
-    "modules-right": ["custom/padd","custom/l_end","group/expand","network","custom/maintenance","custom/idlelock","group/expand-3","group/expand-2","battery","power-profiles-daemon","custom/smallspacer","memory","cpu","clock","custom/smallspacer","custom/notification","custom/padd"],
+    "modules-right": ["custom/padd","custom/l_end","group/expand","network","custom/wireguard","custom/maintenance","custom/idlelock","group/expand-3","group/expand-2","battery","power-profiles-daemon","custom/smallspacer","memory","cpu","clock","custom/smallspacer","custom/notification","custom/padd"],
 
+
+    "custom/wireguard": {
+        "exec": "/usr/local/libexec/cq-wg waybar",
+        "return-type": "json",
+        "interval": 5,
+        "format": "{}",
+        "tooltip": true,
+        "menu": "on-click",
+        "menu-file": "$HOME/.config/waybar/wireguard-menu.xml",
+        "menu-actions": {
+            "reconnect": "ghostty --wait-after-command=true -e sudo /usr/local/libexec/cq-wg reconnect",
+            "disconnect": "ghostty --wait-after-command=true -e sudo /usr/local/libexec/cq-wg off",
+            "split": "ghostty --wait-after-command=true -e sudo /usr/local/libexec/cq-wg home",
+            "full": "ghostty --wait-after-command=true -e sudo /usr/local/libexec/cq-wg full",
+            "automatic": "ghostty --wait-after-command=true -e sudo /usr/local/libexec/cq-wg auto",
+            "diagnose": "ghostty --wait-after-command=true -e sudo /usr/local/libexec/cq-wg check --verbose"
+        }
+    },
 
     // Cached maintenance status: collector checks; the bar only reads observations.
     "custom/maintenance": {
